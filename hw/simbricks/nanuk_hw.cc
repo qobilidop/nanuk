@@ -1,15 +1,17 @@
 /*
  * nanuk_hw: SimBricks network component wrapping the Verilator'd nanuk
- * parser core.
+ * parser + match-action cores (composed PP->MAP pipeline).
  *
  * Structure follows SimBricks' sims/net/switch/net_switch.cc (ports, argv,
  * connection setup) combined with sims/net/menshen/menshen_hw.cc (clocked
- * Verilator main loop). Forwarding policy is the stage-4 design's
- * deliberately dumb harness: parse each frame on the nanuk core; verdict
- * accept => flood to all other ports; anything else => drop. The parser
- * program decides what traffic the switch passes.
+ * Verilator main loop). M2 forwarding: each frame is parsed by the PP core,
+ * then (on accept) processed by the MAP core — the composed PP->MAP
+ * pipeline. The MAP's egress bitmap and head delta decide where the
+ * (possibly rewritten) frame goes; the TABLE is the forwarding policy,
+ * loaded from a file and hot-reloaded on mtime change.
  *
- * Usage: nanuk_hw [-S SYNC-PERIOD] [-E ETH-LATENCY] [-u] -f PROG.BIN \
+ * Usage: nanuk_hw [-S SYNC-PERIOD] [-E ETH-LATENCY] [-u] -f PP_PROG.BIN \
+ *            -m MAP_PROG.BIN [-t TABLES.TXT] \
  *            -s SOCKET-A [-s SOCKET-B ...] [-h LISTEN-SOCKET ...]
  */
 
@@ -31,6 +33,11 @@ extern "C" {
 }
 
 #include "Vnanuk_core.h"
+#include "Vnanuk_map_core.h"
+
+#include <sys/stat.h>
+
+#include <set>
 
 #define MAX_PKT_SIZE 2048
 #define CORE_BUF_BYTES 256
@@ -228,30 +235,159 @@ static void sigusr1_handler(int dummy) {
   fprintf(stderr, "nanuk_hw: main_time = %lu\n", cur_ts);
 }
 
-/* -------------------- Parser-gated flood controller -------------------- */
+/* ------------------ Composed PP -> MAP pipeline controller ------------------ */
+
+#define MAP_HEADROOM 32
+#define MAP_WIN_BYTES 288
+
+/* Table state loaded from -t FILE (M1 ctx.txt `table`/`entry` lines). */
+struct TableEntry {
+  uint64_t table, key, action;
+};
+struct TableConfig {
+  uint64_t id, kw, aw;
+};
+struct Tables {
+  std::vector<TableConfig> configs;
+  std::vector<TableEntry> entries;
+};
+
+static uint64_t mask_width(uint64_t v, uint64_t w) {
+  if (w == 0)
+    return 0;
+  if (w >= 64)
+    return v;
+  return v & ((1ULL << w) - 1);
+}
+
+static bool parse_tables(const char *path, Tables &out) {
+  FILE *f = fopen(path, "r");
+  if (!f) {
+    fprintf(stderr, "nanuk_hw: cannot open tables %s\n", path);
+    return false;
+  }
+  out.configs.clear();
+  out.entries.clear();
+  char line[256];
+  while (fgets(line, sizeof line, f)) {
+    char *hash = strchr(line, '#');
+    if (hash) *hash = '\0';
+    char *kw = strtok(line, " \t\r\n");
+    if (!kw) continue;
+    if (strcmp(kw, "table") == 0) {
+      TableConfig c;
+      c.id = strtoull(strtok(NULL, " \t\r\n") ?: "0", NULL, 0);
+      c.kw = strtoull(strtok(NULL, " \t\r\n") ?: "0", NULL, 0);
+      c.aw = strtoull(strtok(NULL, " \t\r\n") ?: "0", NULL, 0);
+      out.configs.push_back(c);
+    } else if (strcmp(kw, "entry") == 0) {
+      TableEntry e;
+      e.table = strtoull(strtok(NULL, " \t\r\n") ?: "0", NULL, 0);
+      e.key = strtoull(strtok(NULL, " \t\r\n") ?: "0", NULL, 0);
+      e.action = strtoull(strtok(NULL, " \t\r\n") ?: "0", NULL, 0);
+      out.entries.push_back(e);
+    } else {
+      fprintf(stderr, "nanuk_hw: tables: unknown keyword %s\n", kw);
+      fclose(f);
+      return false;
+    }
+  }
+  fclose(f);
+  return true;
+}
+
+/* Clocked poke of the table config into the MAP model (own clock toggles;
+ * only called outside the main loop or while the controller is idle). */
+static void program_tables(Vnanuk_map_core &map, const Tables &t) {
+  auto tick = [&]() {
+    map.clk = 0;
+    map.eval();
+    map.clk = 1;
+    map.eval();
+  };
+  for (const auto &c : t.configs) {
+    map.tbl_cfg_we = 1;
+    map.tbl_cfg_id = c.id & 3;
+    map.tbl_cfg_kw = c.kw;
+    map.tbl_cfg_aw = c.aw;
+    tick();
+  }
+  map.tbl_cfg_we = 0;
+  /* Widths for masking adds (mirror emu_map_table_add). */
+  uint64_t kws[4] = {0, 0, 0, 0}, aws[4] = {0, 0, 0, 0};
+  for (const auto &c : t.configs) {
+    kws[c.id & 3] = c.kw;
+    aws[c.id & 3] = c.aw;
+  }
+  for (const auto &e : t.entries) {
+    map.tbl_add_we = 1;
+    map.tbl_add_id = e.table & 3;
+    map.tbl_add_key = mask_width(e.key, kws[e.table & 3]);
+    map.tbl_add_action = mask_width(e.action, aws[e.table & 3]);
+    tick();
+  }
+  map.tbl_add_we = 0;
+  tick();
+  fprintf(stderr, "nanuk_hw: tables programmed (%zu configs, %zu entries)\n",
+          t.configs.size(), t.entries.size());
+}
 
 class Controller {
-  enum State { kIdle, kLoad, kStart, kWait };
+  enum State {
+    kIdle,
+    kLoad,
+    kStart,
+    kWait,
+    kMapLoad,
+    kMapStart,
+    kMapWait,
+    kMapRead
+  };
 
-  Vnanuk_core &top;
+  Vnanuk_core &pp;
+  Vnanuk_map_core &map;
   State state = kIdle;
   size_t load_idx = 0;
-  uint64_t frames_in = 0, frames_fwd = 0, frames_drop = 0;
+  int64_t map_delta = 0;
+  size_t rb_len = 0, rb_i = 0;
+  uint8_t tx_buf[MAX_PKT_SIZE + MAP_HEADROOM];
+  uint64_t frames_in = 0, frames_sent = 0, frames_drop = 0, map_err = 0;
+  uint64_t flooded = 0, delta_pos = 0, delta_neg = 0;
+  std::set<uint64_t> seen_dmacs;
 
  public:
-  explicit Controller(Vnanuk_core &top_) : top(top_) {
+  bool idle() const {
+    return state == kIdle && rx_queue.empty();
   }
 
-  /* Called between falling and rising clock edge: drive inputs, read
-   * outputs (which reflect the state after the previous rising edge). */
+  Controller(Vnanuk_core &pp_, Vnanuk_map_core &map_) : pp(pp_), map(map_) {
+  }
+
+  void log_dmac(const Frame &f) {
+    if (f.len < 6 || seen_dmacs.size() >= 8)
+      return;
+    uint64_t dmac = 0;
+    for (int i = 0; i < 6; i++)
+      dmac = (dmac << 8) | f.data[i];
+    if (seen_dmacs.insert(dmac).second) {
+      fprintf(stderr,
+              "nanuk_hw: port %zu dmac %02x:%02x:%02x:%02x:%02x:%02x\n",
+              f.port, f.data[0], f.data[1], f.data[2], f.data[3], f.data[4],
+              f.data[5]);
+    }
+  }
+
   void step() {
-    top.pkt_we = 0;
-    top.start = 0;
+    pp.pkt_we = 0;
+    pp.start = 0;
+    map.win_we = 0;
+    map.start = 0;
 
     switch (state) {
       case kIdle:
         if (!rx_queue.empty()) {
           frames_in++;
+          log_dmac(rx_queue.front());
           load_idx = 0;
           state = kLoad;
         }
@@ -260,47 +396,135 @@ class Controller {
       case kLoad: {
         Frame &f = rx_queue.front();
         size_t n = f.len < CORE_BUF_BYTES ? f.len : CORE_BUF_BYTES;
-        if (load_idx < n) {
-          top.pkt_we = 1;
-          top.pkt_addr = load_idx;
-          top.pkt_data = f.data[load_idx];
+        if (load_idx < CORE_BUF_BYTES) {
+          /* Full buffer: frame bytes then zero padding (stale bytes from the
+           * previous frame must not leak into short packets). */
+          pp.pkt_we = 1;
+          pp.pkt_addr = load_idx;
+          pp.pkt_data = load_idx < n ? f.data[load_idx] : 0;
           load_idx++;
         } else {
-          top.plen = f.len < 0xFFFF ? f.len : 0xFFFF;
-          top.start = 1;
+          pp.plen = f.len < 0xFFFF ? f.len : 0xFFFF;
+          pp.start = 1;
           state = kStart;
         }
         break;
       }
 
       case kStart:
-        /* start pulse consumed; core is running, done deasserted */
         state = kWait;
         break;
 
       case kWait:
-        if (top.done) {
-          Frame &f = rx_queue.front();
-          if (top.verdict == 0) {
-            /* accept: flood to all other ports */
-            for (size_t ep = 0; ep < ports.size(); ep++) {
-              if (ep != f.port)
-                ports[ep]->TxPacket(f.data, f.len, cur_ts);
-            }
-            frames_fwd++;
+        if (pp.done) {
+          if (pp.verdict == 0) {
+            load_idx = 0;
+            state = kMapLoad;
           } else {
             frames_drop++;
+            rx_queue.pop_front();
+            state = kIdle;
           }
+        }
+        break;
+
+      case kMapLoad: {
+        Frame &f = rx_queue.front();
+        size_t n = f.len < CORE_BUF_BYTES ? f.len : CORE_BUF_BYTES;
+        if (load_idx < MAP_WIN_BYTES) {
+          map.win_we = 1;
+          map.win_addr = load_idx;
+          size_t fo = load_idx - MAP_HEADROOM;
+          map.win_data =
+              (load_idx >= MAP_HEADROOM && fo < n) ? f.data[fo] : 0;
+          load_idx++;
+        } else {
+          /* Wire the PP's outbound contract into the MAP's inbound one. */
+          map.plen = f.len < 0xFFFF ? f.len : 0xFFFF;
+          map.ingress = f.port;
+          map.hdr_present_in = pp.hdr_present;
+          for (int i = 0; i < 8; i++)  /* 256-bit: 8 x 32-bit words */
+            map.hdr_offset_in[i] = pp.hdr_offset[i];
+          for (int i = 0; i < 4; i++)  /* 128-bit: 4 x 32-bit words */
+            map.smd_in[i] = pp.smd[i];
+          map.start = 1;
+          state = kMapStart;
+        }
+        break;
+      }
+
+      case kMapStart:
+        state = kMapWait;
+        break;
+
+      case kMapWait:
+        if (map.done) {
+          Frame &f = rx_queue.front();
+          if (map.verdict == 0) {
+            map_delta = (int16_t)map.delta;
+            size_t win_pl = f.len < CORE_BUF_BYTES ? f.len : CORE_BUF_BYTES;
+            rb_len = win_pl + map_delta; /* window part of the tx frame */
+            rb_i = 0;
+            map.win_rd_addr = MAP_HEADROOM - map_delta;
+            state = kMapRead;
+          } else if (map.verdict == 1) {
+            frames_drop++;
+            rx_queue.pop_front();
+            state = kIdle;
+          } else {
+            map_err++;
+            frames_drop++;
+            rx_queue.pop_front();
+            state = kIdle;
+          }
+        }
+        break;
+
+      case kMapRead: {
+        /* Sync read: win_rd_data reflects the addr set in the previous
+         * step (kMapWait set the first address): capture, then advance. */
+        Frame &f = rx_queue.front();
+        if (rb_i < rb_len) {
+          tx_buf[rb_i] = map.win_rd_data;
+          map.win_rd_addr = MAP_HEADROOM - map_delta + rb_i + 1;
+          rb_i++;
+        } else {
+          /* Tail passthrough for frames beyond the 256B window. */
+          size_t tx_len = rb_len;
+          if (f.len > CORE_BUF_BYTES) {
+            size_t tail = f.len - CORE_BUF_BYTES;
+            if (tx_len + tail > sizeof(tx_buf))
+              tail = sizeof(tx_buf) - tx_len;
+            memcpy(tx_buf + tx_len, f.data + CORE_BUF_BYTES, tail);
+            tx_len += tail;
+          }
+          unsigned egress = map.egress & 0xF;
+          unsigned popcount = __builtin_popcount(egress);
+          if (popcount > 1)
+            flooded++;
+          if (map_delta > 0)
+            delta_pos++;
+          else if (map_delta < 0)
+            delta_neg++;
+          for (size_t ep = 0; ep < ports.size() && ep < 4; ep++) {
+            if (egress & (1u << ep))
+              ports[ep]->TxPacket(tx_buf, tx_len, cur_ts);
+          }
+          frames_sent++;
           rx_queue.pop_front();
           state = kIdle;
         }
         break;
+      }
     }
   }
 
   void stats() {
-    fprintf(stderr, "nanuk_hw: frames in=%lu forwarded=%lu dropped=%lu\n",
-            frames_in, frames_fwd, frames_drop);
+    fprintf(stderr,
+            "nanuk_hw: frames in=%lu sent=%lu dropped=%lu map_err=%lu "
+            "flooded=%lu delta_pos=%lu delta_neg=%lu\n",
+            frames_in, frames_sent, frames_drop, map_err, flooded, delta_pos,
+            delta_neg);
   }
 };
 
@@ -340,7 +564,6 @@ static bool load_program(Vnanuk_core &top, const char *path) {
   while (fread(word, 1, 4, f) == 4) {
     uint32_t w = ((uint32_t)word[0] << 24) | ((uint32_t)word[1] << 16) |
                  ((uint32_t)word[2] << 8) | (uint32_t)word[3];
-    /* one program word per clock cycle */
     top.prog_we = 1;
     top.prog_addr = addr++;
     top.prog_data = w;
@@ -351,8 +574,41 @@ static bool load_program(Vnanuk_core &top, const char *path) {
   }
   top.prog_we = 0;
   fclose(f);
-  fprintf(stderr, "nanuk_hw: loaded %u program words from %s\n", addr, path);
+  fprintf(stderr, "nanuk_hw: loaded %u PP program words from %s\n", addr, path);
   return addr > 0;
+}
+
+static bool load_map_program(Vnanuk_map_core &top, const char *path) {
+  FILE *f = fopen(path, "rb");
+  if (!f) {
+    fprintf(stderr, "nanuk_hw: cannot open MAP program %s\n", path);
+    return false;
+  }
+  uint8_t word[4];
+  uint16_t addr = 0;
+  while (fread(word, 1, 4, f) == 4) {
+    uint32_t w = ((uint32_t)word[0] << 24) | ((uint32_t)word[1] << 16) |
+                 ((uint32_t)word[2] << 8) | (uint32_t)word[3];
+    top.prog_we = 1;
+    top.prog_addr = addr++;
+    top.prog_data = w;
+    top.clk = 0;
+    top.eval();
+    top.clk = 1;
+    top.eval();
+  }
+  top.prog_we = 0;
+  fclose(f);
+  fprintf(stderr, "nanuk_hw: loaded %u MAP program words from %s\n", addr,
+          path);
+  return addr > 0;
+}
+
+static time_t tables_mtime(const char *path) {
+  struct stat st;
+  if (stat(path, &st) != 0)
+    return 0;
+  return st.st_mtime;
 }
 
 int main(int argc, char *argv[]) {
@@ -360,10 +616,12 @@ int main(int argc, char *argv[]) {
   int bad_option = 0;
   int sync_eth = 1;
   const char *prog_path = getenv("NANUK_PROG");
+  const char *map_prog_path = getenv("NANUK_MAP_PROG");
+  const char *tables_path = getenv("NANUK_TABLES");
 
   SimbricksNetIfDefaultParams(&netParams);
 
-  while ((c = getopt(argc, argv, "s:h:uS:E:f:")) != -1 && !bad_option) {
+  while ((c = getopt(argc, argv, "s:h:uS:E:f:m:t:")) != -1 && !bad_option) {
     switch (c) {
       case 's':
         fprintf(stderr, "nanuk_hw: connecting to: %s\n", optarg);
@@ -385,6 +643,12 @@ int main(int argc, char *argv[]) {
       case 'f':
         prog_path = optarg;
         break;
+      case 'm':
+        map_prog_path = optarg;
+        break;
+      case 't':
+        tables_path = optarg;
+        break;
       default:
         fprintf(stderr, "unknown option %c\n", c);
         bad_option = 1;
@@ -392,10 +656,11 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (ports.empty() || bad_option || !prog_path) {
+  if (ports.empty() || bad_option || !prog_path || !map_prog_path) {
     fprintf(stderr,
             "Usage: nanuk_hw [-S SYNC-PERIOD] [-E ETH-LATENCY] [-u] "
-            "-f PROG.BIN -s SOCKET-A [-s SOCKET-B ...]\n");
+            "-f PP_PROG.BIN -m MAP_PROG.BIN [-t TABLES.TXT] "
+            "-s SOCKET-A [-s SOCKET-B ...]\n");
     return EXIT_FAILURE;
   }
 
@@ -405,27 +670,48 @@ int main(int argc, char *argv[]) {
 
   char *vargs[2] = {argv[0], NULL};
   Verilated::commandArgs(1, vargs);
-  Vnanuk_core *top = new Vnanuk_core;
+  Vnanuk_core *pp = new Vnanuk_core;
+  Vnanuk_map_core *map = new Vnanuk_map_core;
 
-  /* reset */
-  top->rst = 1;
+  /* reset both cores */
+  pp->rst = 1;
+  map->rst = 1;
   for (int i = 0; i < 8; i++) {
-    top->clk = 0;
-    top->eval();
-    top->clk = 1;
-    top->eval();
+    pp->clk = 0;
+    map->clk = 0;
+    pp->eval();
+    map->eval();
+    pp->clk = 1;
+    map->clk = 1;
+    pp->eval();
+    map->eval();
   }
-  top->rst = 0;
+  pp->rst = 0;
+  map->rst = 0;
 
-  if (!load_program(*top, prog_path))
+  if (!load_program(*pp, prog_path))
     return EXIT_FAILURE;
+  if (!load_map_program(*map, map_prog_path))
+    return EXIT_FAILURE;
+
+  Tables tables;
+  time_t tables_seen = 0;
+  if (tables_path) {
+    if (!parse_tables(tables_path, tables))
+      return EXIT_FAILURE;
+    program_tables(*map, tables);
+    tables_seen = tables_mtime(tables_path);
+  } else {
+    fprintf(stderr, "nanuk_hw: no tables file; all lookups miss\n");
+  }
 
   if (!ConnectAll(ports))
     return EXIT_FAILURE;
 
-  Controller ctrl(*top);
+  Controller ctrl(*pp, *map);
   fprintf(stderr, "nanuk_hw: start polling\n");
 
+  uint64_t iter = 0;
   while (!exiting) {
     for (auto port : ports)
       port->Sync(cur_ts);
@@ -433,16 +719,33 @@ int main(int argc, char *argv[]) {
     poll_ports();
 
     /* falling edge */
-    top->clk = 0;
-    top->eval();
+    pp->clk = 0;
+    map->clk = 0;
+    pp->eval();
+    map->eval();
 
     ctrl.step();
 
     /* rising edge */
-    top->clk = 1;
-    top->eval();
+    pp->clk = 1;
+    map->clk = 1;
+    pp->eval();
+    map->eval();
 
     cur_ts += clock_period;
+
+    /* Hot-reload tables on mtime change (the table IS the policy). Only
+     * between frames, so a frame never sees a half-programmed table. */
+    if (tables_path && (++iter & 0xFFFF) == 0 && ctrl.idle()) {
+      time_t mt = tables_mtime(tables_path);
+      if (mt != 0 && mt != tables_seen) {
+        tables_seen = mt;
+        if (parse_tables(tables_path, tables)) {
+          program_tables(*map, tables);
+          fprintf(stderr, "nanuk_hw: tables reloaded\n");
+        }
+      }
+    }
   }
 
   ctrl.stats();
