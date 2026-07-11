@@ -12,6 +12,7 @@ dev = [
     "pytest>=8",
     "nanuk-spec",
     "scapy>=2.5",
+    "z3-solver>=4.16.0.0",
 ]
 
 [tool.uv.sources]
