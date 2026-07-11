@@ -2,6 +2,10 @@
 
 Building a programmable packet processor from chip to programming language. 🐻‍❄️
 
+**[Landing page](https://qobilidop.github.io/nanuk/)** ·
+**[Playground](https://qobilidop.github.io/nanuk/play/)** — the eDSL, IR,
+and assembly, live in your browser.
+
 nanuk is an educational project: a packet-parser ISA (inspired by
 [xISA](https://xsightlabs.com/wp-content/uploads/2025/03/XISA_Public-.pdf))
 specified formally in [Sail](https://github.com/rems-project/sail), with a
