@@ -31,3 +31,4 @@ function(add_map_sail_test TEST_NAME TEST_SAIL)
 endfunction()
 
 add_map_sail_test(test_map_decode spec/map-test/test_map_decode.sail)
+add_map_sail_test(test_map_exec_mem spec/map-test/test_map_exec_mem.sail)
