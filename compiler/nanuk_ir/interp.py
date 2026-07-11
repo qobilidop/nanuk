@@ -127,8 +127,46 @@ def interp(program: ir.Program, packet: bytes, *, check: bool = True) -> InterpR
 
 def _exec_op(m: _Machine, op: ir.Op) -> None:
     match op.WhichOneof("op"):
-        case _:
-            raise NotImplementedError  # Task 2
+        case "extract":  # EXT
+            e = op.extract
+            m.tick()
+            p = m.cursor * 8 + e.bit_offset
+            if p + e.width > m.hdr_limit * 8:
+                m.halt_err(ERR_HDR_VIOLATION)
+            first, last = p // 8, (p + e.width - 1) // 8
+            chunk = int.from_bytes(m.packet[first : last + 1], "big")
+            drop = (last - first + 1) * 8 - (p % 8) - e.width
+            m.values[e.value_id] = ((chunk >> drop) & ((1 << e.width) - 1), e.width)
+        case "shift":  # SHL
+            sh = op.shift
+            m.tick()
+            src, src_width = m.values[sh.src_value_id]
+            m.values[sh.value_id] = (
+                (src << sh.amount) & _MASK64,
+                min(64, src_width + sh.amount),
+            )
+        case "advance":  # ADVI / ADVR
+            adv = op.advance
+            m.tick()
+            if adv.WhichOneof("amount") == "const_bytes":
+                amount = adv.const_bytes
+            else:
+                amount = m.values[adv.value_id][0] & _MASK16  # ADVR uses rs[15:0]
+            if m.cursor + amount > m.hdr_limit:
+                m.halt_err(ERR_HDR_VIOLATION)
+            m.cursor += amount
+        case "mark":  # SETHDR — or, for a re-anchor, nothing at all
+            if op.mark.emit_sethdr:
+                m.tick()
+                m.hdr_present[op.mark.hdr_id] = 1
+                m.hdr_offset[op.mark.hdr_id] = m.cursor
+        case "emit_smd":  # STMD
+            e = op.emit_smd
+            m.tick()
+            value, width = m.values[e.value_id]
+            nunits = (width + 15) // 16
+            for i in range(nunits):  # MSB-first; in range per validate()
+                m.smd[e.slot + i] = (value >> (16 * (nunits - 1 - i))) & _MASK16
 
 
 def _exec_terminator(m: _Machine, term: ir.Terminator) -> str:

@@ -11,6 +11,7 @@ from nanuk_ir.interp import (
     VERDICT_DROP,
     VERDICT_ERROR,
     ERR_NONE,
+    ERR_HDR_VIOLATION,
     ERR_STEP_BUDGET,
     interp,
 )
@@ -87,3 +88,86 @@ def test_outputs_are_fresh_per_run():
     a, b = interp(p, b""), interp(p, b"")
     assert a.hdr_present == [0] * 16 and a.smd == [0] * 8
     assert a.hdr_present is not b.hdr_present  # no shared mutable state
+
+
+# -- linear ops (values mirror the stage-1 Sail test vectors) ----------------
+
+def one_state(ops: list[ir.Op], term: ir.Terminator | None = None) -> ir.Program:
+    return prog(ir.State(name="s", ops=ops, terminator=term or halt()))
+
+
+def ext(vid: int, boff: int, width: int) -> ir.Op:
+    return ir.Op(extract=ir.Extract(value_id=vid, bit_offset=boff, width=width))
+
+
+def smd_op(vid: int, slot: int) -> ir.Op:
+    return ir.Op(emit_smd=ir.EmitSmd(value_id=vid, slot=slot))
+
+
+def test_extract_crossing_byte_boundary():
+    # bits 4..11 of 0xAB,0xCD = 0xBC (network order, bit 0 = MSB)
+    p = one_state([ext(1, 4, 8), smd_op(1, 0)])
+    assert interp(p, b"\xab\xcd").smd[0] == 0xBC
+
+
+def test_extract_sub_byte_ihl():
+    # low nibble of 0x45 (IPv4 version/IHL byte) = 5
+    p = one_state([ext(1, 4, 4), smd_op(1, 0)])
+    assert interp(p, b"\x45").smd[0] == 5
+
+
+def test_extract_past_hdr_limit_is_error_1_and_counted():
+    p = one_state([ext(1, 0, 16)])
+    r = interp(p, b"\xff")  # 16 bits wanted, 8 available
+    assert (r.verdict, r.error) == (VERDICT_ERROR, ERR_HDR_VIOLATION)
+    assert r.steps == 1  # the failing EXT was fetched, hence counted
+
+
+def test_advance_const_moves_cursor_into_payload_offset():
+    p = one_state([ir.Op(advance=ir.Advance(const_bytes=3))])
+    r = interp(p, b"\x00" * 8)
+    assert r.accepted and r.payload_offset == 3
+
+
+def test_advance_past_hdr_limit_is_error_1():
+    p = one_state([ir.Op(advance=ir.Advance(const_bytes=9))])
+    r = interp(p, b"\x00" * 8)
+    assert (r.verdict, r.error) == (VERDICT_ERROR, ERR_HDR_VIOLATION)
+    assert r.payload_offset == 0  # cursor unchanged by the failing ADVI
+
+
+def test_advance_by_value_uses_low_16_bits():
+    # 24-bit value 0x010002: ADVR must advance by 0x0002, not 0x10002.
+    p = one_state([ext(1, 0, 24), ir.Op(advance=ir.Advance(value_id=1))])
+    r = interp(p, b"\x01\x00\x02" + b"\x00" * 5)
+    assert r.accepted and r.payload_offset == 2
+
+
+def test_shift_widens_and_truncates_at_64():
+    # 60-bit extract shifted by 8: width saturates at 64, value masked.
+    body = [
+        ext(1, 0, 60),
+        ir.Op(shift=ir.Shift(value_id=2, src_value_id=1, amount=8)),
+        smd_op(2, 0),  # 64-bit value -> 4 slots
+    ]
+    r = interp(one_state(body), b"\xff" * 8)
+    assert r.smd[:4] == [0xFFFF, 0xFFFF, 0xFFFF, 0xFF00]
+
+
+def test_mark_records_cursor_and_reanchor_is_free():
+    body = [
+        ir.Op(advance=ir.Advance(const_bytes=2)),
+        ir.Op(mark=ir.Mark(hdr_id=3, emit_sethdr=True)),
+        ir.Op(mark=ir.Mark(emit_sethdr=False)),  # re-anchor: no step, no record
+    ]
+    r = interp(one_state(body), b"\x00" * 4)
+    assert r.hdr(3) == 2
+    assert r.hdr_present == [0, 0, 0, 1] + [0] * 12
+    assert r.steps == 3  # advi + sethdr + halt; the re-anchor cost nothing
+
+
+def test_emit_smd_multi_slot_msb_first():
+    # 48-bit DMAC aa:bb:cc:dd:ee:01 -> slots 0..2 MSB-first (stage-1 vector)
+    p = one_state([ext(1, 0, 48), smd_op(1, 0)])
+    r = interp(p, bytes.fromhex("aabbccddee01") + b"\x00" * 8)
+    assert r.smd[:3] == [0xAABB, 0xCCDD, 0xEE01]
