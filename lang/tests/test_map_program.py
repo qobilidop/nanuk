@@ -111,4 +111,4 @@ def test_raw_headroom_store_and_dispatch():
     validate_map(program)
     asm = to_map_asm(program)
     assert "st      r0, 15, -10, 2" in asm
-    assert "send    r1, -22" in asm
+    assert "send    r0, -22" in asm  # liveness: the stored const died at the st

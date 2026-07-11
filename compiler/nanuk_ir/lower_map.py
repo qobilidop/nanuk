@@ -1,9 +1,12 @@
 """MapProgram IR -> nanuk MAP assembly lowering. Sibling of lower.py.
 
-Register discipline (same as the parser lowering)
-    r0..r2 hold IR values, allocated linearly per state in op order; a
-    value stays live from its defining op to the end of its state.
-    r3 is RESERVED as the scratch register for dispatch/compare constants.
+Register discipline
+    r0..r2 hold IR values, allocated per state in op order; unlike the
+    parser lowering, a register is FREED after its value's last use in the
+    state (straight-line MAP programs materialize many short-lived
+    constants — tunnel push writes an 11-constant header — so no-free
+    allocation would starve). r3 is RESERVED as the scratch register for
+    dispatch/compare constants.
 
 The cost model this lowering implies (instructions per op/terminator) is
 mirrored instruction-for-instruction by interp_map.py — change one, change
@@ -34,6 +37,32 @@ def to_map_asm(program: ir.MapProgram, *, check: bool = True) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _last_uses(state: ir.MapState) -> dict[int, int]:
+    """value_id -> index of its last consuming op (len(ops) = terminator)."""
+    last: dict[int, int] = {}
+
+    def note(vid: int, idx: int) -> None:
+        if vid:
+            last[vid] = idx
+
+    for idx, op in enumerate(state.ops):
+        match op.WhichOneof("op"):
+            case "add":
+                note(op.add.src_value_id, idx)
+            case "store":
+                note(op.store.value_id, idx)
+            case "lookup":
+                note(op.lookup.key_value_id, idx)
+    term = state.terminator
+    t_idx = len(state.ops)
+    match term.WhichOneof("kind"):
+        case "send":
+            note(term.send.bitmap_value_id, t_idx)
+        case "dispatch":
+            note(term.dispatch.value_id, t_idx)
+    return last
+
+
 class _StateLowering:
     def __init__(self, state: ir.MapState):
         self.state = state
@@ -41,6 +70,7 @@ class _StateLowering:
         self.regs: dict[int, str] = {}
         self.names: dict[int, str] = {}
         self.order: list[int] = []
+        self.last_uses = _last_uses(state)
 
     def emit(self, instr: str, comment: str | None = None) -> None:
         if comment:
@@ -70,14 +100,23 @@ class _StateLowering:
             )
         return reg
 
+    def free_dead(self, op_idx: int) -> None:
+        """Release registers whose values have no use after op_idx (called
+        after source registers are captured, before the result allocates —
+        so a dying source's register is immediately reusable)."""
+        for vid in list(self.regs):
+            if self.last_uses.get(vid, -1) <= op_idx:
+                del self.regs[vid]
+
 
 def _lower_state(state: ir.MapState) -> list[str]:
     lo = _StateLowering(state)
-    for op in state.ops:
+    for idx, op in enumerate(state.ops):
         match op.WhichOneof("op"):
             case "load":
                 ld = op.load
                 name = ld.debug_name or f"v{ld.value_id}"
+                lo.free_dead(idx)
                 reg = lo.alloc(ld.value_id, name)
                 lo.emit(
                     f"ld      {reg}, {ld.hdr_id}, {ld.byte_offset}, {ld.nbytes}",
@@ -86,17 +125,20 @@ def _lower_state(state: ir.MapState) -> list[str]:
             case "load_md":
                 md = op.load_md
                 name = md.debug_name or _MD_NAMES.get(md.field, f"md{md.field}")
+                lo.free_dead(idx)
                 reg = lo.alloc(md.value_id, name)
                 lo.emit(f"ldmd    {reg}, {md.field}", comment=name)
             case "const":
                 c = op.const
                 name = c.debug_name or f"{c.imm:#x}"
+                lo.free_dead(idx)
                 reg = lo.alloc(c.value_id, name)
                 lo.emit(f"movi    {reg}, {c.imm:#06x}", comment=name)
             case "add":
                 a = op.add
                 src_reg = lo.reg_of(a.src_value_id, "add")
                 name = f"{lo.names[a.src_value_id]} + {a.imm}"
+                lo.free_dead(idx)
                 reg = lo.alloc(a.value_id, name)
                 lo.emit(f"addi    {reg}, {src_reg}, {a.imm}", comment=name)
             case "store":
@@ -106,13 +148,16 @@ def _lower_state(state: ir.MapState) -> list[str]:
                     f"st      {reg}, {st.hdr_id}, {st.byte_offset}, {st.nbytes}",
                     comment=st.debug_name or lo.names[st.value_id],
                 )
+                lo.free_dead(idx)
             case "csum":
                 cs = op.csum
                 lo.emit(f"csumupd {cs.hdr_id}, {cs.byte_offset}")
+                lo.free_dead(idx)
             case "lookup":
                 lk = op.lookup
                 key_reg = lo.reg_of(lk.key_value_id, "lookup")
                 name = f"lookup t{lk.table_id}[{lo.names[lk.key_value_id]}]"
+                lo.free_dead(idx)
                 reg = lo.alloc(lk.value_id, name)
                 lo.emit(
                     f"lookup  {reg}, {lk.table_id}, {key_reg}, {lk.miss_state}",

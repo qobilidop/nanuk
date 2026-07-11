@@ -12,12 +12,14 @@ from tests.test_validate_map import l2fwd_program, load, send
 
 
 def test_l2fwd_golden_asm():
+    # The key register dies at the lookup, so the result reuses it (rd == rs
+    # is well-defined: the key is read before the result is written).
     asm = to_map_asm(l2fwd_program())
     expected = """\
 forward:
     ld      r0, 0, 0, 6            ; v1
-    lookup  r1, 0, r0, flood       ; lookup t0[v1]
-    send    r1, 0                  ; lookup t0[v1]
+    lookup  r0, 0, r0, flood       ; lookup t0[v1]
+    send    r0, 0                  ; lookup t0[v1]
 
 flood:
     ldmd    r0, 9                  ; flood
@@ -32,13 +34,23 @@ def test_lowered_asm_assembles():
 
 
 def test_out_of_registers():
+    # Four genuinely-overlapping live ranges: each load is consumed by a
+    # store AFTER all four loads, so liveness cannot free anything early.
     p = ir.MapProgram(
         ir_version=1,
         states=[
             ir.MapState(
                 name="s",
-                ops=[load(i, n=1, off=i - 1) for i in range(1, 5)],
-                terminator=send(1),
+                ops=[load(i, n=1, off=i - 1) for i in range(1, 5)]
+                + [
+                    ir.MapOp(
+                        store=ir.MapStore(
+                            value_id=i, hdr_id=15, byte_offset=8 + i, nbytes=1
+                        )
+                    )
+                    for i in (4, 3, 2, 1)
+                ],
+                terminator=ir.Terminator(drop=ir.Drop()),
             )
         ],
     )
