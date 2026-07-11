@@ -38,3 +38,4 @@ endfunction()
 
 add_sail_test(test_smoke spec/test/test_smoke.sail)
 add_sail_test(test_state spec/test/test_state.sail)
+add_sail_test(test_decode spec/test/test_decode.sail)
