@@ -1,13 +1,15 @@
-"""nanuk e2e demo experiment: two QEMU Linux hosts with i40e NICs connected
-through the Verilator'd nanuk parser switch (parser-gated flood forwarding).
+"""nanuk M2 beat-3 experiment: two hosts, TWO nanuk switches in series —
+host0 - sw_encap - sw_decap - host1. sw_encap runs the tunnel_push MAP
+program (nanukproto L2-in-L2 encap for DMACs in its tunnel table); sw_decap
+runs parse_tunnel + tunnel_pop (strip the outer header, flood). Ping
+traffic host0 -> host1 crosses the switch-switch link encapsulated.
 
-Based on SimBricks' experiments/minimal_net.py, with the switch simulator's
-executable pointed at a wrapper script that launches nanuk_hw with the demo
-parser program. Uses only stock orchestration classes so JSON round-trips
-(used by the local runtime) keep working.
+Per-switch programs/tables come from NANUK_DIR-style directories baked into
+two wrapper scripts (nanuk_run_encap.sh / nanuk_run_decap.sh, staged by
+run_beat3.sh).
 
 Run inside the SimBricks environment:
-    python -m simbricks.local nanuk_demo.py --verbose --repo /simbricks
+    python -m simbricks.local nanuk_demo_tunnel.py --verbose --repo /simbricks
 """
 
 from simbricks.orchestration import instantiation as inst
@@ -15,6 +17,7 @@ from simbricks.orchestration import simulation as sim
 from simbricks.orchestration import system
 from simbricks.orchestration.helpers import instantiation as inst_helpers
 from simbricks.orchestration.helpers import simulation as sim_helpers
+from simbricks.orchestration.system.eth import EthInterface
 
 sys = system.System()
 
@@ -36,9 +39,17 @@ nic1 = system.IntelI40eNIC(sys)
 nic1.add_ipv4("10.0.0.2")
 host1.connect_pcie_dev(nic1)
 
-switch0 = system.EthSwitch(sys)
-switch0.connect_eth_peer_if(nic0._eth_if)
-switch0.connect_eth_peer_if(nic1._eth_if)
+sw_encap = system.EthSwitch(sys)
+sw_encap.connect_eth_peer_if(nic0._eth_if)      # encap port 0: host0
+
+sw_decap = system.EthSwitch(sys)
+sw_decap.connect_eth_peer_if(nic1._eth_if)      # decap port 0: host1
+
+# Switch-to-switch link: an interface on sw_encap (port 1), connected from
+# sw_decap (its port 1).
+link_if = EthInterface(sw_encap)
+sw_encap.add_if(link_if)
+sw_decap.connect_eth_peer_if(link_if)
 
 ping_client_app = system.PingClient(host0, nic1._ip)
 ping_client_app.wait = True
@@ -54,15 +65,20 @@ simulation = sim_helpers.simple_simulation(
     },
 )
 
-# Point the switch simulator at the nanuk component (wrapper script bakes in
-# the parser program path). Executable is serialized in toJSON, so this
-# survives the local runtime's JSON round-trip.
+# Point each switch simulator at its wrapper (which bakes in the per-switch
+# program/table directory). Order: match the system objects.
+_wrappers = {
+    sw_encap: "sims/net/nanuk/nanuk_run_encap.sh",
+    sw_decap: "sims/net/nanuk/nanuk_run_decap.sh",
+}
 for s in simulation.all_simulators():
     if isinstance(s, sim.SwitchNet):
-        s._executable = "sims/net/nanuk/nanuk_run.sh"
+        for comp in s.components():
+            if comp in _wrappers:
+                s._executable = _wrappers[comp]
 
-# Pin the NIC MACs (QEMU randomizes them otherwise) so table files can be
-# written ahead of the run — deterministic keys for the L2 FDB.
+# Pin the NIC MACs (QEMU randomizes them otherwise); distinct from the
+# tunnel's outer MACs (02:4e:4b:...) by design.
 _nic_macs = {nic0: "02:6e:61:00:00:01", nic1: "02:6e:61:00:00:02"}
 for s in simulation.all_simulators():
     if isinstance(s, sim.I40eNicSim):

@@ -519,12 +519,12 @@ class Controller {
     }
   }
 
-  void stats() {
+  void stats(const char *tag) {
     fprintf(stderr,
-            "nanuk_hw: frames in=%lu sent=%lu dropped=%lu map_err=%lu "
+            "nanuk_hw[%s]: frames in=%lu sent=%lu dropped=%lu map_err=%lu "
             "flooded=%lu delta_pos=%lu delta_neg=%lu\n",
-            frames_in, frames_sent, frames_drop, map_err, flooded, delta_pos,
-            delta_neg);
+            tag, frames_in, frames_sent, frames_drop, map_err, flooded,
+            delta_pos, delta_neg);
   }
 };
 
@@ -748,6 +748,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  ctrl.stats();
+  const char *tag = strrchr(map_prog_path, '/');
+  ctrl.stats(tag ? tag + 1 : map_prog_path);
   return 0;
 }
