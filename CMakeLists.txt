@@ -82,3 +82,45 @@ target_compile_options(nanuk-emu PRIVATE -O2)
 
 add_test(NAME emu_smoke
     COMMAND bash ${CMAKE_SOURCE_DIR}/spec/emulator/smoke_test.sh $<TARGET_FILE:nanuk-emu>)
+
+# The MAP emulator CLI: same shape as nanuk-emu, second Sail model.
+set(MAP_EMU_STEM "${CMAKE_BINARY_DIR}/nanuk_map_model")
+add_custom_command(
+    OUTPUT ${MAP_EMU_STEM}.c
+    COMMAND ${SAIL} -c --c-no-main
+        --c-preserve emu_map_reset
+        --c-preserve emu_map_poke_imem
+        --c-preserve emu_map_poke_pkt
+        --c-preserve emu_map_set_plen
+        --c-preserve emu_map_set_ingress
+        --c-preserve emu_map_set_smd
+        --c-preserve emu_map_set_hdr
+        --c-preserve emu_map_table_config
+        --c-preserve emu_map_table_add
+        --c-preserve emu_map_run
+        --c-preserve emu_map_get_verdict
+        --c-preserve emu_map_get_error
+        --c-preserve emu_map_get_egress
+        --c-preserve emu_map_get_steps
+        --c-preserve emu_map_get_delta
+        --c-preserve emu_map_get_win_byte
+        ${MAP_MAIN}
+        ${CMAKE_SOURCE_DIR}/spec/emulator/entry.sail -o ${MAP_EMU_STEM}
+    DEPENDS ${MAP_SAIL_FILES} ${CMAKE_SOURCE_DIR}/spec/emulator/entry.sail
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Compiling MAP Sail model to C (emulator core)..."
+)
+add_executable(nanuk-map-emu
+    spec/emulator/map_main.c
+    ${MAP_EMU_STEM}.c
+    ${SAIL_DIR}/lib/sail.c
+    ${SAIL_DIR}/lib/rts.c
+    ${SAIL_DIR}/lib/elf.c
+    ${SAIL_DIR}/lib/sail_failure.c
+)
+target_include_directories(nanuk-map-emu PRIVATE ${SAIL_DIR}/lib)
+target_link_libraries(nanuk-map-emu PRIVATE gmp z)
+target_compile_options(nanuk-map-emu PRIVATE -O2)
+
+add_test(NAME map_emu_smoke
+    COMMAND bash ${CMAKE_SOURCE_DIR}/spec/emulator/map_smoke_test.sh $<TARGET_FILE:nanuk-map-emu>)
