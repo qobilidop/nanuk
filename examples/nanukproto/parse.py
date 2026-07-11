@@ -17,7 +17,7 @@ NK_MAGIC, NK_VERSION = 0x4E4B, 1
 PROTO_UDP = 17
 
 
-def build() -> str:
+def make_parser() -> Parser:
     p = Parser()
 
     def l3_arms():
@@ -81,7 +81,16 @@ def build() -> str:
         s.advance(udp.byte_len)
         s.accept()
 
-    return p.compile()
+    return p
+
+
+def build_ir():
+    """The nanuk.ir.v0 Program (for satellites: interpreter, playground)."""
+    return make_parser().build_ir()
+
+
+def build() -> str:
+    return make_parser().compile()
 
 
 if __name__ == "__main__":
