@@ -42,7 +42,7 @@ def compile_single_state(body) -> str:
     @p.state(start=True)
     def start(s):
         body(s)
-        if not s._terminated:
+        if s._terminator is None:
             s.accept()
 
     return p.compile()
@@ -251,6 +251,17 @@ def test_demo_program_compiles_and_assembles():
     assert labels(asm)[0] == "start"
     binary = assemble(asm)  # register pressure fits: no compile/assemble error
     assert len(binary) % 4 == 0 and len(binary) > 0
+
+
+def test_demo_output_matches_pre_ir_golden():
+    """Stage-3 refactor guard: eDSL -> IR -> lower must reproduce the asm the
+    direct (pre-IR) compiler produced, byte for byte."""
+    from pathlib import Path
+
+    from nanuk_lang.programs.l2l3l4 import build
+
+    golden = (Path(__file__).parent / "golden" / "l2l3l4.asm").read_text()
+    assert build() == golden
 
 
 # -- error cases ---------------------------------------------------------------

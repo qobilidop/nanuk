@@ -1,0 +1,95 @@
+// nanuk IR v0: parser-level semantics above instruction selection and
+// register allocation — extract/advance/mark/emit-SMD/dispatch over
+// SSA-ish values. The hub format of the nanuk satellite architecture.
+//
+// Conventions:
+//   - states[0] is the start state (entry at word 0 after lowering).
+//   - bit_offset is relative to the cursor at the point of the op; header
+//     anchoring/epoch bookkeeping is a frontend concern, already resolved.
+//   - value ids are unique per program (SSA-ish, no reassignment) and
+//     start at 1 (0 means "unset" and is rejected by validation).
+//   - debug_name fields carry human-readable names for diagnostics and
+//     assembly comments only; they have no semantic weight.
+
+syntax = "proto3";
+
+package nanuk.ir.v0;
+
+message Program {
+  uint32 ir_version = 1;          // = 1
+  repeated State states = 2;      // states[0] is the start state
+}
+
+message State {
+  string name = 1;
+  repeated Op ops = 2;
+  Terminator terminator = 3;
+}
+
+message Op {
+  oneof op {
+    Extract extract = 1;          // value_id = extracted bits
+    Advance advance = 2;
+    Mark mark = 3;                // present-bit + offset record
+    EmitSmd emit_smd = 4;
+    Shift shift = 5;              // value_id = src << amount
+  }
+}
+
+message Extract {
+  uint32 value_id = 1;
+  uint32 bit_offset = 2;
+  uint32 width = 3;               // 1..64
+  string debug_name = 4;          // e.g. "eth.dst"
+}
+
+message Advance {
+  oneof amount {
+    uint32 const_bytes = 1;
+    uint32 value_id = 2;
+  }
+}
+
+message Mark {
+  uint32 hdr_id = 1;
+  bool emit_sethdr = 2;           // false = re-anchor only (lowers to nothing)
+  string debug_name = 3;          // e.g. "eth"
+}
+
+message EmitSmd {
+  uint32 value_id = 1;
+  uint32 slot = 2;                // occupies ceil(width/16) slots from here
+}
+
+message Shift {
+  uint32 value_id = 1;
+  uint32 src_value_id = 2;
+  uint32 amount = 3;              // 0..63
+}
+
+message Terminator {
+  oneof kind {
+    Dispatch dispatch = 1;
+    Halt halt = 2;
+    Goto goto = 3;
+  }
+}
+
+message Dispatch {
+  uint32 value_id = 1;
+  repeated Case cases = 2;        // ordered; first match wins
+  Terminator default = 3;         // Halt or Goto (not nested Dispatch)
+}
+
+message Case {
+  uint64 match = 1;
+  string target_state = 2;
+}
+
+message Halt {
+  bool drop = 1;
+}
+
+message Goto {
+  string target_state = 1;
+}

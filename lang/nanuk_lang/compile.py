@@ -1,13 +1,14 @@
-"""State-level compilation: value handles, cursor tracking, register allocation.
+"""State-level IR building: value handles and cursor tracking.
 
-The compiler is deliberately monolithic (no IR): each parse-state function
-runs once against a StateCompiler, which emits assembly lines directly.
+Each parse-state function runs once against a StateCompiler, which builds
+nanuk IR ops (protos from nanuk-ir). Instruction selection, register
+allocation, and label emission live downstream in nanuk_ir.lower — this
+module owns only the *frontend* concerns:
 
-Register discipline
-    r0..r2 hold extracted / shifted values, allocated linearly per state;
-    values stay live from creation to the end of the state (no freeing).
-    r3 is RESERVED as the scratch register for dispatch/compare constants
-    (MOVI + BEQ pairs). Needing a fourth concurrent value is a compile error.
+Value handles
+    s.extract returns an opaque handle; the only operators are ``<<`` and
+    ``* 2**k`` (v0 has SHL only). Derived handles stay symbolic until a use
+    site (advance/smd/dispatch) materializes them as an IR Shift op.
 
 Cursor discipline
     Within a state the compiler tracks ``delta`` — bytes advanced since state
@@ -17,12 +18,13 @@ Cursor discipline
     offset ``field.bit_offset - (delta - anchor_delta) * 8`` (EXT can only
     read forward from the cursor). After a dynamic advance the old anchors
     are unreachable; re-``mark`` against the new cursor to extract again.
+    The emitted IR carries cursor-relative offsets only — anchor/epoch
+    bookkeeping never leaves the frontend.
 """
 
-from .header import CompileError, Field, Header
+from nanuk_ir import nanuk_ir_pb2 as ir
 
-_VALUE_REGS = ("r0", "r1", "r2")
-_SCRATCH_REG = "r3"  # reserved for dispatch/compare constants
+from .header import CompileError, Field, Header
 
 _MAX_EXT_BOFF = (1 << 11) - 1  # EXT bit-offset field is 11 bits
 _MAX_IMM16 = (1 << 16) - 1
@@ -58,10 +60,10 @@ def _mul_of(value, factor: int):
 
 
 class Value:
-    """Opaque handle for an extracted value living in a register."""
+    """Opaque handle for an extracted value (an SSA-ish IR value id)."""
 
-    def __init__(self, reg: str, width: int, name: str):
-        self.reg = reg
+    def __init__(self, value_id: int, width: int, name: str):
+        self.value_id = value_id
         self.width = width
         self.name = name
 
@@ -74,11 +76,11 @@ class Value:
     __rmul__ = __mul__
 
     def __repr__(self) -> str:
-        return f"<value {self.name} in {self.reg}>"
+        return f"<value {self.name} (v{self.value_id})>"
 
 
 class Shifted:
-    """A derived handle ``base << shamt``; materialized with SHL at use time."""
+    """A derived handle ``base << shamt``; becomes an IR Shift op at use time."""
 
     def __init__(self, base: Value, shamt: int):
         self.base = base
@@ -105,27 +107,29 @@ class Terminator:
         self._sc = sc
         self.kind = kind  # "accept" | "drop"
 
+    def _ir(self) -> ir.Terminator:
+        return ir.Terminator(halt=ir.Halt(drop=self.kind == "drop"))
+
     def __call__(self) -> None:
         self._sc._check_open()
-        self._sc._emit(f"halt    {self.kind}")
-        self._sc._terminated = True
+        self._sc._terminator = self._ir()
 
     def __repr__(self) -> str:
         return f"<{self.kind}>"
 
 
 class StateCompiler:
-    """The ``s`` object handed to each @p.state function."""
+    """The ``s`` object handed to each @p.state function; builds one IR State."""
 
-    def __init__(self, state_name: str, states: set):
+    def __init__(self, state_name: str, states: set, value_ids):
         self._state_name = state_name
         self._states = states  # registered State objects; dispatch/goto targets
-        self._lines: list[str] = []
-        self._live: list[Value] = []
+        self._value_ids = value_ids  # program-wide id counter (ids unique per program)
+        self._ops: list[ir.Op] = []
+        self._terminator: ir.Terminator | None = None
         self._anchors: dict[Header, tuple[int, int]] = {}  # header -> (epoch, delta)
         self._epoch = 0
         self._delta = 0
-        self._terminated = False
         self.accept = Terminator(self, "accept")
         self.drop = Terminator(self, "drop")
 
@@ -137,15 +141,18 @@ class StateCompiler:
         if not isinstance(header, Header):
             raise CompileError(f"mark expects a Header, got {header!r}")
         self._anchors[header] = (self._epoch, self._delta)
-        if hdr_id is not None:
+        if hdr_id is None:
+            mark = ir.Mark(emit_sethdr=False, debug_name=header.name)
+        else:
             if not isinstance(hdr_id, int) or not 0 <= hdr_id <= _MAX_HDR_ID:
                 raise CompileError(
                     f"hdr_id {hdr_id!r} out of range 0..{_MAX_HDR_ID} (SETHDR)"
                 )
-            self._emit(f"sethdr  {hdr_id}", comment=header.name)
+            mark = ir.Mark(hdr_id=hdr_id, emit_sethdr=True, debug_name=header.name)
+        self._ops.append(ir.Op(mark=mark))
 
     def extract(self, field: Field) -> Value:
-        """EXT a header field into a fresh register; returns a value handle."""
+        """Extract a header field into a fresh IR value; returns a handle."""
         self._check_open()
         if not isinstance(field, Field):
             raise CompileError(f"extract expects a header field, got {field!r}")
@@ -176,40 +183,49 @@ class StateCompiler:
                 f"state {self._state_name!r}: field {field.qualname} sits {boff} bits "
                 f"ahead of the cursor; EXT offsets max out at {_MAX_EXT_BOFF}"
             )
-        reg = self._alloc(field.qualname)
-        value = Value(reg, field.width, field.qualname)
-        self._live.append(value)
-        self._emit(f"ext     {reg}, {boff}, {field.width}", comment=field.qualname)
+        value = Value(next(self._value_ids), field.width, field.qualname)
+        self._ops.append(
+            ir.Op(
+                extract=ir.Extract(
+                    value_id=value.value_id,
+                    bit_offset=boff,
+                    width=field.width,
+                    debug_name=field.qualname,
+                )
+            )
+        )
         return value
 
     def smd(self, value, *, slot: int) -> None:
-        """STMD a value into SMD slots starting at `slot` (ceil(width/16) units)."""
+        """Emit a value into SMD slots starting at `slot` (ceil(width/16) units)."""
         self._check_open()
-        reg, width, name = self._materialize(value)
-        nunits = (width + 15) // 16
+        materialized = self._materialize(value)
+        nunits = (materialized.width + 15) // 16
         if not isinstance(slot, int) or slot < 0:
             raise CompileError(f"SMD slot must be a non-negative integer, got {slot!r}")
         if slot + nunits > _SMD_SLOTS:
             raise CompileError(
-                f"{name}: {width} bits need SMD slots {slot}..{slot + nunits - 1}, "
-                f"but only slots 0..{_SMD_SLOTS - 1} exist"
+                f"{materialized.name}: {materialized.width} bits need SMD slots "
+                f"{slot}..{slot + nunits - 1}, but only slots 0..{_SMD_SLOTS - 1} exist"
             )
-        self._emit(f"stmd    {slot}, {reg}, {nunits}", comment=name)
+        self._ops.append(
+            ir.Op(emit_smd=ir.EmitSmd(value_id=materialized.value_id, slot=slot))
+        )
 
     def advance(self, amount) -> None:
-        """Advance the cursor: int -> ADVI (offset tracking follows);
-        value handle -> (SHL +) ADVR, after which extract offsets are unknown."""
+        """Advance the cursor: int -> constant advance (offset tracking follows);
+        value handle -> register advance, after which extract offsets are unknown."""
         self._check_open()
         if isinstance(amount, int) and not isinstance(amount, bool):
             if not 0 <= amount <= _MAX_IMM16:
                 raise CompileError(
                     f"advance amount {amount} out of range 0..{_MAX_IMM16} (ADVI)"
                 )
-            self._emit(f"advi    {amount}")
+            self._ops.append(ir.Op(advance=ir.Advance(const_bytes=amount)))
             self._delta += amount
         elif isinstance(amount, (Value, Shifted)):
-            reg, _, name = self._materialize(amount)
-            self._emit(f"advr    {reg}", comment=name)
+            materialized = self._materialize(amount)
+            self._ops.append(ir.Op(advance=ir.Advance(value_id=materialized.value_id)))
             self._epoch += 1
             self._delta = 0
         else:
@@ -218,13 +234,11 @@ class StateCompiler:
             )
 
     def dispatch(self, value, arms: dict, *, default) -> None:
-        """Compare-and-branch chain: MOVI+BEQ per arm, then the default.
-
-        Arms map 16-bit constants to states; default is s.accept, s.drop,
-        or another state. Terminates the state.
-        """
+        """Compare-and-branch: ordered cases over 16-bit constants, then the
+        default (s.accept, s.drop, or another state). Terminates the state."""
         self._check_open()
-        reg, _, name = self._materialize(value)
+        materialized = self._materialize(value)
+        cases = []
         for const, target in arms.items():
             if not isinstance(const, int) or isinstance(const, bool) or const < 0:
                 raise CompileError(f"dispatch constant {const!r} must be a non-negative int")
@@ -234,57 +248,49 @@ class StateCompiler:
                     "(MOVI immediates are 16 bits; wide compares are a v0.x feature)"
                 )
             label = self._target_label(target, f"dispatch arm {const:#x}")
-            self._emit(f"movi    {_SCRATCH_REG}, {const:#06x}")
-            self._emit(f"beq     {reg}, {_SCRATCH_REG}, {label}", comment=name)
+            cases.append(ir.Case(match=const, target_state=label))
         if isinstance(default, Terminator):
-            self._emit(f"halt    {default.kind}")
+            default_ir = default._ir()
         else:
             label = self._target_label(default, "dispatch default")
-            self._emit(f"jmp     {label}")
-        self._terminated = True
+            default_ir = ir.Terminator(goto=ir.Goto(target_state=label))
+        self._terminator = ir.Terminator(
+            dispatch=ir.Dispatch(
+                value_id=materialized.value_id, cases=cases, default=default_ir
+            )
+        )
 
     def goto(self, target) -> None:
-        """Unconditional JMP to another state. Terminates the state."""
+        """Unconditional transfer to another state. Terminates the state."""
         self._check_open()
         label = self._target_label(target, "goto")
-        self._emit(f"jmp     {label}")
-        self._terminated = True
+        self._terminator = ir.Terminator(goto=ir.Goto(target_state=label))
 
     # -- internals ----------------------------------------------------------
 
     def _check_open(self) -> None:
-        if self._terminated:
+        if self._terminator is not None:
             raise CompileError(
                 f"state {self._state_name!r}: statement after the state was "
                 "terminated by accept/drop/goto/dispatch"
             )
 
-    def _emit(self, instr: str, comment: str | None = None) -> None:
-        if comment:
-            instr = f"{instr:<26} ; {comment}"
-        self._lines.append(instr)
-
-    def _alloc(self, name: str) -> str:
-        used = {v.reg for v in self._live}
-        for reg in _VALUE_REGS:
-            if reg not in used:
-                return reg
-        live = ", ".join(v.name for v in self._live)
-        raise CompileError(
-            f"state {self._state_name!r}: out of registers allocating {name!r}; "
-            f"live values: {live} ({_SCRATCH_REG} is reserved for compare constants)"
-        )
-
-    def _materialize(self, value) -> tuple[str, int, str]:
-        """Return (reg, width, name); emits SHL for derived handles."""
+    def _materialize(self, value) -> Value:
+        """Return a plain Value; emits an IR Shift op for derived handles."""
         if isinstance(value, Value):
-            return value.reg, value.width, value.name
+            return value
         if isinstance(value, Shifted):
-            reg = self._alloc(value.name)
-            materialized = Value(reg, value.width, value.name)
-            self._live.append(materialized)
-            self._emit(f"shl     {reg}, {value.base.reg}, {value.shamt}", comment=value.name)
-            return reg, value.width, value.name
+            materialized = Value(next(self._value_ids), value.width, value.name)
+            self._ops.append(
+                ir.Op(
+                    shift=ir.Shift(
+                        value_id=materialized.value_id,
+                        src_value_id=value.base.value_id,
+                        amount=value.shamt,
+                    )
+                )
+            )
+            return materialized
         raise CompileError(f"expected an extracted value, got {value!r}")
 
     def _target_label(self, target, what: str) -> str:

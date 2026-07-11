@@ -24,8 +24,8 @@ ETY_VLAN, ETY_IPV4 = 0x8100, 0x0800
 PROTO_UDP = 17
 
 
-def build() -> str:
-    """Compile the demo parser; returns nanuk assembly text."""
+def make_parser() -> Parser:
+    """Wire up the demo parser (states + transitions), ready to compile."""
     p = Parser()
 
     @p.state(start=True)
@@ -71,7 +71,17 @@ def build() -> str:
         s.advance(udp.byte_len)
         s.accept()
 
-    return p.compile()
+    return p
+
+
+def build_ir():
+    """The demo as a nanuk.ir.v0 Program proto."""
+    return make_parser().build_ir()
+
+
+def build() -> str:
+    """Compile the demo parser; returns nanuk assembly text."""
+    return make_parser().compile()
 
 
 if __name__ == "__main__":
