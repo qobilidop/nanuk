@@ -30,7 +30,7 @@ extern "C" {
 #include <simbricks/network/if.h>
 }
 
-#include "sims/net/nanuk/obj_dir/Vnanuk_core.h"
+#include "Vnanuk_core.h"
 
 #define MAX_PKT_SIZE 2048
 #define CORE_BUF_BYTES 256

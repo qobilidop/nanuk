@@ -4,3 +4,8 @@ build/
 __pycache__/
 sail_smt_cache
 third_party/
+hw/simbricks/stage/
+hw/simbricks/out/
+hw/simbricks/prog.bin
+hw/simbricks/drop_all.bin
+hw/build/
