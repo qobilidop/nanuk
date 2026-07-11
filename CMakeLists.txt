@@ -41,6 +41,7 @@ add_custom_target(check-map
 
 enable_testing()
 add_subdirectory(spec/test)
+add_subdirectory(spec/map-test)
 
 # The emulator CLI: Sail model compiled without a generated main, driven by
 # a thin C shim through the machine-word emu_* API.
