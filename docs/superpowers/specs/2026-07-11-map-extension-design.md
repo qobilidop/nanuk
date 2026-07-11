@@ -1,7 +1,7 @@
 # nanuk — Match-Action Extension Design
 
 **Date:** 2026-07-11
-**Status:** Approved. Un-parks the match-action stage; defines the second arc of the main track. The detailed MAP ISA v0 (mnemonics, encodings, table sizing) is a follow-up design doc, as [Parser ISA v0](2026-07-11-parser-isa-v0-design.md) was for the parser.
+**Status:** COMPLETE (2026-07-11) — M1 (spec/emulator/assembler/rig), M2 (RTL cosim + SimBricks table-is-the-policy beats), and M3 (eDSL/IR/interp/playground) all landed green. The MAT arc is done; deferrals live in the parked table below. The detailed MAP ISA v0 (mnemonics, encodings, table sizing) is a follow-up design doc, as [Parser ISA v0](2026-07-11-parser-isa-v0-design.md) was for the parser.
 
 ## Decision
 

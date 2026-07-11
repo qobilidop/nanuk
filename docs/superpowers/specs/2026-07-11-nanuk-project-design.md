@@ -1,7 +1,7 @@
 # nanuk — Project Design
 
 **Date:** 2026-07-11
-**Status:** Approved scope for the main track; satellite tracks defined with entry criteria. Scope frozen — new ideas go to *Parked* by default. **2026-07-11:** first arc (stages 1–4) complete; second arc approved — match-action un-parked, see [Match-Action Extension](2026-07-11-map-extension-design.md).
+**Status:** Approved scope for the main track; satellite tracks defined with entry criteria. Scope frozen — new ideas go to *Parked* by default. **2026-07-11:** first arc (stages 1–4) complete; second arc (match-action, M1–M3) COMPLETE — the pipeline is PP + MAP end to end, spec through playground; see [Match-Action Extension](2026-07-11-map-extension-design.md).
 
 ## Thesis
 
