@@ -43,10 +43,13 @@ docker run --rm --platform linux/amd64 \
     cd /simbricks/sims/net/nanuk
 
     echo "==> verilating nanuk_core"
+    # --output-split + -O1: the 2048-bit extraction datapath generates huge
+    # C++ TUs that make cc1plus segfault (ICE) at -O3 under emulation.
     verilator +1364-2005ext+v -Wno-WIDTH -Wno-PINMISSING -Wno-LITENDIAN \
         -Wno-IMPLICIT -Wno-SELRANGE -Wno-CASEINCOMPLETE -Wno-UNSIGNED \
-        -Wno-fatal --timescale 1ns/1ps --cc -O3 \
-        -CFLAGS "-I/simbricks/lib -iquote /simbricks -O3 -g" \
+        -Wno-fatal --timescale 1ns/1ps --cc -O2 \
+        --output-split 5000 --output-split-cfuncs 5000 \
+        -CFLAGS "-I/simbricks/lib -iquote /simbricks -O1 -g" \
         --Mdir obj_dir rtl/nanuk_core.v \
         --exe /simbricks/sims/net/nanuk/nanuk_hw.cc \
         /simbricks/lib/simbricks/network/libnetwork.a \
