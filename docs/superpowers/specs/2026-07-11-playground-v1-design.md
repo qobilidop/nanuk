@@ -106,9 +106,11 @@ Two contracts make the paths composable without a shared framework:
   so ranges are exact), asm line range (from `name:` labels in `to_asm`
   output). Hovering a state's lines in any pane highlights its ranges in
   the other two.
-- Op-level IR↔asm within a state: matched by `debug_name` — the lowering
-  already emits it as the instruction comment (`; eth.dst`). No
-  cost-model mirroring, no schema change.
+- Op-level IR↔asm within a state: an ordered walk — the bridge renders IR
+  ops in program order and pairs each with its known lowering emission
+  count (ext/shl/adv/stmd/sethdr = 1, re-anchor mark = 0, dispatch case =
+  2, default = its own cost), the same cost model the interpreter's
+  differential tests already validate. Deterministic; no schema change.
 - The default editor content is a self-contained l2l3l4 program
   (headers + states in one source, `build_ir()` at the bottom).
 

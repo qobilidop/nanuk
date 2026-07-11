@@ -37,3 +37,4 @@ jobs:
             (cd hw && uv sync --quiet && NANUK_COSIM=1 uv run pytest tests -q)
             (cd lang && uv sync --quiet && NANUK_COSIM=1 uv run --group dev pytest tests -q)
             (cd compiler && uv sync --quiet && NANUK_COSIM=1 uv run --group dev pytest tests -q)
+            (cd web/py && uv sync --quiet && uv run --group dev pytest tests -q)

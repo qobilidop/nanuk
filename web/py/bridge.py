@@ -138,3 +138,142 @@ def _render_terminator(
                     rstate.ops.append(
                         RenderedOp(f"default -> goto {target}", len(lines), 1)
                     )
+
+
+# --- JSON API (called from web/src/lib/py.ts via pyodide.globals) -----------
+
+import ast
+import json
+import traceback
+
+from nanuk_ir.interp import interp
+from nanuk_ir.lower import LowerError, to_asm
+from nanuk_ir.validate import ValidationError, validate
+
+_EDSL_FILENAME = "<edsl>"
+_LAST_PROGRAM = None
+
+
+def _err(kind: str, message: str, line: int | None = None) -> str:
+    return json.dumps(
+        {"ok": False, "error": {"kind": kind, "message": message, "line": line}}
+    )
+
+
+def _edsl_line(exc: BaseException) -> int | None:
+    for frame in traceback.extract_tb(exc.__traceback__):
+        if frame.filename == _EDSL_FILENAME:
+            return frame.lineno
+    return None
+
+
+def _edsl_ranges(source: str, state_names: set[str]) -> dict[str, tuple[int, int]]:
+    """Line ranges of @p.state-decorated functions whose names are states."""
+    ranges: dict[str, tuple[int, int]] = {}
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.FunctionDef) and node.name in state_names:
+            if node.decorator_list:
+                start = min(d.lineno for d in node.decorator_list)
+            else:
+                start = node.lineno
+            ranges[node.name] = (start, node.end_lineno or node.lineno)
+    return ranges
+
+
+def _asm_ranges(asm_text: str, state_names: list[str]) -> dict[str, tuple[int, int]]:
+    lines = asm_text.splitlines()
+    starts = {
+        line.rstrip(":"): i + 1 for i, line in enumerate(lines) if line.endswith(":")
+    }
+    ranges: dict[str, tuple[int, int]] = {}
+    for name in state_names:
+        start = starts[name]
+        end = start
+        for i in range(start, len(lines)):
+            if lines[i].startswith("    "):
+                end = i + 1
+            else:
+                break
+        ranges[name] = (start, end)
+    return ranges
+
+
+def compile_source(source: str) -> str:
+    global _LAST_PROGRAM
+    try:
+        code = compile(source, _EDSL_FILENAME, "exec")
+    except SyntaxError as e:
+        return _err("syntax", str(e.msg), e.lineno)
+    namespace: dict = {}
+    try:
+        exec(code, namespace)
+    except (ValidationError, LowerError) as e:
+        return _err("compile", str(e), _edsl_line(e))
+    except Exception as e:  # CompileError included: nanuk_lang may not be imported yet
+        kind = "compile" if type(e).__name__ == "CompileError" else "runtime"
+        return _err(kind, f"{type(e).__name__}: {e}", _edsl_line(e))
+    build_ir = namespace.get("build_ir")
+    if not callable(build_ir):
+        return _err("no_build_ir", "the program must define a build_ir() function")
+    try:
+        program = build_ir()
+        validate(program)
+        asm_text = to_asm(program, check=False)
+    except (ValidationError, LowerError) as e:
+        return _err("compile", str(e), _edsl_line(e))
+    except Exception as e:
+        kind = "compile" if type(e).__name__ == "CompileError" else "runtime"
+        return _err(kind, f"{type(e).__name__}: {e}", _edsl_line(e))
+
+    rendered = render_ir(program)
+    names = [st.name for st in program.states]
+    edsl = _edsl_ranges(source, set(names))
+    asm = _asm_ranges(asm_text, names)
+    states = []
+    for rstate in rendered.states:
+        a_lo, _ = asm[rstate.name]
+        cursor = a_lo + 1  # first instruction line after the label
+        ops = []
+        for op in rstate.ops:
+            asm_lines = list(range(cursor, cursor + op.asm_count))
+            cursor += op.asm_count
+            ops.append(
+                {"label": op.label, "ir_line": op.ir_line, "asm_lines": asm_lines}
+            )
+        states.append({
+            "name": rstate.name,
+            "edsl": list(edsl[rstate.name]) if rstate.name in edsl else None,
+            "ir": list(rstate.ir_range),
+            "asm": list(asm[rstate.name]),
+            "ops": ops,
+        })
+    _LAST_PROGRAM = program
+    return json.dumps({
+        "ok": True,
+        "ir_text": rendered.text,
+        "asm_text": asm_text,
+        "states": states,
+    })
+
+
+def run_packet(packet_hex: str) -> str:
+    if _LAST_PROGRAM is None:
+        return _err("no_program", "compile a program first")
+    cleaned = "".join(packet_hex.split())
+    try:
+        packet = bytes.fromhex(cleaned)
+    except ValueError:
+        return _err("bad_hex", "packet must be hex bytes (whitespace allowed)")
+    result = interp(_LAST_PROGRAM, packet, check=False)
+    return json.dumps({
+        "ok": True,
+        "result": {
+            "verdict": result.verdict,
+            "error": result.error,
+            "payload_offset": result.payload_offset,
+            "steps": result.steps,
+            "hdr_present": result.hdr_present,
+            "hdr_offset": result.hdr_offset,
+            "smd": result.smd,
+        },
+    })
