@@ -1,7 +1,7 @@
 # IR Interpreter + Web Playground — Design
 
 **Date:** 2026-07-11
-**Status:** Approved design decisions for two satellite tracks (see the satellite table in the [project design](2026-07-11-nanuk-project-design.md)). Implementation in future sessions: IR interpreter first, playground after.
+**Status:** IR interpreter implemented (`compiler/nanuk_ir/interp.py` + differential rigs in `compiler/tests/test_differential.py`, `lang/tests/test_interp_parity.py`). Playground: approved, not started.
 **Parent:** [Project design](2026-07-11-nanuk-project-design.md) · [Stage 3 IR plan](../plans/2026-07-11-stage3-ir.md)
 
 ## Decision 1: interpret the protobuf IR, not "the eDSL"

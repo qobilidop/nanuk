@@ -17,7 +17,7 @@ design.
 ```
 spec/     Sail ISA spec (the source of truth), emulator CLI, assembler, harness
 lang/     Python eDSL (compiles protocol declarations + parse graphs to the IR)
-compiler/ protobuf nanuk IR: schema, validation, and IR -> assembly lowering
+compiler/ protobuf nanuk IR: schema, validation, IR -> assembly lowering, interpreter
 hw/       Amaranth RTL core (cosimulated against the spec) + SimBricks demo
 examples/ Parser programs
 guide/    Lab notes and decision records
