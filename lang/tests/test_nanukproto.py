@@ -42,7 +42,8 @@ needs_emu = pytest.mark.skipif(
 @needs_emu
 class TestOnGoldenModel:
     @pytest.fixture(scope="class")
-    def prog(self):
+    @staticmethod
+    def prog():
         from nanuk_spec.asm import assemble
 
         return assemble(build())

@@ -1,11 +1,25 @@
+# Project scratch and vendored deps
 .agent_scratch/
+third_party/
+
+# Build outputs (matches at any level: root CMake build, hw/build, ...)
 build/
+sail_smt_cache
+
+# Python
 .venv/
 __pycache__/
-sail_smt_cache
-third_party/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.coverage
+
+# SimBricks demo staging and artifacts
 hw/simbricks/stage/
 hw/simbricks/out/
 hw/simbricks/prog.bin
 hw/simbricks/drop_all.bin
-hw/build/
+
+# OS
+.DS_Store
