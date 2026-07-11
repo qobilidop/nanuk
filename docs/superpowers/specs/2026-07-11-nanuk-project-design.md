@@ -61,7 +61,7 @@ Two portable interchange boundaries: the **IR above** (parser-level semantics: e
 Five stages, each independently demoable. Stages 1–3 demo via the pcap differential rig (native, fast, CI-friendly); live end-to-end arrives in stage 4 where its payoff lives.
 
 ### Stage 1 — ISA + Sail spec + golden model
-Parser ISA v0 sketched, then encoded in Sail. Sail generates the emulator (C backend). Build: assembler (Python), packet I/O harness around the generated emulator (load program, feed pcap bytes, capture header vector + verdict). **Done:** hand-written assembly programs parse Ethernet/VLAN/IPv4/UDP over a pcap corpus in CI.
+Parser ISA v0 sketched (done — see [Parser ISA v0 design](2026-07-11-parser-isa-v0-design.md)), then encoded in Sail. Sail generates the emulator (C backend). Build: assembler (Python), packet I/O harness around the generated emulator (load program, feed pcap bytes, capture header vector + verdict). **Done:** hand-written assembly programs parse Ethernet/VLAN/IPv4/UDP over a pcap corpus in CI.
 
 ### Stage 2 — Python eDSL
 eDSL → assembly directly, monolithic, no IR yet. **Done:** stage-1 demo programs rewritten in the eDSL, bit-identical rig results.
