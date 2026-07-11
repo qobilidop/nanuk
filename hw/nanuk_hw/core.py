@@ -17,7 +17,7 @@ One instruction takes one EXEC cycle; a 2-state FETCH/EXEC loop covers the
 synchronous imem read port (steps counts EXEC cycles, not clock cycles).
 """
 
-from amaranth import Array, Cat, Module, Mux, Signal
+from amaranth import Array, C, Cat, Module, Mux, Signal
 from amaranth.lib import memory, wiring
 from amaranth.lib.wiring import In, Out
 
@@ -58,6 +58,8 @@ OP_HALT = 0x0B
 _ST_IDLE = 0
 _ST_FETCH = 1
 _ST_EXEC = 2
+_ST_EXT_ISSUE = 3
+_ST_EXT_CAPTURE = 4
 
 
 class NanukCore(wiring.Component):
@@ -112,12 +114,20 @@ class NanukCore(wiring.Component):
             wp.en.eq(self.prog_we),
         ]
 
-        # --- Packet buffer: 256 x 8 as discrete registers (combinational
-        # extraction needs the whole buffer at once). ----------------------
-        pkt = [Signal(8, name=f"pkt{i}") for i in range(BUF_BYTES)]
-        pkt_arr = Array(pkt)
-        with m.If(self.pkt_we):
-            m.d.sync += pkt_arr[self.pkt_addr].eq(self.pkt_data)
+        # --- Packet buffer: 256 x 8 memory. EXT reads it sequentially, one
+        # byte per read cycle (the Sail read_pkt_bits algorithm laid out in
+        # time) — a combinational 2048-bit extraction datapath is both
+        # unrealistic hardware and pathological for Verilator's C output. ---
+        m.submodules.pktmem = pktmem = memory.Memory(
+            shape=8, depth=BUF_BYTES, init=[]
+        )
+        pwp = pktmem.write_port()
+        prp = pktmem.read_port()
+        m.d.comb += [
+            pwp.addr.eq(self.pkt_addr),
+            pwp.data.eq(self.pkt_data),
+            pwp.en.eq(self.pkt_we),
+        ]
 
         # --- Architectural state ------------------------------------------
         regs_arr = Array(self.regs)
@@ -133,7 +143,16 @@ class NanukCore(wiring.Component):
         verdict_r = Signal(8)
         err_r = Signal(8)
         done_r = Signal(1)
-        state = Signal(2, init=_ST_IDLE)
+        state = Signal(3, init=_ST_IDLE)
+
+        # EXT sequential-read bookkeeping (valid during _ST_EXT_*).
+        ext_rd_r = Signal(3)       # destination register field
+        ext_szm1_r = Signal(6)     # size - 1
+        ext_base_r = Signal(8)     # first byte address
+        ext_i_r = Signal(4)        # bytes read so far
+        ext_n_r = Signal(4)        # bytes needed (<= 9)
+        ext_shr_r = Signal(3)      # final right-shift (0..7)
+        ext_acc_r = Signal(72)     # MSB-first byte accumulator
 
         m.d.comb += [
             self.done.eq(done_r),
@@ -189,26 +208,20 @@ class NanukCore(wiring.Component):
                 state.eq(_ST_IDLE),
             ]
 
-        # --- EXT datapath: combinational extraction over the buffer. -------
-        # Packet bit position p (bit 0 = MSB of byte 0) maps to rev[p], with
-        # rev built MSB-first per byte: rev[8k + j] = pkt[k][7 - j].
-        rev = Cat(*[Cat(*[b[7 - j] for j in range(8)]) for b in pkt])
-        ext_pos = Signal(20)    # cursor*8 (<= 2048) + boff (<= 2047)
-        ext_end = Signal(21)    # pos + size
+        # --- EXT address math (combinational; the reads happen over the
+        # _ST_EXT_ISSUE/_ST_EXT_CAPTURE cycles, per Sail's read_pkt_bits). --
+        ext_pos = Signal(20)     # cursor*8 (<= 2048) + boff (<= 2047)
+        ext_end = Signal(21)     # pos + size
+        ext_size = Signal(7)     # 1..64
+        ext_bib = Signal(3)      # bit-in-byte of pos
+        ext_nbytes = Signal(4)   # ceil((bib + size) / 8) <= 9
         m.d.comb += [
             ext_pos.eq((cursor << 3) + ext_boff),
-            ext_end.eq(ext_pos + ext_szm1 + 1),
+            ext_size.eq(ext_szm1 + 1),
+            ext_end.eq(ext_pos + ext_size),
+            ext_bib.eq(ext_pos[0:3]),
+            ext_nbytes.eq((ext_bib + ext_size + 7) >> 3),
         ]
-        # In-bounds pos is < 2048, so 11 bits of shift amount suffice.
-        ext_window = Signal(64)
-        m.d.comb += ext_window.eq(rev >> ext_pos[0:11])
-        # ext_window[0] is the field's MSB; reverse and right-align so the
-        # sz-bit field reads out as an ordinary zero-extended integer.
-        ext_wrev = Cat(*[ext_window[63 - i] for i in range(64)])
-        ext_shamt = Signal(6)
-        m.d.comb += ext_shamt.eq(63 - ext_szm1)  # = 64 - size
-        ext_result = Signal(64)
-        m.d.comb += ext_result.eq(ext_wrev >> ext_shamt)
 
         # Cursor advance (shared by ADVI/ADVR).
         adv_amount = Signal(16)
@@ -264,7 +277,21 @@ class NanukCore(wiring.Component):
                         with m.If(ext_end > (hdr_limit << 3)):
                             halt_error(ERR_HDR_VIOLATION)
                         with m.Else():
-                            reg_write(f_ra, ext_result)
+                            # steps/pc already counted above (Sail increments
+                            # before execute); read bytes over the next
+                            # cycles, then retire in _ST_EXT_CAPTURE.
+                            m.d.sync += [
+                                ext_rd_r.eq(f_ra),
+                                ext_szm1_r.eq(ext_szm1),
+                                ext_base_r.eq(ext_pos >> 3),
+                                ext_i_r.eq(0),
+                                ext_n_r.eq(ext_nbytes),
+                                ext_shr_r.eq(
+                                    (ext_nbytes << 3) - ext_bib - ext_size
+                                ),
+                                ext_acc_r.eq(0),
+                                state.eq(_ST_EXT_ISSUE),
+                            ]
 
                 with m.Case(OP_ADVI):
                     with m.If(word[16:26] == 0):
@@ -353,5 +380,35 @@ class NanukCore(wiring.Component):
                 # Any unassigned pattern, nonzero required-zero field, or
                 # register code 5-7 (including the all-zeros word).
                 halt_error(ERR_ILLEGAL)
+
+        with m.Elif(state == _ST_EXT_ISSUE):
+            m.d.comb += [
+                prp.addr.eq(ext_base_r + ext_i_r),
+                prp.en.eq(1),
+            ]
+            m.d.sync += state.eq(_ST_EXT_CAPTURE)
+
+        with m.Elif(state == _ST_EXT_CAPTURE):
+            next_acc = Signal(72)
+            m.d.comb += next_acc.eq((ext_acc_r << 8) | prp.data)
+            with m.If(ext_i_r + 1 == ext_n_r):
+                # Last byte: align and mask, then retire the instruction.
+                aligned = Signal(72)
+                mask_sh = Signal(6)
+                mask = Signal(64)
+                m.d.comb += [
+                    aligned.eq(next_acc >> ext_shr_r),
+                    # size low ones: 64 ones shifted right by (64 - size).
+                    mask_sh.eq(63 - ext_szm1_r),
+                    mask.eq(C(0xFFFF_FFFF_FFFF_FFFF, 64) >> mask_sh),
+                ]
+                reg_write(ext_rd_r, aligned[0:64] & mask)
+                m.d.sync += state.eq(_ST_FETCH)
+            with m.Else():
+                m.d.sync += [
+                    ext_acc_r.eq(next_acc),
+                    ext_i_r.eq(ext_i_r + 1),
+                    state.eq(_ST_EXT_ISSUE),
+                ]
 
         return m
