@@ -1,0 +1,47 @@
+[
+  {
+    "name": "plain_ipv4_udp",
+    "hex": "aabbccddee01f2bf825e556408004500001e000100004011c4b0ac11000c0a00000100350035000ae0e86869",
+    "note": "Ethernet / IPv4 / UDP"
+  },
+  {
+    "name": "single_vlan",
+    "hex": "aabbccddee010000000000008100006408004500001c0001000040117cce7f0000017f000001003512b50008eef1",
+    "note": "one 802.1Q tag"
+  },
+  {
+    "name": "qinq",
+    "hex": "aabbccddee01000000000000810000c88100012c08004500001c0001000040117cce7f0000017f0000010035003500080172",
+    "note": "stacked VLANs (QinQ)"
+  },
+  {
+    "name": "ipv4_options",
+    "hex": "aabbccddee0100000000000008004600002000010000401179c87f0000017f000001010101010035003500080172",
+    "note": "IPv4 with options (IHL > 5)"
+  },
+  {
+    "name": "ipv4_tcp",
+    "hex": "aabbccddee010000000000000800450000280001000040067ccd7f0000017f00000100140050000000000000000050022000917c0000",
+    "note": "TCP: accepted, no UDP header"
+  },
+  {
+    "name": "arp",
+    "hex": "aabbccddee01f2bf825e556408060001080006040001f2bf825e5564ac11000c0000000000000a000001",
+    "note": "unknown EtherType: accept"
+  },
+  {
+    "name": "runt_frame",
+    "hex": "00000000000000000000",
+    "note": "10 bytes: header violation"
+  },
+  {
+    "name": "non_v4_version",
+    "hex": "aabbccddee01000000000000080060000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "note": "IPv4 EtherType but version 6: drop"
+  },
+  {
+    "name": "nk_tunnel",
+    "hex": "aabbccddee0100000000000088b54e4b100abcde08004500001e000100004011c4afac11000c0a00000200351092000ad08a6869",
+    "note": "the invented nanukproto tunnel (beat 3)"
+  }
+]
