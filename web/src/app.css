@@ -1,0 +1,13 @@
+@import '../site/shared.css';
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+body {
+  font-family: var(--font-ui);
+  background: var(--bg);
+  color: var(--fg);
+}

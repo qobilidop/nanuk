@@ -1,0 +1,32 @@
+/* nanuk site look tokens — the ONLY styling shared between the
+   hand-written landing page and the playground SPA. */
+:root {
+  --font-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+  --bg: #ffffff;
+  --bg-inset: #f6f8fa;
+  --fg: #1f2328;
+  --fg-muted: #59636e;
+  --border: #d1d9e0;
+  --accent: #0969da;
+  --ok: #1a7f37;
+  --warn: #9a6700;
+  --err: #d1242f;
+  --err-bg: #fff1f2;
+  --hl: rgba(9, 105, 218, 0.12);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --bg-inset: #161b22;
+    --fg: #e6edf3;
+    --fg-muted: #8d96a0;
+    --border: #30363d;
+    --accent: #4493f8;
+    --ok: #3fb950;
+    --warn: #d29922;
+    --err: #f85149;
+    --err-bg: #2d1216;
+    --hl: rgba(68, 147, 248, 0.16);
+  }
+}
