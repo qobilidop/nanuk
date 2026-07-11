@@ -300,9 +300,12 @@ class MapCore(wiring.Component):
         # --- SEND range math -------------------------------------------------
         sd_val = Signal(signed(11))
         m.d.comb += sd_val.eq(sd_delta.as_signed())
+        # NOT plen_min.as_signed(): that reinterprets 256 (9 bits) as -256.
+        neg_plen = Signal(signed(11))
+        m.d.comb += neg_plen.eq(-plen_min)
         send_bad = Signal(1)
         m.d.comb += send_bad.eq(
-            (sd_val > HEADROOM_BYTES) | (sd_val <= -plen_min.as_signed())
+            (sd_val > HEADROOM_BYTES) | (sd_val <= neg_plen)
         )
 
         # --- LDMD field value -------------------------------------------------

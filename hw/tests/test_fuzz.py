@@ -102,3 +102,85 @@ def test_fuzz_raw_words(seed):
     prog = rng.randbytes(4 * rng.randrange(1, 30))
     for i in range(3):
         assert_same(prog, random_packet(rng), f"raw seed={seed} pkt={i}")
+
+
+# --- MAP leg: random packets/tables through the M1 demo programs, plus raw
+# random MAP programs — nanuk-map-emu vs MapCore, full contract. ---
+
+from pathlib import Path
+
+from nanuk_spec import map_encoding as menc
+from nanuk_spec.map_asm import assemble as map_assemble
+from nanuk_spec.map_harness import Table, run_map
+from nanuk_hw.map_sim_util import run_map_one
+
+_EXAMPLES = Path(__file__).resolve().parents[2] / "examples"
+
+
+class _StubPP:
+    """All-absent PP context for raw-program fuzzing."""
+
+    hdr_present = [0] * 16
+    hdr_offset = [0] * 16
+    smd = [0] * 8
+
+    # run_map consumes attribute access only; this mirrors ParseResult's shape.
+    verdict = 0
+    error = 0
+    payload_offset = 0
+    steps = 0
+
+
+def _assert_map_same(prog, packet, pp, tables, ingress, seed_info):
+    g = run_map(prog, packet, pp, tables, ingress)
+    r = run_map_one(prog, packet, pp, tables, ingress)
+    for field in ("verdict", "error", "egress", "delta", "steps", "frame"):
+        assert getattr(g, field) == getattr(r, field), (
+            f"MAP {field} diverged ({seed_info}): "
+            f"golden={getattr(g, field)} rtl={getattr(r, field)}"
+        )
+
+
+def _random_table(rng, packet: bytes) -> Table:
+    entries = {}
+    for _ in range(rng.randrange(0, 8)):
+        if len(packet) >= 6 and rng.random() < 0.5:
+            key = int.from_bytes(packet[:6], "big")  # force hits sometimes
+        else:
+            key = rng.getrandbits(48)
+        entries[key] = rng.getrandbits(8)
+    return Table(key_width=48, action_width=8, entries=entries)
+
+
+@pytest.mark.parametrize("seed", range(15))
+def test_fuzz_map_l2fwd(seed):
+    from nanuk_spec.harness import run_program
+    from nanuk_spec.asm import assemble as pp_assemble
+
+    rng = random.Random(3000 + seed)
+    pp_prog = pp_assemble((_EXAMPLES / "l2l3l4" / "parse.asm").read_text())
+    map_prog = map_assemble((_EXAMPLES / "map_l2fwd" / "fwd.asm").read_text())
+    for i in range(4):
+        packet = rng.randbytes(rng.randrange(14, 300))
+        pp = run_program(pp_prog, packet)
+        if pp.verdict != 0:
+            continue
+        tables = [_random_table(rng, packet)]
+        _assert_map_same(
+            map_prog, packet, pp, tables, rng.randrange(4),
+            f"l2fwd seed={seed} pkt={i}",
+        )
+
+
+@pytest.mark.parametrize("seed", range(10))
+def test_fuzz_map_raw_words(seed):
+    """Arbitrary bit patterns as MAP programs: decode totality, window
+    violations, send-range errors — emu vs RTL."""
+    rng = random.Random(4000 + seed)
+    prog = rng.randbytes(4 * rng.randrange(1, 30))
+    for i in range(3):
+        packet = rng.randbytes(rng.randrange(0, 300))
+        _assert_map_same(
+            prog, packet, _StubPP(), [], rng.randrange(4),
+            f"map-raw seed={seed} pkt={i}",
+        )

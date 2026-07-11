@@ -30,8 +30,8 @@ _MAX_RUN_CYCLES = 65536
 @dataclass(frozen=True)
 class MapCoreResult:
     """MapCore's outbound contract; field names match map_harness.MapResult
-    so the cosim rig can diff them directly (frame excludes >256B tails —
-    compare against packets that fit the window)."""
+    so the cosim rig can diff them directly (frame includes the >256B tail
+    passthrough, same rule as run_map)."""
 
     verdict: int
     error: int
@@ -146,7 +146,9 @@ def run_map_core(prog, packets, ctxs, tables) -> list[MapCoreResult]:
                     ctx.set(dut.win_rd_addr, addr)
                     await ctx.tick()
                     out.append(ctx.get(dut.win_rd_data))
-                frame = bytes(out)
+                # Tail passthrough, same rule as map_harness.run_map: bytes
+                # beyond the window never entered the engine's custody.
+                frame = bytes(out) + packet[BUF_BYTES:]
             results.append(
                 MapCoreResult(
                     verdict=verdict,
