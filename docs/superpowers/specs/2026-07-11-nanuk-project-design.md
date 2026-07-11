@@ -105,6 +105,7 @@ Hub-and-spoke around the protobuf IR. Every spoke terminates in the same evaluat
 | **Differential fuzzing** | Random packets (later: random IR programs) diffed across emulator / RTL / backends. ~A day of work once rigs exist; complements the symbolic executor from the opposite direction. | Stage 4 rigs |
 | **HDL ports** | Same core, other HDLs — SystemVerilog first — each validated by the unchanged conformance suite. "Same contract, different expression." | Stage 4 |
 | **P4 frontend** | P4-subset frontend emitting nanuk IR; BMv2 becomes a differential oracle (same P4 program, compare behaviors). Positions nanuk *under* the P4 ecosystem, not against it. | Stage 3 |
+| **Workshop paper** | Short paper on the novel core: an open, Sail-specified parser ISA with generated golden model, conformance methodology, and full open stack — RISC-V-style spec-first engineering for packet engines. Primary targets: EuroP4 (@CoNEXT, CFP ~late summer) or ANRW (most remote-friendly); JOSS as a cheap citable-DOI add-on for the artifact. A HotNets-style position paper or full-stack paper stays in reserve for after the stage-4 demo. Open development continues as-is (public repos are not prior publication; anonymization is a submission-time PDF concern, and venue attendance/remote-presentation policy is checked against the CFP — email chairs early if travel is constrained). | Stage 2–3, timed to a CFP deadline |
 | **Book / course** | Distilled from ADRs and lab notes. | Post-capstone |
 
 ## Repository layout
