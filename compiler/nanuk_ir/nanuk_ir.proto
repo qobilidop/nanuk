@@ -70,8 +70,10 @@ message Shift {
 message Terminator {
   oneof kind {
     Dispatch dispatch = 1;
-    Halt halt = 2;
+    Halt halt = 2;                // parser programs only
     Goto goto = 3;
+    MapSend send = 4;             // MAP programs only
+    Drop drop = 5;                // MAP programs only
   }
 }
 
@@ -93,3 +95,97 @@ message Halt {
 message Goto {
   string target_state = 1;
 }
+
+// ---------------------------------------------------------------------------
+// MAP programs (match-action processor, the parser's sibling engine).
+// Same conventions: states[0] starts, value ids unique per program and
+// never cross states, debug_name is diagnostic-only. Byte offsets are
+// header-relative and signed (negative reaches the headroom); hdr_id 15 is
+// h_frame (frame start, always valid).
+
+message MapProgram {
+  uint32 ir_version = 1;          // = 1 (same version space as Program)
+  repeated TableDecl tables = 2;  // declarations only — entries are
+                                  // control-plane state, never program text
+  repeated MapState states = 3;   // states[0] is the start state
+}
+
+message TableDecl {
+  uint32 table_id = 1;            // 0..3
+  uint32 key_width = 2;           // 1..64
+  uint32 action_width = 3;        // 1..64
+  string debug_name = 4;          // e.g. "l2"
+}
+
+message MapState {
+  string name = 1;
+  repeated MapOp ops = 2;
+  Terminator terminator = 3;      // send/drop/goto/dispatch
+}
+
+message MapOp {
+  oneof op {
+    MapLoad load = 1;             // value_id = window bytes (hdr-relative)
+    MapLoadMd load_md = 2;        // value_id = inbound-SMD field
+    MapConst const = 3;           // value_id = 16-bit immediate
+    MapAdd add = 4;               // value_id = src + signed const
+    MapStore store = 5;           // window bytes = low nbytes of value
+    CsumUpdate csum = 6;          // in-place IPv4 header checksum fix
+    Lookup lookup = 7;            // the one op with control flow: hit
+                                  // continues, miss transfers to miss_state
+  }
+}
+
+message MapLoad {
+  uint32 value_id = 1;
+  uint32 hdr_id = 2;              // 0..15; 15 = h_frame
+  sint32 byte_offset = 3;         // -512..511
+  uint32 nbytes = 4;              // 1..8
+  string debug_name = 5;          // e.g. "ipv4.ttl"
+}
+
+message MapLoadMd {
+  uint32 value_id = 1;
+  uint32 field = 2;               // 0-7 SMD slots, 8 ingress, 9 flood,
+                                  // 10 hdr_present bitmap
+  string debug_name = 3;
+}
+
+message MapConst {
+  uint32 value_id = 1;
+  uint32 imm = 2;                 // 16-bit
+  string debug_name = 3;
+}
+
+message MapAdd {
+  uint32 value_id = 1;
+  uint32 src_value_id = 2;
+  sint32 imm = 3;                 // sign-extended 16-bit
+}
+
+message MapStore {
+  uint32 value_id = 1;
+  uint32 hdr_id = 2;
+  sint32 byte_offset = 3;
+  uint32 nbytes = 4;
+  string debug_name = 5;
+}
+
+message CsumUpdate {
+  uint32 hdr_id = 1;
+  sint32 byte_offset = 2;
+}
+
+message Lookup {
+  uint32 value_id = 1;            // action data on hit (0 in miss_state)
+  uint32 table_id = 2;
+  uint32 key_value_id = 3;
+  string miss_state = 4;
+}
+
+message MapSend {
+  uint32 bitmap_value_id = 1;     // egress port bitmap
+  sint32 delta = 2;               // signed head delta (positive = prepend)
+}
+
+message Drop {}

@@ -145,3 +145,9 @@ def _validate_terminator(
             _validate_terminator(d.default, where, state_names, use, top_level=False)
         case None:
             raise ValidationError(f"{where}: missing terminator")
+        case other:
+            # send/drop belong to MapPrograms (validate_map), not parsers.
+            raise ValidationError(
+                f"{where}: terminator kind {other!r} is not allowed in "
+                "parser programs"
+            )
