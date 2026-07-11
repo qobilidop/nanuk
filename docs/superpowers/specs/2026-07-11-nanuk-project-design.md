@@ -106,6 +106,8 @@ Hub-and-spoke around the protobuf IR. Every spoke terminates in the same evaluat
 | **HDL ports** | Same core, other HDLs — SystemVerilog first — each validated by the unchanged conformance suite. "Same contract, different expression." | Stage 4 |
 | **P4 frontend** | P4-subset frontend emitting nanuk IR; BMv2 becomes a differential oracle (same P4 program, compare behaviors). Positions nanuk *under* the P4 ecosystem, not against it. | Stage 3 |
 | **Workshop paper** | Short paper on the novel core: an open, Sail-specified parser ISA with generated golden model, conformance methodology, and full open stack — RISC-V-style spec-first engineering for packet engines. Primary targets: EuroP4 (@CoNEXT, CFP ~late summer) or ANRW (most remote-friendly); JOSS as a cheap citable-DOI add-on for the artifact. A HotNets-style position paper or full-stack paper stays in reserve for after the stage-4 demo. Open development continues as-is (public repos are not prior publication; anonymization is a submission-time PDF concern, and venue attendance/remote-presentation policy is checked against the CFP — email chairs early if travel is constrained). | Stage 2–3, timed to a CFP deadline |
+| **IR interpreter** | Reference interpreter for the protobuf IR (`compiler/nanuk_ir/interp.py`): independent IR semantics; enables `interp(IR)` vs `emulate(lower(IR))` differential testing of the compiler (lightweight translation validation); the chassis the symbolic executor and the playground both reuse. | Now (IR stable) |
+| **Web playground** | Browser IDE, Pyodide-based so it runs the actual repo code (eDSL/IR/validator/interpreter/assembler — no rewrite): three synchronized panes eDSL \| IR \| assembly with Compiler-Explorer-style provenance highlighting; packets in, parse trace + verdict/hdr/SMD out. v1 executes the IR interpreter; v2 adds a Python assembly-level ISS (drift-tripwired in CI like the encoding mirror) and diffs both levels live — the differential methodology, interactive. Later: "SimBricks-lite" packet-lab view (two virtual hosts + parser-gated flood, animated) and possibly DigitalJS-rendered gates. Prior art: Compiler Explorer, nand2tetris Web IDE, Ripes/Venus, easy6502, JupyterLite, sail-xisa playground. | IR interpreter |
 | **Book / course** | Distilled from ADRs and lab notes. | Post-capstone |
 
 ## Repository layout
@@ -122,7 +124,7 @@ docs/       Design docs (this file)
 
 ## Parked
 
-Multiple engines · match-action stage / deparser · traffic manager · real MAC/SerDes · line rate · standalone (non-embedded) language · FireSim · early TAP-interface live demo (~50 lines if morale demands it) · anything not listed above — by default.
+Browser-native SimBricks (QEMU full-system + multi-process SHM channels are not browser-viable; use a recorded demo + the playground's packet-lab instead; a server-side runner is a service with cost/abuse surface) · multiple engines · match-action stage / deparser · traffic manager · real MAC/SerDes · line rate · standalone (non-embedded) language · FireSim · early TAP-interface live demo (~50 lines if morale demands it) · anything not listed above — by default.
 
 ## Naming and licensing
 
