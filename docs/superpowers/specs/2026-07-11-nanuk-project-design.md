@@ -1,13 +1,13 @@
 # nanuk — Project Design
 
 **Date:** 2026-07-11
-**Status:** Approved scope for the main track; satellite tracks defined with entry criteria. Scope frozen — new ideas go to *Parked* by default.
+**Status:** Approved scope for the main track; satellite tracks defined with entry criteria. Scope frozen — new ideas go to *Parked* by default. **2026-07-11:** first arc (stages 1–4) complete; second arc approved — match-action un-parked, see [Match-Action Extension](2026-07-11-map-extension-design.md).
 
 ## Thesis
 
 nanuk is an educational project that builds a **programmable packet processor from chip to programming language** — the entire vertical stack, small enough that one person can understand every layer, real enough that the final demo is unmodified Linux hosts exchanging traffic through your own RTL.
 
-- **Parser-first.** Packet parsing is the most self-contained piece of a packet processor: crisp input (bytes), crisp output (extracted headers + a verdict), and genuinely interesting to make programmable. The full processor (match-action, deparser, traffic manager) comes later or not at all.
+- **Parser-first.** Packet parsing is the most self-contained piece of a packet processor: crisp input (bytes), crisp output (extracted headers + a verdict), and genuinely interesting to make programmable. The full processor (match-action, deparser, traffic manager) comes later or not at all. *(2026-07-11: match-action un-parked as the second arc — two sibling ISA processors, PP + MAP; see [Match-Action Extension](2026-07-11-map-extension-design.md). Deparser stays out by construction; traffic manager stays parked.)*
 - **ISA-based, not PISA-based.** The parser is a tiny programmable processor with its own instruction set, in the spirit of Xsight Labs' open xISA — not a P4/PISA parse-graph abstraction. Rationale: (1) xISA proves real silicon works this way; (2) the ISA route unlocks mature tooling (Sail, RISC-V-style conformance methodology, Isla); (3) an ISA is the truthful layer — real chips implement parse graphs on programmable parser engines anyway; (4) PISA/P4 can sit *on top* later as a frontend, turning BMv2 into a differential-testing oracle rather than a competitor.
 - **General across switch and NIC.** Nothing in the ISA or contract assumes one or the other. (The system-level demo uses the switch shape because it avoids PCIe/DMA/driver work.)
 - **Eventually a book and course.** Deferred. The only concession now: decision records and lab notes as we go.
@@ -72,6 +72,9 @@ Refactor: the eDSL's internal representation becomes the public protobuf IR; pip
 ### Stage 4 — RTL + system demo
 Amaranth parser core with **parameterized datapath/memory widths** (full config for SimBricks; shrunk "nano" config targeting a Tiny Tapeout tile). Instruction-level cosim rig vs. Sail. A deliberately dumb fixed-function forwarder (static L2 or simple learning) consumes the header vector — minimal harness, not scope creep; it stays dumb. SimBricks component adapters (Ethernet-channel glue for both the Verilator'd RTL and the emulator as a behavioral component — the in-system A/B swap comes free). **Done:** the three-beat demo below, plus rungs 1–2 of the ladder in CI.
 
+### Second arc — match-action (approved 2026-07-11)
+Un-parks the match-action stage as a full vertical: a new **MAP** (match-action processor) with its own minimal sibling ISA, composed 1 PP → 1 MAP, replacing the dumb flood forwarder with programmable forwarding in the SimBricks demo. Stages M1 (Sail spec + golden model + composed rig) → M2 (RTL + system demo, demo-first) → M3 (eDSL/IR/playground extension). Runs before all satellites. Full design: [Match-Action Extension](2026-07-11-map-extension-design.md); the MAP ISA v0 gets its own design doc at M1.
+
 ### Stage 5 — Tiny Tapeout capstone *(deferred to future work, 2026-07-11)*
 The nano configuration through OpenLane to a Tiny Tapeout submission. Deferred by decision: the SimBricks demo runs the same RTL cosimulated against the spec, so silicon adds narrative value, not evidence — and shuttle-to-delivery is 6-12 months regardless of when the design work happens. Prerequisite design work when picked up: the nano parameter set (synthesis data shows imem is 94% of core state — see guide/notes/2026-07-11-stage4-lab-notes.md) and a serial pin shim. The physical demo is necessarily humbler (packets over slow pins/UART; real MAC/SerDes is parked). **Done:** GDS submitted; same conformance suite passing on the gate-level netlist.
 
@@ -98,7 +101,7 @@ Hub-and-spoke around the protobuf IR. Every spoke terminates in the same evaluat
 
 | Satellite | What | Entry criterion |
 |---|---|---|
-| **MLIR — phase A** | nanuk-IR dialect, import/export, optimization passes (dead-extract elimination, extract widening/merging, parse-state dedup, dispatch optimization). Round-trip: IR → MLIR → optimized IR. Correctness: differential pcap testing, optimized vs. unoptimized, through the golden model. | Stage 3 |
+| **MLIR — phase A** | nanuk-IR dialect, import/export, optimization passes (dead-extract elimination, extract widening/merging, parse-state dedup, dispatch optimization). Round-trip: IR → MLIR → optimized IR. Correctness: differential pcap testing, optimized vs. unoptimized, through the golden model. | After MAT arc, *if at all* — 2026-07-11: demoted from queued learning goal; unconvinced the MLIR/C++ weight belongs in the repo. Revisit once the IR has stabilized post-MAT. |
 | **MLIR — phase B** | Second dialect mirroring the ISA; dialect-conversion lowering (instruction selection / register allocation as rewrites) — an alternate backend. Emits assembly *text*; the shared assembler owns encoding. Payback: differential testing of the mainline Python backend. Isolated build (or separate repo, as ONNX-MLIR is to ONNX); no LLVM in the main build, ever. | Phase A |
 | **Formal — symbolic executor** | Python + Z3 interpreter over the IR (p4v / p4-symbolic precedent; tractable because parsers are bounded-loop bitvector programs). Payoffs: path-coverage packet generation (p4pktgen-style — *generates the shared pcap corpus*); safety properties (no read past packet end, no read-before-write in the header vector, unreachable states, depth bounds). | Stage 3 |
 | **Formal — translation validation** | Alive2-style per-run validation (Gauntlet precedent): IR→IR for the optimizer; IR→asm for both backends, with **Isla** providing symbolic semantics of the assembly side directly from the Sail spec — no second hand-written semantics. | Symbolic executor |
@@ -124,7 +127,7 @@ docs/       Design docs (this file)
 
 ## Parked
 
-Browser-native SimBricks (QEMU full-system + multi-process SHM channels are not browser-viable; use a recorded demo + the playground's packet-lab instead; a server-side runner is a service with cost/abuse surface) · multiple engines · match-action stage / deparser · traffic manager · real MAC/SerDes · line rate · standalone (non-embedded) language · FireSim · early TAP-interface live demo (~50 lines if morale demands it) · anything not listed above — by default.
+Browser-native SimBricks (QEMU full-system + multi-process SHM channels are not browser-viable; use a recorded demo + the playground's packet-lab instead; a server-side runner is a service with cost/abuse surface) · ~~match-action stage~~ *(un-parked 2026-07-11 → second arc)* · deparser / separate modifier engine (no deparser by construction — zero-copy offsets+SMD; modifier only if pipelining for throughput) · MAT-arc deferrals with triggers (async lookup, LPM/ternary tables, data-plane learning, reparse loop, multi-MAP cores — see [Match-Action Extension](2026-07-11-map-extension-design.md)) · multiple engines beyond 1 PP + 1 MAP · traffic manager · real MAC/SerDes · line rate · standalone (non-embedded) language · FireSim · early TAP-interface live demo (~50 lines if morale demands it) · anything not listed above — by default.
 
 ## Naming and licensing
 
