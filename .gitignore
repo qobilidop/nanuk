@@ -1,2 +1,4 @@
 .agent_scratch/
 build/
+.venv/
+__pycache__/
