@@ -14,9 +14,20 @@ spec, and a Tiny Tapeout capstone. See
 
 ```
 spec/     Sail ISA spec (the source of truth), emulator CLI, assembler, harness
+lang/     Python eDSL (compiles protocol declarations + parse graphs to asm)
+hw/       Amaranth RTL core (cosimulated against the spec) + SimBricks demo
 examples/ Parser programs
+guide/    Lab notes and decision records
 docs/     Design docs and plans
 ```
+
+## The demo
+
+`hw/simbricks/build_and_run.sh` runs the end-to-end demo: two QEMU Linux
+hosts exchange real traffic through the Verilator'd nanuk parser core
+inside SimBricks — `ping` works because the loaded parser program accepts
+the frames. Load `examples/drop_all/parse.asm` instead and the network
+goes dark: the parser program is the switch's forwarding policy.
 
 ## Quickstart
 
