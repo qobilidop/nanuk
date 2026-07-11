@@ -55,9 +55,8 @@ run_phase() {  # $1 = phase; encap-tables.txt optionally staged in $OUT
 }
 
 ping_ok() { grep -qE ", 0% packet loss" "$OUT/run-tunnel-$1.log"; }
-switch_stat() {  # $1 phase, $2 map tag, $3 field
-  grep -oE "nanuk_hw\[$2\]: frames [^\"]*" "$OUT/run-tunnel-$1.log" \
-    | grep -oE "$3=[0-9]+" | tail -1 | cut -d= -f2
+max_stat() {  # $1 phase, $2 field — max across both switches' stats lines
+  grep -oE "$2=[0-9]+" "$OUT/run-tunnel-$1.log" | cut -d= -f2 | sort -n | tail -1
 }
 
 # ---- Phase A: no tunnel table (plain flood both hops) ----
@@ -76,8 +75,10 @@ entry 1 0x${HOST1_MAC//:/} 0x2
 EOF
 run_phase B
 ping_ok B || { echo "TUNNEL PHASE B FAILED: no clean ping through the tunnel"; exit 1; }
-ENC=$(switch_stat B encap-map.bin delta_pos)
-DEC=$(switch_stat B decap-map.bin delta_neg)
+# Encap is the only producer of delta_pos, decap the only one of delta_neg,
+# so the max across both switches' stats lines attributes correctly.
+ENC=$(max_stat B delta_pos)
+DEC=$(max_stat B delta_neg)
 [ "${ENC:-0}" -gt 0 ] || { echo "TUNNEL PHASE B FAILED: sw_encap never encapsulated (delta_pos=${ENC:-?})"; exit 1; }
 [ "${DEC:-0}" -gt 0 ] || { echo "TUNNEL PHASE B FAILED: sw_decap never decapsulated (delta_neg=${DEC:-?})"; exit 1; }
 echo "phase B ok: ping rode the tunnel (encap delta_pos=$ENC, decap delta_neg=$DEC)"
