@@ -37,3 +37,4 @@ function(add_sail_test TEST_NAME TEST_SAIL)
 endfunction()
 
 add_sail_test(test_smoke spec/test/test_smoke.sail)
+add_sail_test(test_state spec/test/test_state.sail)
