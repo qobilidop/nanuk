@@ -179,5 +179,12 @@ def _exec_terminator(m: _Machine, term: ir.Terminator) -> str:
         case "goto":  # JMP
             m.tick()
             return term.goto.target_state
-        case _:
-            raise NotImplementedError  # dispatch: Task 3
+        case "dispatch":  # MOVI+BEQ per case in order, then the default inline
+            d = term.dispatch
+            value = m.values[d.value_id][0]
+            for case_ in d.cases:
+                m.tick()  # MOVI rscratch, match
+                m.tick()  # BEQ value, rscratch, target
+                if case_.match == value:
+                    return case_.target_state
+            return _exec_terminator(m, d.default)

@@ -1,6 +1,8 @@
 """nanuk-ir: the nanuk IR (protobuf, package nanuk.ir.v0), its validation
-pass, and the IR -> assembly lowering (stage 3 of the nanuk project)."""
+pass, the IR -> assembly lowering (stage 3 of the nanuk project), and the
+IR-level interpreter (differential chassis for the satellites)."""
 
+from .interp import InterpResult, interp
 from .lower import LowerError, to_asm
 from .nanuk_ir_pb2 import (
     Advance,
@@ -28,6 +30,7 @@ __all__ = [
     "Extract",
     "Goto",
     "Halt",
+    "InterpResult",
     "LowerError",
     "Mark",
     "Op",
@@ -36,6 +39,7 @@ __all__ = [
     "State",
     "Terminator",
     "ValidationError",
+    "interp",
     "to_asm",
     "validate",
 ]

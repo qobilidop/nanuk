@@ -171,3 +171,89 @@ def test_emit_smd_multi_slot_msb_first():
     p = one_state([ext(1, 0, 48), smd_op(1, 0)])
     r = interp(p, bytes.fromhex("aabbccddee01") + b"\x00" * 8)
     assert r.smd[:3] == [0xAABB, 0xCCDD, 0xEE01]
+
+
+# -- dispatch and the cost model ---------------------------------------------
+
+def dispatch(vid: int, cases: list[tuple[int, str]], default: ir.Terminator) -> ir.Terminator:
+    return ir.Terminator(dispatch=ir.Dispatch(
+        value_id=vid,
+        cases=[ir.Case(match=m, target_state=t) for m, t in cases],
+        default=default,
+    ))
+
+
+def two_way(cases, default=None) -> ir.Program:
+    """start extracts byte 0 and dispatches; 'acc' accepts, 'drp' drops."""
+    return prog(
+        ir.State(name="start", ops=[ext(1, 0, 8)],
+                 terminator=dispatch(1, cases, default or halt(drop=True))),
+        ir.State(name="acc", terminator=halt(drop=False)),
+        ir.State(name="drp", terminator=halt(drop=True)),
+    )
+
+
+def test_dispatch_first_match_wins():
+    p = two_way([(0x42, "drp"), (0x42, "acc")])
+    assert interp(p, b"\x42").verdict == VERDICT_DROP
+
+
+def test_dispatch_falls_through_to_default():
+    p = two_way([(0x01, "acc")])
+    assert interp(p, b"\x42").verdict == VERDICT_DROP
+
+
+def test_dispatch_compares_full_value_not_low_16_bits():
+    # 24-bit value 0x01BEEF must NOT match case 0xBEEF.
+    p = prog(
+        ir.State(name="start", ops=[ext(1, 0, 24)],
+                 terminator=dispatch(1, [(0xBEEF, "acc")], halt(drop=True))),
+        ir.State(name="acc", terminator=halt(drop=False)),
+    )
+    assert interp(p, b"\x01\xbe\xef").verdict == VERDICT_DROP
+
+
+def test_dispatch_cost_is_two_per_case_tried():
+    # match on 2nd case: ext(1) + [movi+beq](2) + [movi+beq](2) + halt(1) = 6
+    p = two_way([(0x01, "drp"), (0x42, "acc")])
+    r = interp(p, b"\x42")
+    assert r.accepted and r.steps == 6
+    # no match: ext(1) + 2*2 tried + default halt(1) = 6
+    r = interp(p, b"\x99")
+    assert r.verdict == VERDICT_DROP and r.steps == 6
+
+
+def test_dispatch_default_goto_costs_a_jmp():
+    p = two_way([(0x01, "acc")], default=goto("drp"))
+    # ext(1) + movi+beq(2) + jmp(1) + halt(1) = 5
+    assert interp(p, b"\x42").steps == 5
+
+
+def test_budget_can_exhaust_mid_dispatch():
+    # A 1-state ext+self-goto loop; each lap is 2 steps (ext, jmp), so the
+    # 128th lap's ext is step 255, jmp is 256, and the next lap's ext
+    # attempt is #257 -> budget error, steps saturated.
+    p = prog(ir.State(name="a", ops=[ext(1, 0, 8)], terminator=goto("a")))
+    r = interp(p, b"\xff")
+    assert (r.verdict, r.error) == (VERDICT_ERROR, ERR_STEP_BUDGET)
+    assert r.steps == STEP_BUDGET
+
+
+# -- validation and exports ---------------------------------------------------
+
+def test_invalid_program_rejected_by_default():
+    from nanuk_ir.validate import ValidationError
+    bad = prog(ir.State(name="s", terminator=goto("nowhere")))
+    with pytest.raises(ValidationError):
+        interp(bad, b"")
+
+
+def test_check_false_skips_validation():
+    ok = prog(ir.State(name="s", terminator=halt()))
+    assert interp(ok, b"", check=False).accepted
+
+
+def test_package_exports():
+    import nanuk_ir
+    assert nanuk_ir.interp is interp
+    from nanuk_ir import InterpResult  # noqa: F401
