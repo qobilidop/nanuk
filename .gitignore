@@ -15,6 +15,11 @@ __pycache__/
 *.egg-info/
 .coverage
 
+# Web (playground)
+node_modules/
+web/dist/
+web/public/wheels/
+
 # SimBricks demo staging and artifacts
 hw/simbricks/stage/
 hw/simbricks/out/
