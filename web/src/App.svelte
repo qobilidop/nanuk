@@ -104,6 +104,9 @@
     gap: 1px; background: var(--border); min-width: 0;
   }
   .edsl-col { display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
+  /* The pane must shrink to leave room for the error banner, not push it
+     below the fold. */
+  .edsl-col > :global(.pane) { flex: 1; min-height: 0; }
   .banner {
     padding: 0.5rem 0.8rem; font-size: 0.85rem;
     background: var(--err-bg); color: var(--err); border-top: 1px solid var(--border);
