@@ -6,6 +6,8 @@
 
 **Sequencing note (deviation from the project design's stage order):** stages 2 (eDSL) and 3 (protobuf IR) are deferred — neither is on the demo's critical path. Demo programs use stage-1 assembly. The eDSL/IR stages slot back in after the demo.
 
+**As-built amendments (post-completion):** (1) the `nanuk_switch` Amaranth wrapper was dropped — the SimBricks component drives `nanuk_core`'s load ports directly and implements flood-if-accepted in the glue (see guide/notes/2026-07-11-stage4-lab-notes.md); (2) EXT was restructured from combinational 2048-bit extraction to sequential byte reads over a packet memory; (3) verilation happens natively in the devcontainer (Verilator 5), only the generated C++ compiles in the SimBricks container. Demo passed both ways: l2l3l4 program → 10/10 pings; drop_all program → 100% loss.
+
 **Architecture:** `hw/` holds the Amaranth core and switch (Python, pysim tests, Verilog export); the cosim rig reuses `spec/python`'s harness to diff RTL vs `nanuk-emu` over the demo corpus; `hw/simbricks/` holds the C++ SimBricks net component and experiment configs, modeled on SimBricks' own `net_switch`/Menshen integrations.
 
 **Tech Stack:** Amaranth ≥0.5 (+builtin-yosys for Verilog export) · pysim · Verilator (added to devcontainer) · SimBricks (their Docker images for QEMU hosts) · pytest.
