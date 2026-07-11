@@ -80,3 +80,28 @@ compile errors (16-bit dispatch constants, shift-only arithmetic, 4
 registers, extract-behind-cursor). The compiled demo is 37 words vs. 33
 hand-written, behaviorally identical over the corpus — the price of a
 compiler is four instructions.
+
+## First PPA data point (yowasp-yosys, generic synth, no ABC)
+
+`nanuk_core` (full config): ~80k generic cells; 35,652 flip-flops of which
+34,816 are the two memories (imem 1024×32 = 32,768 + pktmem 256×8 = 2,048)
+— the instruction memory alone is 94% of all state. The nano (Tiny Tapeout)
+configuration therefore lives or dies on shrinking imem (e.g. 64–128 words)
+and/or mapping the buffers to RAM macros rather than flops. Logic (~44k
+mux/and) is dominated by memory read muxing, which real RAM ports also
+eliminate. The wasm yosys build's ABC hangs on this design; generic-cell
+stats were enough for the sizing conclusion.
+
+## Beat 3 and the fuzzing dividend
+
+Beat 3 (examples/nanukproto): an invented L2.5 tenant tunnel — one Header
+declaration + three eDSL states grafted onto the standard program; tunneled
+IPv4/UDP and even VLAN-inside-tunnel parse with correct inner offsets, bad
+magic/version drop, plain traffic untouched. 6/6 on the golden model.
+
+Differential fuzzing (hw/tests/test_fuzz.py) fell out of total semantics
+almost for free: any word sequence is a valid program (worst case a defined
+error halt) and the watchdog bounds every run, so random programs — both
+field-randomized well-formed instructions and arbitrary bit patterns — need
+no validity filtering at all. 90 program/packet pairs diffed emulator vs
+RTL on the full contract, all agreeing.
