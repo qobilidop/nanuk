@@ -67,7 +67,7 @@
   <main>
     <div class="panes">
       <div class="edsl-col">
-        <CodePane title="eDSL (Python)" doc={source} editable python
+        <CodePane title="nanuk lang" paneKey="lang" doc={source} editable python
           ranges={edslRanges} {onEdit} />
         {#if compileError}
           <div class="banner" role="alert">
@@ -77,10 +77,10 @@
           </div>
         {/if}
       </div>
-      <CodePane title="nanuk IR" doc={compiled?.ir_text ?? ''} editable={false}
-        python={false} ranges={irRanges} />
-      <CodePane title="assembly" doc={compiled?.asm_text ?? ''} editable={false}
-        python={false} ranges={asmRanges} />
+      <CodePane title="nanuk IR" paneKey="ir" doc={compiled?.ir_text ?? ''}
+        editable={false} python={false} ranges={irRanges} />
+      <CodePane title="nanuk asm" paneKey="asm" doc={compiled?.asm_text ?? ''}
+        editable={false} python={false} ranges={asmRanges} />
     </div>
     <aside>
       <PacketPanel {runtime} ready={compiled !== null}

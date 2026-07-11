@@ -4,17 +4,17 @@
   import { EditorView, keymap, lineNumbers } from '@codemirror/view';
   import { defaultKeymap } from '@codemirror/commands';
   import { python } from '@codemirror/lang-python';
-  import { hoveredState } from '../stores';
+  import { hoveredState, setHovered } from '../stores';
   import {
     highlightField, lineRangesToRegions, setHighlightRegion, stateAtLine,
     type NamedRange,
   } from './highlight';
 
   let {
-    title, doc, editable, python: isPython, ranges, onEdit,
+    title, paneKey, doc, editable, python: isPython, ranges, onEdit,
   }: {
-    title: string; doc: string; editable: boolean; python: boolean;
-    ranges: NamedRange[]; onEdit?: (doc: string) => void;
+    title: string; paneKey: string; doc: string; editable: boolean;
+    python: boolean; ranges: NamedRange[]; onEdit?: (doc: string) => void;
   } = $props();
 
   let host: HTMLDivElement;
@@ -37,11 +37,11 @@
           EditorView.domEventHandlers({
             mousemove(event, v) {
               const pos = v.posAtCoords({ x: event.clientX, y: event.clientY });
-              hoveredState.set(
-                pos == null ? null : stateAtLine(ranges, v.state.doc.lineAt(pos).number),
-              );
+              const name =
+                pos == null ? null : stateAtLine(ranges, v.state.doc.lineAt(pos).number);
+              setHovered(name ? { name, origin: paneKey } : null);
             },
-            mouseleave() { hoveredState.set(null); },
+            mouseleave() { setHovered(null); },
           }),
         ],
       }),
@@ -56,14 +56,22 @@
     }
   });
 
-  // Apply the shared hover highlight to this pane's matching region.
-  const unsub = hoveredState.subscribe((name) => {
+  // Apply the shared hover highlight to this pane's matching region, and
+  // scroll it into view — but never scroll the pane the mouse is in
+  // (that would yank the text out from under the cursor).
+  const unsub = hoveredState.subscribe((hover) => {
     if (!view) return;
-    const region = name
+    const region = hover
       ? lineRangesToRegions(view.state.doc.toString(), ranges)
-          .find((r) => r.name === name) ?? null
+          .find((r) => r.name === hover.name) ?? null
       : null;
-    view.dispatch({ effects: setHighlightRegion.of(region) });
+    const effects: import('@codemirror/state').StateEffect<unknown>[] = [
+      setHighlightRegion.of(region),
+    ];
+    if (region && hover && hover.origin !== paneKey) {
+      effects.push(EditorView.scrollIntoView(region.from, { y: 'center' }));
+    }
+    view.dispatch({ effects });
   });
   onDestroy(unsub);
 </script>

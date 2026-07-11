@@ -13,6 +13,7 @@
   let presets: Preset[] = $state([]);
   // svelte-ignore state_referenced_locally -- deliberate: the URL param seeds the initial value only
   let packetHex = $state(initialPacket ?? '');
+  let selected: string | null = $state(null);
   let result: ParseResultJson | null = $state(null);
   let error: BridgeError | null = $state(null);
 
@@ -20,7 +21,10 @@
     presets = await fetch(`${import.meta.env.BASE_URL}presets.json`).then((r) => r.json());
     if (!initialPacket && initialPreset) {
       const p = presets.find((p) => p.name === initialPreset);
-      if (p) packetHex = p.hex;
+      if (p) {
+        packetHex = p.hex;
+        selected = p.name;
+      }
     }
   });
 
@@ -41,11 +45,12 @@
   <h2>packet</h2>
   <div class="chips">
     {#each presets as p}
-      <button class="chip" title={p.note}
-        onclick={() => { packetHex = p.hex; if (ready) run(); }}>{p.name}</button>
+      <button class="chip" class:selected={selected === p.name} title={p.note}
+        onclick={() => { packetHex = p.hex; selected = p.name; if (ready) run(); }}>
+        {p.name}</button>
     {/each}
   </div>
-  <textarea rows="4" bind:value={packetHex}
+  <textarea rows="4" bind:value={packetHex} oninput={() => (selected = null)}
     placeholder="hex bytes, e.g. aabbccddee01…" spellcheck="false"></textarea>
   <button class="run" disabled={!ready || !packetHex.trim()} onclick={run}>
     Run packet
@@ -63,6 +68,7 @@
           border: 1px solid var(--border); background: none; color: var(--fg);
           cursor: pointer; }
   .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .chip.selected { background: var(--accent); border-color: var(--accent); color: #fff; }
   textarea { font-family: var(--font-mono); font-size: 0.8rem;
              background: var(--bg-inset); color: var(--fg);
              border: 1px solid var(--border); border-radius: 4px; padding: 0.4rem; }
