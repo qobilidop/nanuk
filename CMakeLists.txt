@@ -30,3 +30,43 @@ add_custom_target(check
 
 enable_testing()
 add_subdirectory(spec/test)
+
+# The emulator CLI: Sail model compiled without a generated main, driven by
+# a thin C shim through the machine-word emu_* API.
+set(EMU_STEM "${CMAKE_BINARY_DIR}/nanuk_model")
+add_custom_command(
+    OUTPUT ${EMU_STEM}.c
+    COMMAND ${SAIL} -c --c-no-main
+        # Keep the harness API alive through C dead-code elimination.
+        --c-preserve emu_reset
+        --c-preserve emu_poke_imem
+        --c-preserve emu_poke_pkt
+        --c-preserve emu_set_plen
+        --c-preserve emu_run
+        --c-preserve emu_get_verdict
+        --c-preserve emu_get_error
+        --c-preserve emu_get_cursor
+        --c-preserve emu_get_steps
+        --c-preserve emu_get_hdr_present
+        --c-preserve emu_get_hdr_offset
+        --c-preserve emu_get_smd
+        ${MODEL_MAIN}
+        ${CMAKE_SOURCE_DIR}/spec/emulator/entry.sail -o ${EMU_STEM}
+    DEPENDS ${MODEL_SAIL_FILES} ${CMAKE_SOURCE_DIR}/spec/emulator/entry.sail
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Compiling Sail model to C (emulator core)..."
+)
+add_executable(nanuk-emu
+    spec/emulator/main.c
+    ${EMU_STEM}.c
+    ${SAIL_DIR}/lib/sail.c
+    ${SAIL_DIR}/lib/rts.c
+    ${SAIL_DIR}/lib/elf.c
+    ${SAIL_DIR}/lib/sail_failure.c
+)
+target_include_directories(nanuk-emu PRIVATE ${SAIL_DIR}/lib)
+target_link_libraries(nanuk-emu PRIVATE gmp z)
+target_compile_options(nanuk-emu PRIVATE -O2)
+
+add_test(NAME emu_smoke
+    COMMAND bash ${CMAKE_SOURCE_DIR}/spec/emulator/smoke_test.sh $<TARGET_FILE:nanuk-emu>)
