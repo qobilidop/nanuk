@@ -77,4 +77,4 @@ behind a web queue) is a service with cost/abuse surface: parked.
 | DigitalJS (yosys2digitaljs) | long-term: run the *synthesized netlist* in-browser — endgame is eDSL \| IR \| asm \| **gates**, all executing in one tab |
 | WokWi | browser hardware sim; Tiny Tapeout's own frontend (bridge if stage 5 revives) |
 | CloudShark-style pcap viewers | packet-lab pane UX |
-| sail-xisa playground (Bili's) | Astro/Svelte/CodeMirror scaffolding decisions transfer directly |
+| sail-xisa playground (Bili's) | Svelte/CodeMirror experience transfers; Astro re-evaluated and dropped for v1 (no content pages — see [playground v1 design](2026-07-11-playground-v1-design.md)) |
