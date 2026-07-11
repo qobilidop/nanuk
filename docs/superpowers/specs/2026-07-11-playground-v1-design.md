@@ -28,15 +28,46 @@ Playwright browser e2e.
 | **Pyodide**, pinned version, official CDN | Documented least-friction delivery; version pinned for reproducibility. |
 | Repo code as **wheels** | CI runs `uv build` on `compiler/` and `lang/`; wheels land in the site's static assets; micropip installs them + `protobuf` (from Pyodide's package index) at page load. `nanuk-spec` is not shipped — v1 needs only eDSL→IR (`nanuk-lang`) and IR→asm-text + `interp()` (`nanuk-ir`). This keeps scapy structurally out of the bundle (see the scapy licensing decision: GPL code must never enter a distributed artifact). |
 
+## Site architecture (the big picture)
+
+The one GitHub Pages site serves three paths, each built by the tool best
+suited to it and **composed into a single deploy artifact** by the
+workflow — no framework owns the whole site:
+
+- `/` — landing (+ repo docs later): v1 ships a single hand-authored
+  static page (name, tagline, links to repo and playground; a book slot
+  appears when it exists). A docs SSG is adopted only if docs outgrow the
+  README.
+- `/play/` — this playground (Vite + Svelte SPA).
+- `/book/` — reserved for the educational book (same-repo decision,
+  2026-07-11: book lives in this monorepo like `guide/`, per the
+  Crafting Interpreters / Fuzzing Book / blog_os precedent — lockstep
+  with the code it teaches; extractable later with git filter-repo if it
+  ever outgrows the project). Toolchain decided when the book starts;
+  candidates: Quarto / Jupyter Book if executable-chapter style
+  (fuzzing-book model, fits the differential-testing ethos), mdBook /
+  Starlight if prose-first.
+
+Two contracts make the paths composable without a shared framework:
+
+1. **URL discipline** — every build bakes in its base path
+   (`/nanuk/play/` via Vite `base`); nothing claims the site root.
+2. **iframe embedding with URL params** — the playground reads initial
+   state from the query string (program preset, packet), so any future
+   book/docs page can embed a live pane Compiler-Explorer-style,
+   regardless of its own toolchain. v1 implements the param reading; it
+   is cheap and locks in the embedding contract early.
+
 ## Layout and deploy
 
 - `web/` directory in the nanuk monorepo (lockstep with the code it
   executes — single-source-of-truth extends to the website).
 - GitHub Pages at `qobilidop.github.io/nanuk` via an Actions workflow:
-  build wheels → `npm ci` + `vite build` → `upload-pages-artifact` →
-  deploy. Triggers on pushes to main touching `web/`, `lang/`, or
-  `compiler/`; PRs touching those paths run the build (not the deploy) so
-  bit-rot surfaces at review time.
+  build wheels → `npm ci` + `vite build` (base `/nanuk/play/`) → compose
+  the artifact (landing page at `/`, playground at `/play/`) →
+  `upload-pages-artifact` → deploy. Triggers on pushes to main touching
+  `web/`, `lang/`, or `compiler/`; PRs touching those paths run the
+  build (not the deploy) so bit-rot surfaces at review time.
 - A custom domain is a possible future step; no v1 impact.
 
 ## Components
