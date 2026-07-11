@@ -33,4 +33,7 @@ jobs:
             cmake --build build --target check
             cmake --build build
             ctest --test-dir build --output-on-failure
-            cd spec/python && uv sync --quiet && uv run pytest -q
+            (cd spec/python && uv sync --quiet && uv run pytest -q)
+            (cd hw && uv sync --quiet && NANUK_COSIM=1 uv run pytest tests -q)
+            (cd lang && uv sync --quiet && NANUK_COSIM=1 uv run --group dev pytest tests -q)
+            (cd compiler && uv sync --quiet && NANUK_COSIM=1 uv run --group dev pytest tests -q)
