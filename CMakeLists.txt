@@ -28,6 +28,17 @@ add_custom_target(check
     SOURCES ${MODEL_SAIL_FILES}
 )
 
+# The MAP sibling model (match-action processor).
+file(GLOB_RECURSE MAP_SAIL_FILES "${CMAKE_SOURCE_DIR}/spec/map-model/*.sail")
+set(MAP_MAIN "${CMAKE_SOURCE_DIR}/spec/map-model/main.sail")
+
+add_custom_target(check-map
+    COMMAND ${SAIL} --just-check ${MAP_MAIN}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Type-checking MAP Sail model..."
+    SOURCES ${MAP_SAIL_FILES}
+)
+
 enable_testing()
 add_subdirectory(spec/test)
 
