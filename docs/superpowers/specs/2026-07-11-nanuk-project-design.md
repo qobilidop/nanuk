@@ -72,8 +72,8 @@ Refactor: the eDSL's internal representation becomes the public protobuf IR; pip
 ### Stage 4 — RTL + system demo
 Amaranth parser core with **parameterized datapath/memory widths** (full config for SimBricks; shrunk "nano" config targeting a Tiny Tapeout tile). Instruction-level cosim rig vs. Sail. A deliberately dumb fixed-function forwarder (static L2 or simple learning) consumes the header vector — minimal harness, not scope creep; it stays dumb. SimBricks component adapters (Ethernet-channel glue for both the Verilator'd RTL and the emulator as a behavioral component — the in-system A/B swap comes free). **Done:** the three-beat demo below, plus rungs 1–2 of the ladder in CI.
 
-### Stage 5 — Tiny Tapeout capstone
-The nano configuration through OpenLane to a Tiny Tapeout submission. The physical demo is necessarily humbler (packets over slow pins/UART; real MAC/SerDes is parked). **Done:** GDS submitted; same conformance suite passing on the gate-level netlist.
+### Stage 5 — Tiny Tapeout capstone *(deferred to future work, 2026-07-11)*
+The nano configuration through OpenLane to a Tiny Tapeout submission. Deferred by decision: the SimBricks demo runs the same RTL cosimulated against the spec, so silicon adds narrative value, not evidence — and shuttle-to-delivery is 6-12 months regardless of when the design work happens. Prerequisite design work when picked up: the nano parameter set (synthesis data shows imem is 94% of core state — see guide/notes/2026-07-11-stage4-lab-notes.md) and a serial pin shim. The physical demo is necessarily humbler (packets over slow pins/UART; real MAC/SerDes is parked). **Done:** GDS submitted; same conformance suite passing on the gate-level netlist.
 
 ## The final demo (stage 4)
 
