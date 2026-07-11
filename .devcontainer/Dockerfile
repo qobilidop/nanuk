@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     libgmp-dev zlib1g-dev z3 \
     python3 python3-venv \
     curl ca-certificates git \
+    verilator libpcap-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Initialize opam (OCaml package manager)
