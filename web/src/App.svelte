@@ -101,6 +101,9 @@
   main { flex: 1; display: flex; min-height: 0; }
   .panes {
     flex: 1; display: grid; grid-template-columns: 1.2fr 1fr 1fr;
+    /* Pin the single row to the container height — an auto row sizes to
+       the editors' content and silently grows past the viewport. */
+    grid-template-rows: minmax(0, 1fr);
     gap: 1px; background: var(--border); min-width: 0;
   }
   .edsl-col { display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
