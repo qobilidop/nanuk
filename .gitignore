@@ -3,3 +3,4 @@ build/
 .venv/
 __pycache__/
 sail_smt_cache
+third_party/
