@@ -9,11 +9,24 @@
   import { parseParams } from './lib/params';
   import l2l3l4Src from './programs/l2l3l4.py?raw';
   import nanukprotoSrc from './programs/nanukproto.py?raw';
+  import mapL2fwdSrc from './programs/map_l2fwd.py?raw';
 
   const params = parseParams(location.search);
   let runtime: NanukRuntime | null = $state(null);
   let status = $state('starting…');
-  let source = $state(params.program === 'nanukproto' ? nanukprotoSrc : l2l3l4Src);
+  const PROGRAM_SOURCES: Record<string, string> = {
+    l2l3l4: l2l3l4Src,
+    nanukproto: nanukprotoSrc,
+    map_l2fwd: mapL2fwdSrc,
+  };
+  let programName = $state(params.program ?? 'l2l3l4');
+  let source = $state(PROGRAM_SOURCES[params.program ?? 'l2l3l4']);
+
+  function selectProgram(name: string) {
+    programName = name;
+    source = PROGRAM_SOURCES[name];
+    recompile(source);
+  }
   let compiled: CompileOk | null = $state(null);
   let compileError: BridgeError | null = $state(null);
 
@@ -62,6 +75,12 @@
   <header class="top">
     <a class="brand" href="/nanuk/">nanuk</a>
     <span class="title">playground</span>
+    <select class="program" value={programName}
+      onchange={(e) => selectProgram(e.currentTarget.value)}>
+      <option value="l2l3l4">l2l3l4 (parser)</option>
+      <option value="nanukproto">nanukproto (parser)</option>
+      <option value="map_l2fwd">l2 forward (MAP)</option>
+    </select>
     <span class="status" class:ready={status === 'ready'}>{status}</span>
   </header>
   <main>
@@ -96,6 +115,10 @@
     padding: 0.4rem 0.8rem; border-bottom: 1px solid var(--border);
   }
   .brand { font-weight: 700; color: var(--accent); text-decoration: none; }
+  .program {
+    font-size: 0.8rem; background: var(--bg-inset); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 4px; padding: 0.1rem 0.3rem;
+  }
   .status { margin-left: auto; font-size: 0.8rem; color: var(--fg-muted); }
   .status.ready { color: var(--ok); }
   main { flex: 1; display: flex; min-height: 0; }

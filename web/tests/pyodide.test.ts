@@ -35,8 +35,26 @@ describe.skipIf(process.env.NANUK_SKIP_PYODIDE === '1')('pyodide integration', (
     const run = runtime.run(plain.hex);
     expect(run.ok).toBe(true);
     if (run.ok) {
-      expect(run.result.verdict).toBe(0);
-      expect(run.result.smd.slice(0, 3)).toEqual([0xaabb, 0xccdd, 0xee01]);
+      expect(run.kind).toBe('parser');
+      if (run.kind === 'parser') {
+        expect(run.result.verdict).toBe(0);
+        expect(run.result.smd.slice(0, 3)).toEqual([0xaabb, 0xccdd, 0xee01]);
+      }
+    }
+
+    // MAP program: composed parser -> MAP run with the demo FDB.
+    const mapSource = readFileSync(join(WEB, 'src', 'programs', 'map_l2fwd.py'), 'utf8');
+    const mapCompiled = runtime.compile(mapSource);
+    expect(mapCompiled.ok).toBe(true);
+    if (mapCompiled.ok) expect(mapCompiled.kind).toBe('map');
+    const mapRun = runtime.run(plain.hex);
+    expect(mapRun.ok).toBe(true);
+    if (mapRun.ok && mapRun.kind === 'map' && !mapRun.result.gated) {
+      expect(mapRun.result.verdict).toBe(0);
+      expect(mapRun.result.egress).toBe(0x4); // demo FDB: ...ee:01 -> port 2
+      expect(mapRun.result.frame).toBe(plain.hex);
+    } else {
+      throw new Error('MAP run was gated or failed');
     }
   });
 });

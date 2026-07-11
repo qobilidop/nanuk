@@ -21,8 +21,11 @@ export interface BridgeError {
   line: number | null; // 1-based line in the eDSL source, when known
 }
 
+export type ProgramKind = 'parser' | 'map';
+
 export interface CompileOk {
   ok: true;
+  kind: ProgramKind;
   ir_text: string;
   asm_text: string;
   states: StateProvenance[];
@@ -42,10 +45,31 @@ export interface ParseResultJson {
   hdr_offset: number[];
   smd: number[];
 }
-export interface RunOk {
+export interface MapResultJson {
+  gated: false;
+  verdict: 0 | 1 | 2; // sent | drop | error
+  error: number;
+  egress: number; // port bitmap
+  delta: number; // signed head delta
+  steps: number;
+  frame: string | null; // transmitted frame, hex
+}
+export interface MapGatedJson {
+  gated: true; // the parser refused the packet; the MAP never ran
+  pp_verdict: number;
+  pp_error: number;
+}
+export interface RunOkParser {
   ok: true;
+  kind: 'parser';
   result: ParseResultJson;
 }
+export interface RunOkMap {
+  ok: true;
+  kind: 'map';
+  result: MapResultJson | MapGatedJson;
+}
+export type RunOk = RunOkParser | RunOkMap;
 export interface RunFail {
   ok: false;
   error: BridgeError;

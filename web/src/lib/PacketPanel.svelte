@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { NanukRuntime } from './py';
-  import type { ParseResultJson, BridgeError } from './types';
+  import type { RunOk, BridgeError } from './types';
   import ResultView from './ResultView.svelte';
+  import MapResultView from './MapResultView.svelte';
 
   let { runtime, ready, initialPacket, initialPreset }: {
     runtime: NanukRuntime | null; ready: boolean;
@@ -14,7 +15,7 @@
   // svelte-ignore state_referenced_locally -- deliberate: the URL param seeds the initial value only
   let packetHex = $state(initialPacket ?? '');
   let selected: string | null = $state(null);
-  let result: ParseResultJson | null = $state(null);
+  let run_out: RunOk | null = $state(null);
   let error: BridgeError | null = $state(null);
 
   onMount(async () => {
@@ -32,11 +33,11 @@
     if (!runtime) return;
     const out = runtime.run(packetHex);
     if (out.ok) {
-      result = out.result;
+      run_out = out;
       error = null;
     } else {
       error = out.error;
-      result = null;
+      run_out = null;
     }
   }
 </script>
@@ -56,7 +57,8 @@
     Run packet
   </button>
   {#if error}<p class="error">{error.message}</p>{/if}
-  {#if result}<ResultView {result} />{/if}
+  {#if run_out?.kind === 'parser'}<ResultView result={run_out.result} />{/if}
+  {#if run_out?.kind === 'map'}<MapResultView result={run_out.result} />{/if}
 </div>
 
 <style>
