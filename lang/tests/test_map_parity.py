@@ -10,8 +10,7 @@ from pathlib import Path
 
 import pytest
 from scapy.layers.inet import IP, UDP
-from scapy.layers.l2 import ARP, Dot1Q, Ether
-from scapy.packet import Raw
+from scapy.layers.l2 import Ether
 
 from nanuk_ir.interp_map import interp_map
 from nanuk_lang.programs.map_demos import (
@@ -23,7 +22,14 @@ from nanuk_lang.programs.map_demos import (
 from nanuk_spec.asm import assemble as pp_assemble
 from nanuk_spec.harness import VERDICT_ACCEPT, run_program
 from nanuk_spec.map_asm import assemble as map_assemble
-from nanuk_spec.map_harness import Table, run_map
+from nanuk_spec.map_harness import run_map
+from nanuk_spec.testkit import (
+    DMAC,
+    NO_TABLE,
+    demo_l2_table,
+    demo_tun_table,
+    map_packets,
+)
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("NANUK_COSIM") != "1",
@@ -33,10 +39,8 @@ pytestmark = pytest.mark.skipif(
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = REPO_ROOT / "examples"
 
-DMAC = "aa:bb:cc:dd:ee:01"
-L2_TABLE = Table(key_width=48, action_width=8, entries={0xAABBCCDDEE01: 0x4})
-NO_TABLE = Table(key_width=0, action_width=0)
-TUN_TABLE = Table(key_width=48, action_width=8, entries={0xAABBCCDDEE01: 0x2})
+L2_TABLE = demo_l2_table()
+TUN_TABLE = demo_tun_table()
 
 DEMOS = {
     "l2fwd": (make_l2fwd, "map_l2fwd/fwd.asm", [L2_TABLE], "l2l3l4/parse.asm"),
@@ -49,18 +53,6 @@ DEMOS = {
     ),
     "pop": (make_tunnel_pop, "nanukproto/tunnel_pop.asm", [], "nanukproto/parse_tunnel.asm"),
 }
-
-
-def corpus() -> list[tuple[str, bytes]]:
-    return [
-        ("plain", bytes(Ether(dst=DMAC) / IP(dst="10.0.0.1") / UDP(dport=53) / Raw(b"hi"))),
-        ("vlan", bytes(Ether(dst=DMAC) / Dot1Q(vlan=100) / IP(ttl=33) / UDP(dport=4789))),
-        ("qinq", bytes(Ether(dst=DMAC) / Dot1Q(vlan=200) / Dot1Q(vlan=300) / IP() / UDP())),
-        ("arp", bytes(Ether(dst=DMAC) / ARP(pdst="10.0.0.1"))),
-        ("unknown", bytes(Ether(dst="02:00:00:00:00:99") / IP() / UDP())),
-        ("ttl1", bytes(Ether(dst=DMAC) / IP(ttl=1) / UDP())),
-        ("ttl0", bytes(Ether(dst=DMAC) / IP(ttl=0) / UDP())),
-    ]
 
 
 def tunnel_frames() -> list[tuple[str, bytes]]:
@@ -80,7 +72,7 @@ def test_edsl_matches_hand_asm(name):
     pp_prog = pp_assemble((EXAMPLES / pp_path).read_text())
     hand = map_assemble((EXAMPLES / hand_path).read_text())
     edsl = map_assemble(make().compile())
-    packets = corpus() if name != "pop" else corpus() + tunnel_frames()
+    packets = map_packets() if name != "pop" else map_packets() + tunnel_frames()
     compared = 0
     for pname, pkt in packets:
         pp = run_program(pp_prog, pkt)
@@ -105,7 +97,7 @@ def test_interp_map_matches_own_lowering(name):
     program = mp.build_ir()
     binary = map_assemble(mp.compile())
     pp_prog = pp_assemble((EXAMPLES / pp_path).read_text())
-    packets = corpus() if name != "pop" else corpus() + tunnel_frames()
+    packets = map_packets() if name != "pop" else map_packets() + tunnel_frames()
     for pname, pkt in packets:
         pp = run_program(pp_prog, pkt)
         if pp.verdict != VERDICT_ACCEPT:

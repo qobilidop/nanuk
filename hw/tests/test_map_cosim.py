@@ -12,13 +12,19 @@ from pathlib import Path
 
 import pytest
 from scapy.layers.inet import IP, UDP
-from scapy.layers.l2 import ARP, Dot1Q, Ether
-from scapy.packet import Raw
+from scapy.layers.l2 import Ether
 
 from nanuk_spec.asm import assemble as pp_assemble
 from nanuk_spec.map_asm import assemble as map_assemble
 from nanuk_spec.harness import VERDICT_ACCEPT, run_program
-from nanuk_spec.map_harness import Table, run_map, run_pipeline
+from nanuk_spec.map_harness import run_map, run_pipeline
+from nanuk_spec.testkit import (
+    DMAC,
+    NO_TABLE,
+    demo_l2_table,
+    demo_tun_table,
+    map_packets,
+)
 
 from nanuk_hw.map_sim_util import run_map_one, run_pipeline_rtl
 
@@ -30,23 +36,8 @@ pytestmark = pytest.mark.skipif(
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = REPO_ROOT / "examples"
 
-DMAC = "aa:bb:cc:dd:ee:01"
-L2_TABLE = Table(key_width=48, action_width=8, entries={0xAABBCCDDEE01: 0x4})
-NO_TABLE = Table(key_width=0, action_width=0)
-TUN_TABLE = Table(key_width=48, action_width=8, entries={0xAABBCCDDEE01: 0x2})
-
-
-def corpus() -> list[tuple[str, bytes]]:
-    return [
-        ("plain", bytes(Ether(dst=DMAC) / IP(dst="10.0.0.1") / UDP(dport=53) / Raw(b"hi"))),
-        ("vlan", bytes(Ether(dst=DMAC) / Dot1Q(vlan=100) / IP() / UDP(dport=4789))),
-        ("qinq", bytes(Ether(dst=DMAC) / Dot1Q(vlan=200) / Dot1Q(vlan=300) / IP() / UDP())),
-        ("options", bytes(Ether(dst=DMAC) / IP(options=b"\x01\x01\x01\x01") / UDP())),
-        ("arp", bytes(Ether(dst=DMAC) / ARP(pdst="10.0.0.1"))),
-        ("unknown_dmac", bytes(Ether(dst="02:00:00:00:00:99") / IP() / UDP())),
-        ("ttl1", bytes(Ether(dst=DMAC) / IP(ttl=1) / UDP())),
-        ("ttl0", bytes(Ether(dst=DMAC) / IP(ttl=0) / UDP())),
-    ]
+L2_TABLE = demo_l2_table()
+TUN_TABLE = demo_tun_table()
 
 
 def assert_map_matches(name, golden, rtl):
@@ -77,7 +68,7 @@ def progs():
     [("l2fwd", [L2_TABLE]), ("ttl", [L2_TABLE]), ("push", [NO_TABLE, TUN_TABLE])],
 )
 def test_demo_programs_cosim(progs, map_key, tables):
-    for name, pkt in corpus():
+    for name, pkt in map_packets():
         pp = run_program(progs["pp"], pkt)
         if pp.verdict != VERDICT_ACCEPT:
             continue
@@ -102,7 +93,7 @@ def test_tunnel_pop_cosim(progs):
 
 
 def test_composed_pipeline_rtl_vs_golden(progs):
-    for name, pkt in corpus():
+    for name, pkt in map_packets():
         gp, gm = run_pipeline(progs["pp"], progs["l2fwd"], pkt, [L2_TABLE], 1)
         rp, rm = run_pipeline_rtl(progs["pp"], progs["l2fwd"], pkt, [L2_TABLE], 1)
         assert rp.verdict == gp.verdict, f"{name}: PP verdict"

@@ -12,12 +12,10 @@ import random
 from pathlib import Path
 
 import pytest
-from scapy.layers.inet import IP, TCP, UDP
-from scapy.layers.l2 import ARP, Dot1Q, Ether
-from scapy.packet import Raw
 
 from nanuk_spec.asm import assemble
 from nanuk_spec.harness import run_program
+from nanuk_spec.testkit import l2l3l4_packets
 
 from nanuk_hw.sim_util import run_core
 
@@ -29,59 +27,10 @@ pytestmark = pytest.mark.skipif(
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEMO_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"
 
-DMAC = "aa:bb:cc:dd:ee:01"
-
 
 @pytest.fixture(scope="module")
 def prog() -> bytes:
     return assemble(DEMO_ASM.read_text())
-
-
-def demo_packets() -> list[tuple[str, bytes]]:
-    """The demo corpus, one entry per test_demo.py case (same scapy builds)."""
-    return [
-        (
-            "plain_ipv4_udp",
-            bytes(Ether(dst=DMAC) / IP(dst="10.0.0.1") / UDP(dport=53) / Raw(b"hi")),
-        ),
-        (
-            "single_vlan",
-            bytes(Ether(dst=DMAC) / Dot1Q(vlan=100) / IP() / UDP(dport=4789)),
-        ),
-        (
-            "qinq",
-            bytes(
-                Ether(dst=DMAC) / Dot1Q(vlan=200) / Dot1Q(vlan=300) / IP() / UDP(dport=53)
-            ),
-        ),
-        (
-            "ipv4_options",
-            bytes(Ether(dst=DMAC) / IP(options=b"\x01\x01\x01\x01") / UDP(dport=53)),
-        ),
-        ("ipv4_tcp", bytes(Ether(dst=DMAC) / IP() / TCP(dport=80))),
-        ("arp", bytes(Ether(dst=DMAC) / ARP(pdst="10.0.0.1"))),
-        ("runt", bytes(10)),
-        (
-            "non_v4_version",
-            bytes(Ether(dst=DMAC, type=0x0800) / Raw(b"\x60" + bytes(39))),
-        ),
-        (
-            "corpus_udp",
-            bytes(Ether(dst=DMAC) / IP() / UDP(dport=1)),
-        ),
-        (
-            "corpus_triple_vlan",
-            bytes(
-                Ether(dst=DMAC)
-                / Dot1Q(vlan=1)
-                / Dot1Q(vlan=2)
-                / Dot1Q(vlan=3)
-                / IP()
-                / UDP(dport=2)
-            ),
-        ),
-        ("corpus_arp", bytes(Ether(dst=DMAC) / ARP())),
-    ]
 
 
 def assert_contract_matches(name: str, golden, rtl):
@@ -100,7 +49,7 @@ def assert_contract_matches(name: str, golden, rtl):
 
 
 def test_demo_corpus_cosim(prog):
-    named = demo_packets()
+    named = l2l3l4_packets()
     rtl_results = run_core(prog, [pkt for _, pkt in named])
     for (name, pkt), rtl in zip(named, rtl_results):
         golden = run_program(prog, pkt)

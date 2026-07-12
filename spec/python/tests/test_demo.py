@@ -10,6 +10,7 @@ from scapy.packet import Raw
 from scapy.utils import wrpcap
 
 from nanuk_spec.asm import assemble
+from nanuk_spec.testkit import DMAC
 from nanuk_spec.harness import (
     ERR_HDR_VIOLATION,
     VERDICT_ACCEPT,
@@ -23,7 +24,6 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 DEMO_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"
 
 H_ETH, H_VLAN, H_IPV4, H_UDP = 0, 1, 2, 3
-DMAC = "aa:bb:cc:dd:ee:01"
 DMAC_SMD = [0xAABB, 0xCCDD, 0xEE01]
 
 

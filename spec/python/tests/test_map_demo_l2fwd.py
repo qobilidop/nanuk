@@ -14,23 +14,17 @@ from scapy.packet import Raw
 
 from nanuk_spec.asm import assemble as pp_assemble
 from nanuk_spec.map_asm import assemble as map_assemble
-from nanuk_spec.map_harness import Table, run_pipeline
+from nanuk_spec.map_harness import run_pipeline
+from nanuk_spec.testkit import DMAC, DMAC2, demo_l2_table
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PP_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"
 MAP_ASM = REPO_ROOT / "examples" / "map_l2fwd" / "fwd.asm"
 
-DMAC_PORT2 = "aa:bb:cc:dd:ee:01"
-DMAC_PORT3 = "aa:bb:cc:dd:ee:02"
+DMAC_PORT2 = DMAC   # -> port 2
+DMAC_PORT3 = DMAC2  # -> port 3
 
-L2_TABLE = Table(
-    key_width=48,
-    action_width=8,
-    entries={
-        0xAABBCCDDEE01: 0x4,  # -> port 2
-        0xAABBCCDDEE02: 0x8,  # -> port 3
-    },
-)
+L2_TABLE = demo_l2_table(both=True)
 
 
 @pytest.fixture(scope="module")

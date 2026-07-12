@@ -11,19 +11,18 @@ from scapy.layers.l2 import Ether
 
 from nanuk_spec.asm import assemble as pp_assemble
 from nanuk_spec.map_asm import assemble as map_assemble
-from nanuk_spec.map_harness import Table, run_pipeline
+from nanuk_spec.map_harness import run_pipeline
+from nanuk_spec.testkit import DMAC, NO_TABLE, demo_tun_table
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EXAMPLES = REPO_ROOT / "examples"
 
-DMAC = "aa:bb:cc:dd:ee:01"
 OUTER = bytes.fromhex(
     "024e4b000001" "024e4b000002" "88b5"      # outer Ethernet: dst, src, type
     "4e4b" "10" "000001" "6558"               # nk: magic, ver/flags, tenant, inner
 )
 
-NO_TABLE = Table(key_width=0, action_width=0)
-TUN_TABLE = Table(key_width=48, action_width=8, entries={0xAABBCCDDEE01: 0x2})
+TUN_TABLE = demo_tun_table()
 
 
 @pytest.fixture(scope="module")
