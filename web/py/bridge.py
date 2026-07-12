@@ -147,7 +147,7 @@ import json
 import traceback
 
 from nanuk_ir.interp import interp
-from nanuk_ir.lower import LowerError, to_asm, to_asm_annotated
+from nanuk_ir.lower import LowerError, to_asm_annotated
 from nanuk_ir.validate import ValidationError, validate
 from nanuk_isa.asm import assemble_with_lines
 from nanuk_isa.iss import run_iss
