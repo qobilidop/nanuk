@@ -44,6 +44,36 @@ _MASK16 = (1 << 16) - 1
 
 
 @dataclass(frozen=True)
+class TraceEvent:
+    """One executed IR event, recorded when interp/interp_map get a trace
+    list. `steps_after` is the machine-step clock: the interp mirrors the
+    lowering's cost model, so it indexes the asm-level ISS trace directly
+    (event N corresponds to ISS steps (prev.steps_after, steps_after]).
+
+    kind: "op" (index = position in state.ops), "term" (halt/goto/send/
+    drop), "term_case" (index = dispatch case tried, taken or not, 2 steps
+    each), "term_default" (the dispatch's inline default). Zero-step
+    events (re-anchor marks, the dispatch header) are not recorded.
+
+    Parser events carry the architectural snapshot AFTER the event
+    (cursor/hdr/smd); MAP events carry the event's effects (window writes,
+    lookup outcome) — the shapes the ISS traces use, for direct diffing.
+    """
+
+    state: str
+    kind: str
+    index: int
+    steps_after: int
+    values: dict[int, int]
+    cursor: int | None = None
+    hdr_present: tuple | None = None
+    hdr_offset: tuple | None = None
+    smd: tuple | None = None
+    writes: tuple | None = None
+    lookup: tuple | None = None
+
+
+@dataclass(frozen=True)
 class InterpResult:
     """Field-for-field compatible with nanuk_spec.harness.ParseResult."""
 
@@ -73,7 +103,7 @@ class _Halted(Exception):
 
 
 class _Machine:
-    def __init__(self, packet: bytes):
+    def __init__(self, packet: bytes, trace: list | None = None):
         self.packet = packet
         self.hdr_limit = min(len(packet), BUF_BYTES)
         self.cursor = 0
@@ -82,6 +112,23 @@ class _Machine:
         self.hdr_offset = [0] * NHDR
         self.smd = [0] * SMD_SLOTS
         self.values: dict[int, tuple[int, int]] = {}  # value_id -> (value, width)
+        self.trace = trace
+        self.state_name = ""
+
+    def record(self, kind: str, index: int, values: dict[int, int] | None = None) -> None:
+        if self.trace is None:
+            return
+        self.trace.append(TraceEvent(
+            state=self.state_name,
+            kind=kind,
+            index=index,
+            steps_after=self.steps,
+            values=dict(values or {}),
+            cursor=self.cursor,
+            hdr_present=tuple(self.hdr_present),
+            hdr_offset=tuple(self.hdr_offset),
+            smd=tuple(self.smd),
+        ))
 
     def tick(self) -> None:
         # Mirrors step() in spec/parser-model/exec.sail: budget checked before the
@@ -96,22 +143,38 @@ class _Machine:
         raise _Halted(VERDICT_ERROR, code)
 
 
-def interp(program: ir.Program, packet: bytes, *, check: bool = True) -> InterpResult:
+def interp(
+    program: ir.Program,
+    packet: bytes,
+    *,
+    check: bool = True,
+    trace: list | None = None,
+) -> InterpResult:
     """Execute an IR program over a packet. Total, like the ISA.
 
     With check=True (default) the program is validated first, like
     lower.to_asm; interpretation itself cannot fail on a valid program.
+    With a trace list, records one TraceEvent per executed IR event
+    (see TraceEvent); default None costs nothing.
     """
     if check:
         validate(program)
-    machine = _Machine(packet)
+    machine = _Machine(packet, trace)
     states = {state.name: state for state in program.states}
     state = program.states[0]
     try:
         while True:
             machine.values.clear()  # values do not cross states (validated)
-            for op in state.ops:
-                _exec_op(machine, op)
+            machine.state_name = state.name
+            for i, op in enumerate(state.ops):
+                try:
+                    _exec_op(machine, op, i)
+                except _Halted as halted:
+                    # An op that error-halts after ticking still executed
+                    # one instruction; a budget halt executed nothing.
+                    if halted.error != ERR_STEP_BUDGET:
+                        machine.record("op", i)
+                    raise
             state = states[_exec_terminator(machine, state.terminator)]
     except _Halted as halted:
         return InterpResult(
@@ -125,7 +188,7 @@ def interp(program: ir.Program, packet: bytes, *, check: bool = True) -> InterpR
         )
 
 
-def _exec_op(m: _Machine, op: ir.Op) -> None:
+def _exec_op(m: _Machine, op: ir.Op, index: int) -> None:
     match op.WhichOneof("op"):
         case "extract":  # EXT
             e = op.extract
@@ -137,6 +200,7 @@ def _exec_op(m: _Machine, op: ir.Op) -> None:
             chunk = int.from_bytes(m.packet[first : last + 1], "big")
             drop = (last - first + 1) * 8 - (p % 8) - e.width
             m.values[e.value_id] = ((chunk >> drop) & ((1 << e.width) - 1), e.width)
+            m.record("op", index, {e.value_id: m.values[e.value_id][0]})
         case "shift":  # SHL
             sh = op.shift
             m.tick()
@@ -145,6 +209,7 @@ def _exec_op(m: _Machine, op: ir.Op) -> None:
                 (src << sh.amount) & _MASK64,
                 min(64, src_width + sh.amount),
             )
+            m.record("op", index, {sh.value_id: m.values[sh.value_id][0]})
         case "advance":  # ADVI / ADVR
             adv = op.advance
             m.tick()
@@ -155,11 +220,13 @@ def _exec_op(m: _Machine, op: ir.Op) -> None:
             if m.cursor + amount > m.hdr_limit:
                 m.halt_err(ERR_HDR_VIOLATION)
             m.cursor += amount
+            m.record("op", index)
         case "mark":  # SETHDR — or, for a re-anchor, nothing at all
             if op.mark.emit_sethdr:
                 m.tick()
                 m.hdr_present[op.mark.hdr_id] = 1
                 m.hdr_offset[op.mark.hdr_id] = m.cursor
+                m.record("op", index)
         case "emit_smd":  # STMD
             e = op.emit_smd
             m.tick()
@@ -167,24 +234,29 @@ def _exec_op(m: _Machine, op: ir.Op) -> None:
             nunits = (width + 15) // 16
             for i in range(nunits):  # MSB-first; in range per validate()
                 m.smd[e.slot + i] = (value >> (16 * (nunits - 1 - i))) & _MASK16
+            m.record("op", index)
 
 
-def _exec_terminator(m: _Machine, term: ir.Terminator) -> str:
+def _exec_terminator(m: _Machine, term: ir.Terminator, default: bool = False) -> str:
+    kind = "term_default" if default else "term"
     match term.WhichOneof("kind"):
         case "halt":  # HALT
             m.tick()
+            m.record(kind, 0)
             raise _Halted(
                 VERDICT_DROP if term.halt.drop else VERDICT_ACCEPT, ERR_NONE
             )
         case "goto":  # JMP
             m.tick()
+            m.record(kind, 0)
             return term.goto.target_state
         case "dispatch":  # MOVI+BEQ per case in order, then the default inline
             d = term.dispatch
             value = m.values[d.value_id][0]
-            for case_ in d.cases:
+            for j, case_ in enumerate(d.cases):
                 m.tick()  # MOVI rscratch, match
                 m.tick()  # BEQ value, rscratch, target
+                m.record("term_case", j)
                 if case_.match == value:
                     return case_.target_state
-            return _exec_terminator(m, d.default)
+            return _exec_terminator(m, d.default, default=True)

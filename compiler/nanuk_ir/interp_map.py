@@ -16,6 +16,7 @@ semantics.
 from dataclasses import dataclass
 
 from . import nanuk_ir_pb2 as ir
+from .interp import TraceEvent
 from .validate_map import validate_map
 
 # Mirror of spec/map-model/params.sail (see also nanuk_spec.map_harness).
@@ -63,7 +64,7 @@ class _Halted(Exception):
 
 
 class _Machine:
-    def __init__(self, packet: bytes, pp, tables, ingress: int):
+    def __init__(self, packet: bytes, pp, tables, ingress: int, trace=None):
         self.window = bytearray(WIN_BYTES)
         self.window[HEADROOM_BYTES : HEADROOM_BYTES + min(len(packet), BUF_BYTES)] = (
             packet[:BUF_BYTES]
@@ -75,6 +76,28 @@ class _Machine:
         self.ingress = ingress
         self.steps = 0
         self.values: dict[int, int] = {}
+        self.trace = trace
+        self.state_name = ""
+
+    def record(
+        self,
+        kind: str,
+        index: int,
+        values: dict[int, int] | None = None,
+        writes: tuple = (),
+        lookup: tuple | None = None,
+    ) -> None:
+        if self.trace is None:
+            return
+        self.trace.append(TraceEvent(
+            state=self.state_name,
+            kind=kind,
+            index=index,
+            steps_after=self.steps,
+            values=dict(values or {}),
+            writes=writes,
+            lookup=lookup,
+        ))
 
     def tick(self) -> None:
         # Budget checked before the instruction runs, counted once fetched
@@ -108,24 +131,34 @@ def interp_map(
     ingress: int,
     *,
     check: bool = True,
+    trace: list | None = None,
 ) -> MapInterpResult:
     """Execute a MAP IR program. Total, like the ISA.
 
     pp: ParseResult-shaped (hdr_present/hdr_offset/smd). tables: list of
     nanuk_spec.map_harness.Table, index = table id (entries masked to the
-    declared widths, as every other implementation does).
+    declared widths, as every other implementation does). With a trace
+    list, records one interp.TraceEvent per executed IR event.
     """
     if check:
         validate_map(program)
-    m = _Machine(bytes(packet), pp, tables, ingress)
+    m = _Machine(bytes(packet), pp, tables, ingress, trace)
     states = {state.name: state for state in program.states}
     state = program.states[0]
     try:
         while True:
             m.values.clear()
+            m.state_name = state.name
             i = 0
             while i < len(state.ops):
-                jump = _exec_op(m, state.ops[i])
+                try:
+                    jump = _exec_op(m, state.ops[i], i)
+                except _Halted as halted:
+                    # Error-halting ops executed one instruction; budget
+                    # halts executed nothing (mirrors interp.py).
+                    if halted.error != ERR_STEP_BUDGET:
+                        m.record("op", i)
+                    raise
                 if jump is not None:  # lookup miss
                     state = states[jump]
                     break
@@ -154,7 +187,7 @@ def _mask(value: int, width: int) -> int:
     return value & ((1 << min(width, 64)) - 1)
 
 
-def _exec_op(m: _Machine, op: ir.MapOp) -> str | None:
+def _exec_op(m: _Machine, op: ir.MapOp, index: int) -> str | None:
     """Execute one op; returns a state name on a lookup miss (control
     transfer), else None."""
     match op.WhichOneof("op"):
@@ -166,6 +199,7 @@ def _exec_op(m: _Machine, op: ir.MapOp) -> str | None:
             m.values[ld.value_id] = int.from_bytes(
                 m.window[addr : addr + ld.nbytes], "big"
             )
+            m.record("op", index, {ld.value_id: m.values[ld.value_id]})
         case "load_md":  # LDMD
             md = op.load_md
             m.tick()
@@ -183,21 +217,26 @@ def _exec_op(m: _Machine, op: ir.MapOp) -> str | None:
             else:
                 v = 0
             m.values[md.value_id] = v & _MASK64
+            m.record("op", index, {md.value_id: m.values[md.value_id]})
         case "const":  # MOVI
             m.tick()
             m.values[op.const.value_id] = op.const.imm
+            m.record("op", index, {op.const.value_id: op.const.imm})
         case "add":  # ADDI
             a = op.add
             m.tick()
             m.values[a.value_id] = (m.values[a.src_value_id] + a.imm) & _MASK64
+            m.record("op", index, {a.value_id: m.values[a.value_id]})
         case "store":  # ST
             st = op.store
             m.tick()
             addr = m.eff_addr(st.hdr_id, st.byte_offset)
             m.check_window(addr, st.nbytes)
-            m.window[addr : addr + st.nbytes] = (
+            data = (
                 m.values[st.value_id] & ((1 << (8 * st.nbytes)) - 1)
             ).to_bytes(st.nbytes, "big")
+            m.window[addr : addr + st.nbytes] = data
+            m.record("op", index, writes=((addr, data),))
         case "csum":  # CSUMUPD
             cs = op.csum
             m.tick()
@@ -218,6 +257,9 @@ def _exec_op(m: _Machine, op: ir.MapOp) -> str | None:
             ck = total ^ 0xFFFF
             m.window[base + 10] = ck >> 8
             m.window[base + 11] = ck & 0xFF
+            m.record(
+                "op", index, writes=((base + 10, bytes([ck >> 8, ck & 0xFF])),)
+            )
         case "lookup":  # LOOKUP (fused branch-on-miss)
             lk = op.lookup
             m.tick()
@@ -226,34 +268,51 @@ def _exec_op(m: _Machine, op: ir.MapOp) -> str | None:
                 key = _mask(m.values[lk.key_value_id], table.key_width)
                 for k, action in table.entries.items():
                     if _mask(k, table.key_width) == key:
-                        m.values[lk.value_id] = _mask(action, table.action_width)
+                        act = _mask(action, table.action_width)
+                        m.values[lk.value_id] = act
+                        m.record(
+                            "op", index,
+                            {lk.value_id: act},
+                            lookup=(lk.table_id, key, True, act),
+                        )
                         return None
+            else:
+                key = 0
             m.values[lk.value_id] = 0
+            m.record(
+                "op", index, {lk.value_id: 0}, lookup=(lk.table_id, key, False, 0)
+            )
             return lk.miss_state
     return None
 
 
-def _exec_terminator(m: _Machine, term: ir.Terminator) -> str:
+def _exec_terminator(m: _Machine, term: ir.Terminator, default: bool = False) -> str:
+    kind = "term_default" if default else "term"
     match term.WhichOneof("kind"):
         case "send":  # SEND
             s = term.send
             m.tick()
             if s.delta > HEADROOM_BYTES or s.delta <= -m.plen_min:
+                m.record(kind, 0)
                 m.halt_err(ERR_SEND_RANGE)
             egress = m.values[s.bitmap_value_id] & ((1 << N_PORTS) - 1)
+            m.record(kind, 0)
             raise _Halted(VERDICT_SENT, ERR_NONE, egress=egress, delta=s.delta)
         case "drop":  # DROP
             m.tick()
+            m.record(kind, 0)
             raise _Halted(VERDICT_DROP, ERR_NONE)
         case "goto":  # JMP
             m.tick()
+            m.record(kind, 0)
             return term.goto.target_state
         case "dispatch":  # MOVI+BEQ per case, then the default inline
             d = term.dispatch
             value = m.values[d.value_id]
-            for case_ in d.cases:
+            for j, case_ in enumerate(d.cases):
                 m.tick()  # MOVI rscratch, match
                 m.tick()  # BEQ value, rscratch, target
+                m.record("term_case", j)
                 if case_.match == value:
                     return case_.target_state
-            return _exec_terminator(m, d.default)
+            return _exec_terminator(m, d.default, default=True)
