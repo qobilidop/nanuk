@@ -1,9 +1,11 @@
 # The IR schema module. Tripwires: `buf lint` (style) and `buf breaking
-# --against <main>` (wire compatibility — the IR is a frozen contract,
-# breaking changes need a new vN package, not an edit). `buf format` is
-# deliberately NOT enforced: it would flatten the hand-aligned teaching
-# comments. No BSR name yet: the registry is a distribution channel we
-# adopt when an external consumer exists.
+# --against <main>` (wire compatibility). v0 is the mutable dev-phase
+# contract: breaking it is allowed, but only consciously — put
+# [ir-breaking] in the commit message to pass CI. At the v1 freeze the
+# escape hatch goes away and breaking changes need a new vN package, not
+# an edit. `buf format` is deliberately NOT enforced: it would flatten
+# the hand-aligned teaching comments. No BSR name yet: the registry is a
+# distribution channel we adopt when an external consumer exists.
 version: v2
 modules:
   - path: .

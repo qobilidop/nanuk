@@ -8,8 +8,10 @@ on:
 jobs:
   # IR schema tripwires: lint + wire-compatibility. Breaking compares
   # against HEAD~1 — the previous commit on push, the base branch on PRs
-  # (merge commit's first parent). Guarded: skips when the compared
-  # commit predates spec/proto.
+  # (merge commit's first parent). Guards: skips when the compared commit
+  # predates spec/proto, or when a commit in range declares [ir-breaking]
+  # — the v0 escape hatch: breaking the dev-phase IR is allowed, but only
+  # consciously, on the record. Delete the hatch at the v1 freeze.
   proto:
     runs-on: ubuntu-latest
     steps:
@@ -24,7 +26,9 @@ jobs:
         run: buf lint spec/proto
       - name: Breaking-change check
         run: |
-          if git cat-file -e HEAD~1:spec/proto/buf.yaml 2>/dev/null; then
+          if git log --format=%B HEAD~1..HEAD | grep -q '\[ir-breaking\]'; then
+            echo "commit declares [ir-breaking]; skipping breaking check"
+          elif git cat-file -e HEAD~1:spec/proto/buf.yaml 2>/dev/null; then
             buf breaking spec/proto --against '.git#ref=HEAD~1,subdir=spec/proto'
           else
             echo "no schema module at HEAD~1; skipping breaking check"
