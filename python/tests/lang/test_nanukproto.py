@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from nanuk.examples.nanukproto.parse import build
+from examples.nanukproto.parse import build
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 

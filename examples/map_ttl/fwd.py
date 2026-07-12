@@ -2,10 +2,10 @@
 (the hand-written ISA copy is fwd.asm).
 
 Table id follows the examples' control-plane layout: t0 is the L2 FDB.
-Header ids follow l2l3l4/parse.asm: h_eth=0, h_ipv4=2.
+Header ids follow ../l2l3l4/parse.asm: h_eth=0, h_ipv4=2.
 """
 
-from nanuk.examples.l2l3l4.parse import eth, ipv4
+from nanuk.lang.headers import eth, ipv4
 from nanuk.lang import MD_FLOOD, MapProgram
 
 H_ETH, H_IPV4 = 0, 2

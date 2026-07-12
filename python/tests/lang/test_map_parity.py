@@ -1,5 +1,5 @@
 """M3 parity gate: the eDSL demo MAP programs are behaviorally identical to
-the hand-written nanuk/examples/*.asm through the golden emulator (full MapResult
+the hand-written examples/*.asm through the golden emulator (full MapResult
 diff except `steps` — instruction schedules may differ), and interp_map
 agrees with each eDSL program's own lowering on ALL fields including steps.
 
@@ -13,9 +13,9 @@ from scapy.layers.inet import IP, UDP
 from scapy.layers.l2 import Ether
 
 from nanuk.ir.interp_map import interp_map
-from nanuk.examples.map_l2fwd.fwd import make_l2fwd
-from nanuk.examples.map_ttl.fwd import make_ttl
-from nanuk.examples.nanukproto.tunnel import make_tunnel_pop, make_tunnel_push
+from examples.map_l2fwd.fwd import make_l2fwd
+from examples.map_ttl.fwd import make_ttl
+from examples.nanukproto.tunnel import make_tunnel_pop, make_tunnel_push
 from nanuk.isa.asm import assemble as pp_assemble
 from tests.support.harness import VERDICT_ACCEPT, run_program
 from nanuk.isa.map_asm import assemble as map_assemble
@@ -34,7 +34,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-EXAMPLES = REPO_ROOT / "python" / "nanuk" / "examples"
+EXAMPLES = REPO_ROOT / "examples"
 
 L2_TABLE = demo_l2_table()
 TUN_TABLE = demo_tun_table()

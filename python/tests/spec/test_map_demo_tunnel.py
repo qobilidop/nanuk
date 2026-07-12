@@ -15,7 +15,7 @@ from tests.support.map_harness import run_pipeline
 from tests.support.testkit import DMAC, NO_TABLE, demo_tun_table
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-EXAMPLES = REPO_ROOT / "python" / "nanuk" / "examples"
+EXAMPLES = REPO_ROOT / "examples"
 
 OUTER = bytes.fromhex(
     "024e4b000001" "024e4b000002" "88b5"      # outer Ethernet: dst, src, type

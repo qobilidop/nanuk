@@ -28,7 +28,9 @@ docs = ["pdoc>=15"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+# "." makes tests.support importable; ".." (repo root) makes the examples/
+# content importable as the `examples` namespace package.
+pythonpath = [".", ".."]
 
 [build-system]
 requires = ["hatchling"]
