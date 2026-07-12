@@ -10,4 +10,4 @@ These are content, not library code: nothing that ships imports them,
 and each program is standalone by design — headers and wire constants
 are declared in the file that uses them, so every example reads complete
 on one page. Tests treat the eDSL twins as fixtures and load them by
-path (`tests.support.load.load_example`).
+path (`nanuk.testkit.load.load_example`).
