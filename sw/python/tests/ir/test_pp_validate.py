@@ -4,7 +4,7 @@ rejected with a clear error."""
 import pytest
 
 from nanuk.ir import nanuk_ir_pb2 as ir
-from nanuk.ir.validate import ValidationError, validate
+from nanuk.ir.pp_validate import ValidationError, pp_validate
 
 
 def halt(drop: bool = False) -> ir.Terminator:
@@ -46,19 +46,19 @@ def valid_program() -> ir.ParserProgram:
 
 
 def test_valid_program_passes():
-    validate(valid_program())  # no exception
+    pp_validate(valid_program())  # no exception
 
 
 def test_wrong_ir_version_rejected():
     p = valid_program()
     p.ir_version = 2
     with pytest.raises(ValidationError, match="ir_version"):
-        validate(p)
+        pp_validate(p)
 
 
 def test_empty_program_rejected():
     with pytest.raises(ValidationError, match="no states"):
-        validate(ir.ParserProgram(ir_version=1))
+        pp_validate(ir.ParserProgram(ir_version=1))
 
 
 def test_duplicate_state_names_rejected():
@@ -68,26 +68,26 @@ def test_duplicate_state_names_rejected():
                 ir.ParserState(name="a", terminator=halt())],
     )
     with pytest.raises(ValidationError, match="duplicate state name"):
-        validate(p)
+        pp_validate(p)
 
 
 def test_unknown_goto_target_rejected():
     p = ir.ParserProgram(ir_version=1, states=[ir.ParserState(name="a", terminator=goto("ghost"))])
     with pytest.raises(ValidationError, match="ghost"):
-        validate(p)
+        pp_validate(p)
 
 
 def test_unknown_dispatch_case_target_rejected():
     p = valid_program()
     p.states[0].terminator.dispatch.cases[0].target_state = "ghost"
     with pytest.raises(ValidationError, match="ghost"):
-        validate(p)
+        pp_validate(p)
 
 
 def test_missing_terminator_rejected():
     p = ir.ParserProgram(ir_version=1, states=[ir.ParserState(name="a")])
     with pytest.raises(ValidationError, match="missing terminator"):
-        validate(p)
+        pp_validate(p)
 
 
 def test_nested_dispatch_default_rejected():
@@ -95,7 +95,7 @@ def test_nested_dispatch_default_rejected():
     inner = ir.Dispatch(value_id=1, default=halt())
     p.states[0].terminator.dispatch.default.CopyFrom(ir.Terminator(dispatch=inner))
     with pytest.raises(ValidationError, match="nested Dispatch"):
-        validate(p)
+        pp_validate(p)
 
 
 @pytest.mark.parametrize("width", [0, 65])
@@ -105,7 +105,7 @@ def test_extract_width_out_of_range_rejected(width):
         states=[ir.ParserState(name="a", ops=[extract(1, 0, width)], terminator=halt())],
     )
     with pytest.raises(ValidationError, match="width"):
-        validate(p)
+        pp_validate(p)
 
 
 def test_hdr_id_out_of_range_rejected():
@@ -118,7 +118,7 @@ def test_hdr_id_out_of_range_rejected():
         )],
     )
     with pytest.raises(ValidationError, match="hdr_id 16"):
-        validate(p)
+        pp_validate(p)
 
 
 def test_reanchor_mark_hdr_id_is_ignored():
@@ -130,7 +130,7 @@ def test_reanchor_mark_hdr_id_is_ignored():
             terminator=halt(),
         )],
     )
-    validate(p)  # no exception: re-anchor marks lower to nothing
+    pp_validate(p)  # no exception: re-anchor marks lower to nothing
 
 
 def test_smd_slot_overflow_rejected():
@@ -143,7 +143,7 @@ def test_smd_slot_overflow_rejected():
         )],
     )
     with pytest.raises(ValidationError, match="slots 6..8"):
-        validate(p)
+        pp_validate(p)
 
 
 def test_shift_amount_out_of_range_rejected():
@@ -156,7 +156,7 @@ def test_shift_amount_out_of_range_rejected():
         )],
     )
     with pytest.raises(ValidationError, match="shift amount 64"):
-        validate(p)
+        pp_validate(p)
 
 
 def test_value_id_zero_rejected():
@@ -165,7 +165,7 @@ def test_value_id_zero_rejected():
         states=[ir.ParserState(name="a", ops=[extract(0)], terminator=halt())],
     )
     with pytest.raises(ValidationError, match="value_id 0"):
-        validate(p)
+        pp_validate(p)
 
 
 def test_value_id_reuse_across_states_rejected():
@@ -177,7 +177,7 @@ def test_value_id_reuse_across_states_rejected():
         ],
     )
     with pytest.raises(ValidationError, match="reused"):
-        validate(p)
+        pp_validate(p)
 
 
 def test_use_before_def_rejected():
@@ -190,7 +190,7 @@ def test_use_before_def_rejected():
         )],
     )
     with pytest.raises(ValidationError, match="before it is defined"):
-        validate(p)
+        pp_validate(p)
 
 
 def test_cross_state_value_use_rejected():
@@ -206,7 +206,7 @@ def test_cross_state_value_use_rejected():
         ],
     )
     with pytest.raises(ValidationError, match="do not cross states"):
-        validate(p)
+        pp_validate(p)
 
 
 def test_empty_op_rejected():
@@ -215,7 +215,7 @@ def test_empty_op_rejected():
         states=[ir.ParserState(name="a", ops=[ir.ParserOp()], terminator=halt())],
     )
     with pytest.raises(ValidationError, match="empty Op"):
-        validate(p)
+        pp_validate(p)
 
 
 def test_advance_with_no_amount_rejected():
@@ -224,4 +224,4 @@ def test_advance_with_no_amount_rejected():
         states=[ir.ParserState(name="a", ops=[ir.ParserOp(advance=ir.Advance())], terminator=halt())],
     )
     with pytest.raises(ValidationError, match="no amount"):
-        validate(p)
+        pp_validate(p)

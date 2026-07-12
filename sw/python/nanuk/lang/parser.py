@@ -5,7 +5,7 @@ returns a ParserState object usable as a dispatch/goto target (including forward
 and self references — bodies only run at build time). ``build_ir()`` runs
 every state body and returns a nanuk.ir.v0 ParserProgram proto (start state
 first, the rest in definition order); ``compile()`` is the composition
-``nanuk.ir.lower.to_asm(build_ir())`` and returns assembly text for
+``nanuk.ir.pp_lower.to_pp_asm(build_ir())`` and returns assembly text for
 nanuk.testkit's assembler.
 """
 
@@ -13,8 +13,8 @@ import itertools
 import re
 
 from nanuk.ir import nanuk_ir_pb2 as ir
-from nanuk.ir.lower import LowerError, to_asm
-from nanuk.ir.validate import IR_VERSION, ValidationError
+from nanuk.ir.pp_lower import LowerError, to_pp_asm
+from nanuk.ir.pp_validate import IR_VERSION, ValidationError
 
 from .compile import StateCompiler
 from .header import CompileError
@@ -85,7 +85,7 @@ class Parser:
         """build_ir() + nanuk.ir lowering; returns the assembled program text."""
         program = self.build_ir()
         try:
-            body = to_asm(program)
+            body = to_pp_asm(program)
         except (LowerError, ValidationError) as e:
             raise CompileError(str(e)) from e
         return _BANNER + body

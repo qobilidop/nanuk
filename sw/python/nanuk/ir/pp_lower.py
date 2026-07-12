@@ -16,7 +16,7 @@ ISA encoding limits enforced here (the IR itself is above the ISA):
 """
 
 from . import nanuk_ir_pb2 as ir
-from .validate import validate
+from .pp_validate import pp_validate
 
 _VALUE_REGS = ("r0", "r1", "r2")
 _SCRATCH_REG = "r3"  # reserved for dispatch/compare constants
@@ -29,25 +29,25 @@ class LowerError(Exception):
     """Raised when a (valid) IR program cannot be lowered to ISA v0."""
 
 
-def to_asm(program: ir.ParserProgram, *, check: bool = True) -> str:
+def to_pp_asm(program: ir.ParserProgram, *, check: bool = True) -> str:
     """Lower an IR program to assembly text for nanuk.isa's assembler.
 
     With check=True (default) the program is validated first; lowering
     itself only raises LowerError for ISA-encoding limits (registers,
     immediate widths).
     """
-    return to_asm_annotated(program, check=check)[0]
+    return to_pp_asm_annotated(program, check=check)[0]
 
 
-def to_asm_annotated(
+def to_pp_asm_annotated(
     program: ir.ParserProgram, *, check: bool = True
 ) -> tuple[str, list[dict[str, str]]]:
-    """to_asm, plus one {register: value name} binding snapshot per
+    """to_pp_asm, plus one {register: value name} binding snapshot per
     emitted instruction (emission order; labels/blanks excluded). The
     snapshot reflects live bindings at that instruction; the scratch
     register never appears."""
     if check:
-        validate(program)
+        pp_validate(program)
     lines: list[str] = []
     bindings: list[dict[str, str]] = []
     for state in program.states:

@@ -2,7 +2,7 @@
 lowering the original in-memory program."""
 
 from nanuk.ir import nanuk_ir_pb2 as ir
-from nanuk.ir.lower import to_asm
+from nanuk.ir.pp_lower import to_pp_asm
 
 
 def rich_program() -> ir.ParserProgram:
@@ -45,15 +45,15 @@ def rich_program() -> ir.ParserProgram:
 
 def test_round_trip_lowered_asm_is_byte_identical():
     program = rich_program()
-    direct = to_asm(program)
+    direct = to_pp_asm(program)
 
     wire = program.SerializeToString()
     reparsed = ir.ParserProgram()
     reparsed.ParseFromString(wire)
 
     assert reparsed == program
-    assert to_asm(reparsed) == direct
+    assert to_pp_asm(reparsed) == direct
 
 
 def test_lowering_is_deterministic():
-    assert to_asm(rich_program()) == to_asm(rich_program())
+    assert to_pp_asm(rich_program()) == to_pp_asm(rich_program())

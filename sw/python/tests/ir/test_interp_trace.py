@@ -2,8 +2,8 @@
 off-by-default guarantee (results identical with and without a trace)."""
 
 from nanuk.ir import nanuk_ir_pb2 as ir
-from nanuk.ir.interp import interp
-from nanuk.ir.interp_map import interp_map
+from nanuk.ir.pp_interp import pp_interp
+from nanuk.ir.map_interp import map_interp
 
 PKT = bytes.fromhex("aabb") + bytes(20)
 
@@ -38,7 +38,7 @@ def three_state_program() -> ir.ParserProgram:
 
 def test_trace_events_and_steps():
     events = []
-    r = interp(three_state_program(), PKT, trace=events)
+    r = pp_interp(three_state_program(), PKT, trace=events)
     assert r.verdict == 0
     kinds = [(e.state, e.kind, e.index) for e in events]
     assert kinds == [
@@ -58,7 +58,7 @@ def test_trace_events_and_steps():
 def test_trace_dispatch_default():
     pkt = bytes.fromhex("beef") + bytes(20)
     events = []
-    r = interp(three_state_program(), pkt, trace=events)
+    r = pp_interp(three_state_program(), pkt, trace=events)
     assert r.verdict == 1
     assert [(e.kind, e.index) for e in events] == [
         ("op", 0), ("term_case", 0), ("term_case", 1), ("term_default", 0),
@@ -73,7 +73,7 @@ def test_trace_error_mid_op():
                  terminator=ir.Terminator(halt=ir.Halt(drop=False))),
     ])
     events = []
-    r = interp(prog, bytes(16), trace=events)
+    r = pp_interp(prog, bytes(16), trace=events)
     assert (r.verdict, r.error) == (2, 1)
     assert [(e.kind, e.index) for e in events] == [("op", 0)]
     assert events[0].steps_after == r.steps == 1
@@ -81,7 +81,7 @@ def test_trace_error_mid_op():
 
 
 def test_trace_none_is_default_and_unchanged():
-    assert interp(three_state_program(), PKT) == interp(
+    assert pp_interp(three_state_program(), PKT) == pp_interp(
         three_state_program(), PKT, trace=[]
     )
 
@@ -124,7 +124,7 @@ def map_prog() -> ir.MatchActionProgram:
 
 def test_map_trace_store_lookup_and_miss_events():
     events = []
-    r = interp_map(map_prog(), bytes(20), _Pp(), [_Tbl()], 0, trace=events)
+    r = map_interp(map_prog(), bytes(20), _Pp(), [_Tbl()], 0, trace=events)
     assert r.verdict == 0
     st = next(e for e in events if e.kind == "op" and e.index == 1)
     assert st.writes == ((32, b"\xab"),)
@@ -137,7 +137,7 @@ def test_map_trace_store_lookup_and_miss_events():
         key_width, action_width, entries = 48, 8, {}
 
     events = []
-    r = interp_map(map_prog(), bytes(20), _Pp(), [Empty()], 0, trace=events)
+    r = map_interp(map_prog(), bytes(20), _Pp(), [Empty()], 0, trace=events)
     assert r.verdict == 1
     lk = next(e for e in events if e.kind == "op" and e.index == 2)
     assert lk.lookup == (0, 0xAB, False, 0)

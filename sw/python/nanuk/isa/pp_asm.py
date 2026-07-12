@@ -24,7 +24,7 @@ Output: big-endian 32-bit words, loaded at word 0, entry pc = 0.
 
 import sys
 
-from . import encoding
+from . import pp_encoding as encoding
 from ._asm_core import (
     AsmError,
     expect,

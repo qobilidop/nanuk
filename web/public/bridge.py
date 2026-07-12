@@ -146,12 +146,12 @@ import ast
 import json
 import traceback
 
-from nanuk.ir.interp import interp
-from nanuk.ir.lower import LowerError, to_asm_annotated
-from nanuk.ir.validate import ValidationError, validate
-from nanuk.isa.asm import assemble_with_lines
-from nanuk.isa.iss import run_iss
-from nanuk.isa.iss_map import run_map_iss
+from nanuk.ir.pp_interp import pp_interp
+from nanuk.ir.pp_lower import LowerError, to_pp_asm_annotated
+from nanuk.ir.pp_validate import ValidationError, pp_validate
+from nanuk.isa.pp_asm import assemble_with_lines
+from nanuk.isa.pp_iss import run_pp_iss
+from nanuk.isa.map_iss import run_map_iss
 from nanuk.isa.map_asm import assemble_with_lines as map_assemble_with_lines
 
 _EDSL_FILENAME = "<edsl>"
@@ -260,8 +260,8 @@ def compile_source(source: str) -> str:
         )
     try:
         program = build_ir()
-        validate(program)
-        asm_text, bindings = to_asm_annotated(program, check=False)
+        pp_validate(program)
+        asm_text, bindings = to_pp_asm_annotated(program, check=False)
     except (ValidationError, LowerError) as e:
         return _err("compile", str(e), _edsl_line(e))
     except Exception as e:
@@ -299,8 +299,8 @@ def run_packet(packet_hex: str) -> str:
     if _LAST_PROGRAM is None:
         return _err("no_program", "compile a program first")
     events: list = []
-    result = interp(_LAST_PROGRAM, packet, check=False, trace=events)
-    iss_res = run_iss(
+    result = pp_interp(_LAST_PROGRAM, packet, check=False, trace=events)
+    iss_res = run_pp_iss(
         _LAST_ASM["prog"], packet, line_map=_LAST_ASM["line_map"]
     )
     trace = _build_trace(
@@ -333,13 +333,13 @@ def run_packet(packet_hex: str) -> str:
 
 # --- MAP programs (M3): render, compile, composed run ------------------------
 
-from nanuk.ir.interp_map import interp_map
-from nanuk.ir.lower_map import to_map_asm_annotated
-from nanuk.ir.validate_map import validate_map
+from nanuk.ir.map_interp import map_interp
+from nanuk.ir.map_lower import to_map_asm_annotated
+from nanuk.ir.map_validate import map_validate
 
 
 def render_map_ir(program: ir.MatchActionProgram) -> RenderedIr:
-    """MAP sibling of render_ir; asm emission counts mirror lower_map."""
+    """MAP sibling of render_ir; asm emission counts mirror map_lower."""
     lines: list[str] = []
     states: list[RenderedState] = []
     if program.tables:
@@ -554,7 +554,7 @@ def _pp_rig():
     global _PP_RIG
     if _PP_RIG is None:
         program = _make_pp_parser().build_ir()
-        asm_text, bindings = to_asm_annotated(program, check=False)
+        asm_text, bindings = to_pp_asm_annotated(program, check=False)
         prog_bytes, line_map = assemble_with_lines(asm_text)
         states = _provenance(render_ir(program), "", asm_text, program)
         _PP_RIG = {
@@ -565,14 +565,14 @@ def _pp_rig():
 
 
 def _pp_context(packet: bytes):
-    return interp(_pp_rig()["ir"], packet, check=False)
+    return pp_interp(_pp_rig()["ir"], packet, check=False)
 
 
 def _compile_map(source: str, build_map_ir) -> str:
     global _LAST_PROGRAM, _LAST_MAP_PROGRAM
     try:
         program = build_map_ir()
-        validate_map(program)
+        map_validate(program)
         asm_text, bindings = to_map_asm_annotated(program, check=False)
     except (ValidationError, LowerError) as e:
         return _err("compile", str(e), _edsl_line(e))
@@ -605,8 +605,8 @@ def _run_map_packet(packet: bytes) -> str:
     program = globals()["_LAST_MAP_PROGRAM"]
     rig = _pp_rig()
     pp_events: list = []
-    pp = interp(rig["ir"], packet, check=False, trace=pp_events)
-    pp_iss = run_iss(rig["prog"], packet, line_map=rig["line_map"])
+    pp = pp_interp(rig["ir"], packet, check=False, trace=pp_events)
+    pp_iss = run_pp_iss(rig["prog"], packet, line_map=rig["line_map"])
     pp_trace = _build_trace(
         "parser", rig["ir"], rig["states"], pp_events, pp_iss, rig["bindings"]
     )
@@ -631,7 +631,7 @@ def _run_map_packet(packet: bytes) -> str:
         })
     tables = _default_tables(program)
     events: list = []
-    r = interp_map(program, packet, pp, tables, 0, check=False, trace=events)
+    r = map_interp(program, packet, pp, tables, 0, check=False, trace=events)
     map_asm = globals()["_LAST_MAP_ASM"]
     iss_res = run_map_iss(
         map_asm["prog"], packet, pp, tables, 0, line_map=map_asm["line_map"]
@@ -670,7 +670,7 @@ def _hex(v: int) -> str:
 
 
 def _walk_index(state_msg, ev) -> int:
-    """Map an interp TraceEvent to its rendered-op index within the state.
+    """Map an pp_interp TraceEvent to its rendered-op index within the state.
 
     The rendered walk is: one op per state op (including zero-emission
     re-anchor marks), then for a dispatch: header, one per case, default;
@@ -688,7 +688,7 @@ def _walk_index(state_msg, ev) -> int:
 
 def _build_trace(kind, program, prov_states, events, iss_res, bindings) -> dict:
     """Per-machine-step records joining the ISS trace with the covering
-    interp event (the step counter is the shared clock), plus the
+    pp_interp event (the step counter is the shared clock), plus the
     architectural divergence verdict."""
     prov_by_name = {s["name"]: s for s in prov_states}
     states_by_name = {st.name: st for st in program.states}

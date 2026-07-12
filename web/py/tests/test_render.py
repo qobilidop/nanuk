@@ -3,7 +3,7 @@ ranges, and per-op asm emission counts that mirror the v0 lowering
 (ext/shl/adv/stmd/sethdr = 1, re-anchor mark = 0, dispatch = 2 per case
 + 1 for the default, goto/halt = 1)."""
 
-from nanuk.ir.lower import to_asm
+from nanuk.ir.pp_lower import to_pp_asm
 from nanuk.testkit.load import load_example
 build_ir = load_example("l2l3l4/parse.py").build_ir
 
@@ -36,10 +36,10 @@ def test_op_labels_and_lines():
 
 def test_asm_counts_sum_to_real_instruction_count():
     # The ordered-walk provenance only works if per-op counts exactly
-    # partition each state's asm block. Cross-check against to_asm.
+    # partition each state's asm block. Cross-check against to_pp_asm.
     program = build_ir()
     rendered = render_ir(program)
-    asm_lines = to_asm(program).splitlines()
+    asm_lines = to_pp_asm(program).splitlines()
     for st, rst in zip(program.states, rendered.states):
         label_idx = asm_lines.index(f"{st.name}:")
         n = 0

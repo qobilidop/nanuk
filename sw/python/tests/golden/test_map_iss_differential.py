@@ -1,6 +1,6 @@
 """MAP ISS vs the golden model: every demo program over the shared MAP
 corpus (composed with the l2l3l4 parser for the inbound contract), plus
-random frames and a random-words decoder fuzz. All six MapResult fields
+random frames and a random-words decoder fuzz. All six MatchActionResult fields
 compared, including the transmitted frame.
 """
 
@@ -10,10 +10,10 @@ from pathlib import Path
 
 import pytest
 
-from nanuk.isa.asm import assemble as pp_assemble
-from nanuk.isa.iss_map import run_map_iss
+from nanuk.isa.pp_asm import assemble as pp_assemble
+from nanuk.isa.map_iss import run_map_iss
 from nanuk.isa.map_asm import assemble as map_assemble
-from nanuk.testkit.harness import VERDICT_ACCEPT, run_program
+from nanuk.testkit.pp_harness import VERDICT_ACCEPT, run_program
 from nanuk.testkit.map_harness import Table, run_map
 from nanuk.testkit.testkit import demo_l2_table, demo_tun_table, map_packets
 

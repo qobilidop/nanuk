@@ -11,7 +11,7 @@ import pytest
 from scapy.layers.inet import IP, UDP
 from scapy.layers.l2 import ARP, Dot1Q, Ether
 
-from nanuk.isa.asm import assemble as pp_assemble
+from nanuk.isa.pp_asm import assemble as pp_assemble
 from nanuk.isa.map_asm import assemble as map_assemble
 from nanuk.testkit.map_harness import (
     MAP_ERR_HDR_ABSENT,

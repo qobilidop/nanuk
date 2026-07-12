@@ -1,6 +1,6 @@
 """M3 parity gate: the eDSL demo MAP programs are behaviorally identical to
-the hand-written examples/*.asm through the golden emulator (full MapResult
-diff except `steps` — instruction schedules may differ), and interp_map
+the hand-written examples/*.asm through the golden emulator (full MatchActionResult
+diff except `steps` — instruction schedules may differ), and map_interp
 agrees with each eDSL program's own lowering on ALL fields including steps.
 
 Gated on NANUK_COSIM=1 (needs both emulator binaries)."""
@@ -12,13 +12,13 @@ import pytest
 from scapy.layers.inet import IP, UDP
 from scapy.layers.l2 import Ether
 
-from nanuk.ir.interp_map import interp_map
+from nanuk.ir.map_interp import map_interp
 from nanuk.testkit.load import load_example
 make_l2fwd = load_example("map_l2fwd/fwd.py").make_l2fwd
 make_ttl = load_example("map_ttl/fwd.py").make_ttl
 _ex = load_example("nanukproto/tunnel.py"); make_tunnel_pop, make_tunnel_push = _ex.make_tunnel_pop, _ex.make_tunnel_push
-from nanuk.isa.asm import assemble as pp_assemble
-from nanuk.testkit.harness import VERDICT_ACCEPT, run_program
+from nanuk.isa.pp_asm import assemble as pp_assemble
+from nanuk.testkit.pp_harness import VERDICT_ACCEPT, run_program
 from nanuk.isa.map_asm import assemble as map_assemble
 from nanuk.testkit.map_harness import run_map
 from nanuk.testkit.testkit import (
@@ -101,9 +101,9 @@ def test_interp_map_matches_own_lowering(name):
         if pp.verdict != VERDICT_ACCEPT:
             continue
         g = run_map(binary, pkt, pp, tables, 1)
-        i = interp_map(program, pkt, pp, tables, 1)
+        i = map_interp(program, pkt, pp, tables, 1)
         for field in ("verdict", "error", "egress", "delta", "steps", "frame"):
             assert getattr(g, field) == getattr(i, field), (
                 f"{name}/{pname}: {field} emu={getattr(g, field)} "
-                f"interp={getattr(i, field)}"
+                f"pp_interp={getattr(i, field)}"
             )

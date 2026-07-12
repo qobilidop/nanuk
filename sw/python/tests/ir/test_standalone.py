@@ -7,8 +7,8 @@ import os
 import pytest
 
 from nanuk.ir import nanuk_ir_pb2 as ir
-from nanuk.ir.lower import to_asm
-from nanuk.ir.validate import validate
+from nanuk.ir.pp_lower import to_pp_asm
+from nanuk.ir.pp_validate import pp_validate
 
 
 def hand_built_program() -> ir.ParserProgram:
@@ -54,11 +54,11 @@ def hand_built_program() -> ir.ParserProgram:
 
 
 def test_hand_built_ir_validates_and_assembles():
-    from nanuk.isa.asm import assemble
+    from nanuk.isa.pp_asm import assemble
 
     program = hand_built_program()
-    validate(program)
-    binary = assemble(to_asm(program))
+    pp_validate(program)
+    binary = assemble(to_pp_asm(program))
     assert len(binary) > 0 and len(binary) % 4 == 0
 
 
@@ -68,10 +68,10 @@ def test_hand_built_ir_validates_and_assembles():
 )
 class TestOnEmulator:
     def test_accept_path(self):
-        from nanuk.isa.asm import assemble
-        from nanuk.testkit.harness import VERDICT_ACCEPT, run_program
+        from nanuk.isa.pp_asm import assemble
+        from nanuk.testkit.pp_harness import VERDICT_ACCEPT, run_program
 
-        prog = assemble(to_asm(hand_built_program()))
+        prog = assemble(to_pp_asm(hand_built_program()))
         # magic 0xBEEF, len 2 -> skip 4 body bytes; 1 byte of payload left.
         pkt = bytes([0xBE, 0xEF, 0x02, 0x11, 0x22, 0x33, 0x44, 0x55])
         r = run_program(prog, pkt)
@@ -82,10 +82,10 @@ class TestOnEmulator:
         assert r.smd[0] == 0xBEEF
 
     def test_drop_path(self):
-        from nanuk.isa.asm import assemble
-        from nanuk.testkit.harness import VERDICT_DROP, run_program
+        from nanuk.isa.pp_asm import assemble
+        from nanuk.testkit.pp_harness import VERDICT_DROP, run_program
 
-        prog = assemble(to_asm(hand_built_program()))
+        prog = assemble(to_pp_asm(hand_built_program()))
         r = run_program(prog, bytes(8))
         assert r.verdict == VERDICT_DROP
         assert r.hdr(0) == 0

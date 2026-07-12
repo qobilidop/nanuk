@@ -4,8 +4,8 @@ real map assembler; register exhaustion raises with a live-value message."""
 import pytest
 
 from nanuk.ir import nanuk_ir_pb2 as ir
-from nanuk.ir.lower import LowerError
-from nanuk.ir.lower_map import to_map_asm
+from nanuk.ir.pp_lower import LowerError
+from nanuk.ir.map_lower import to_map_asm
 from nanuk.isa.map_asm import assemble
 
 from tests.ir.irbuild import l2fwd_program, load

@@ -1,5 +1,5 @@
-"""Differential: interp_map(program) vs run_map(assemble(lower_map(program)))
-— the MAP compiler's translation-validation-lite. ALL MapResult fields must
+"""Differential: map_interp(program) vs run_map(assemble(map_lower(program)))
+— the MAP compiler's translation-validation-lite. ALL MatchActionResult fields must
 agree, including steps and budget exhaustion.
 
 Gated on NANUK_COSIM=1 (needs nanuk-map-emu from the devcontainer build)."""
@@ -11,8 +11,8 @@ from dataclasses import dataclass
 import pytest
 
 from nanuk.ir import nanuk_ir_pb2 as ir
-from nanuk.ir.interp_map import interp_map
-from nanuk.ir.lower_map import to_map_asm
+from nanuk.ir.map_interp import map_interp
+from nanuk.ir.map_lower import to_map_asm
 from nanuk.isa.map_asm import assemble
 from nanuk.testkit.map_harness import Table, run_map
 
@@ -42,11 +42,11 @@ def pp_with(h2_off=14) -> StubPP:
 def assert_same(program, packet, pp, tables, ingress, info):
     binary = assemble(to_map_asm(program))
     golden = run_map(binary, packet, pp, tables, ingress)
-    itp = interp_map(program, packet, pp, tables, ingress)
+    itp = map_interp(program, packet, pp, tables, ingress)
     for field in ("verdict", "error", "egress", "delta", "steps", "frame"):
         assert getattr(golden, field) == getattr(itp, field), (
             f"{field} diverged ({info}): "
-            f"emu={getattr(golden, field)} interp={getattr(itp, field)}"
+            f"emu={getattr(golden, field)} pp_interp={getattr(itp, field)}"
         )
 
 

@@ -2,8 +2,8 @@
 asm text pinned byte-identical to the plain lowering."""
 
 from nanuk.ir import nanuk_ir_pb2 as ir
-from nanuk.ir.lower import to_asm, to_asm_annotated
-from nanuk.ir.lower_map import to_map_asm, to_map_asm_annotated
+from nanuk.ir.pp_lower import to_pp_asm, to_pp_asm_annotated
+from nanuk.ir.map_lower import to_map_asm, to_map_asm_annotated
 
 
 def parser_prog() -> ir.ParserProgram:
@@ -24,8 +24,8 @@ def parser_prog() -> ir.ParserProgram:
 
 
 def test_parser_bindings_and_identical_text():
-    text, bindings = to_asm_annotated(parser_prog())
-    assert text == to_asm(parser_prog())
+    text, bindings = to_pp_asm_annotated(parser_prog())
+    assert text == to_pp_asm(parser_prog())
     instr_lines = [ln for ln in text.splitlines() if ln.startswith("    ")]
     assert len(bindings) == len(instr_lines)
     # ext binds eth.type to r0; the dispatch movi/beq pair keeps it live;

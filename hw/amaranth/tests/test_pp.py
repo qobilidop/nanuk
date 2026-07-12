@@ -6,11 +6,11 @@ inputs, same expected values. Where a Sail test pokes machine state
 directly, the RTL test reaches the same state through architecturally
 visible means (short programs and packet contents).
 
-Instruction words are built with nanuk.isa.encoding (the assembler's
+Instruction words are built with nanuk.isa.pp_encoding (the assembler's
 encoder, itself pinned to the Sail encdec golden words).
 """
 
-from nanuk.isa import encoding as enc
+from nanuk.isa import pp_encoding as enc
 
 from nanuk_amaranth.pp import (
     ERR_HDR_VIOLATION,

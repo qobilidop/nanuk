@@ -2,7 +2,7 @@
 
 Each parse-state function runs once against a StateCompiler, which builds
 nanuk IR ops (protos from nanuk-ir). Instruction selection, register
-allocation, and label emission live downstream in nanuk.ir.lower — this
+allocation, and label emission live downstream in nanuk.ir.pp_lower — this
 module owns only the *frontend* concerns:
 
 Value handles

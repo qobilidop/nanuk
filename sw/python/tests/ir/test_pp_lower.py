@@ -4,7 +4,7 @@ agnostic), per-state register allocation, and ISA-encoding-limit errors."""
 import pytest
 
 from nanuk.ir import nanuk_ir_pb2 as ir
-from nanuk.ir.lower import LowerError, to_asm
+from nanuk.ir.pp_lower import LowerError, to_pp_asm
 
 
 def instrs(asm: str) -> list[tuple[str, list[str]]]:
@@ -40,19 +40,19 @@ def one_state(ops, terminator=None, name="start") -> ir.ParserProgram:
 
 
 def test_extract_lowers_to_ext_with_offset_and_width():
-    asm = to_asm(one_state([extract(1, 96, 16, "eth.ethertype")]))
+    asm = to_pp_asm(one_state([extract(1, 96, 16, "eth.ethertype")]))
     op, ops = instrs(asm)[0]
     assert op == "ext" and ops[1:] == ["96", "16"]
     assert "; eth.ethertype" in asm
 
 
 def test_extract_without_debug_name_gets_vid_comment():
-    asm = to_asm(one_state([extract(7)]))
+    asm = to_pp_asm(one_state([extract(7)]))
     assert "; v7" in asm
 
 
 def test_mark_lowers_to_sethdr_only_when_emit_sethdr():
-    asm = to_asm(one_state([
+    asm = to_pp_asm(one_state([
         ir.ParserOp(mark=ir.Mark(hdr_id=3, emit_sethdr=True, debug_name="udp")),
         ir.ParserOp(mark=ir.Mark(emit_sethdr=False, debug_name="ghost")),
     ]))
@@ -61,7 +61,7 @@ def test_mark_lowers_to_sethdr_only_when_emit_sethdr():
 
 
 def test_smd_units_follow_value_width():
-    asm = to_asm(one_state([
+    asm = to_pp_asm(one_state([
         extract(1, 0, 48),
         ir.ParserOp(emit_smd=ir.EmitSmd(value_id=1, slot=0)),
         extract(2, 48, 16),
@@ -73,7 +73,7 @@ def test_smd_units_follow_value_width():
 
 
 def test_shift_then_advance_lowers_to_shl_advr():
-    asm = to_asm(one_state([
+    asm = to_pp_asm(one_state([
         extract(1, 4, 4, "ipv4.ihl"),
         ir.ParserOp(shift=ir.Shift(value_id=2, src_value_id=1, amount=2)),
         ir.ParserOp(advance=ir.Advance(value_id=2)),
@@ -88,7 +88,7 @@ def test_shift_then_advance_lowers_to_shl_advr():
 
 
 def test_const_advance_lowers_to_advi():
-    asm = to_asm(one_state([ir.ParserOp(advance=ir.Advance(const_bytes=14))]))
+    asm = to_pp_asm(one_state([ir.ParserOp(advance=ir.Advance(const_bytes=14))]))
     assert instrs(asm)[0] == ("advi", ["14"])
 
 
@@ -108,7 +108,7 @@ def test_dispatch_lowers_to_movi_beq_chain():
             ir.ParserState(name="other", terminator=halt(drop=True)),
         ],
     )
-    ins = instrs(to_asm(prog))
+    ins = instrs(to_pp_asm(prog))
     ext_rd = ins[0][1][0]
     movi, beq = ins[1], ins[2]
     assert movi[0] == "movi" and int(movi[1][1], 0) == 0x8100
@@ -125,7 +125,7 @@ def test_goto_lowers_to_jmp():
             ir.ParserState(name="b", terminator=halt()),
         ],
     )
-    assert instrs(to_asm(prog))[0] == ("jmp", ["b"])
+    assert instrs(to_pp_asm(prog))[0] == ("jmp", ["b"])
 
 
 def test_labels_emitted_per_state_in_order():
@@ -133,7 +133,7 @@ def test_labels_emitted_per_state_in_order():
         ir_version=1,
         states=[ir.ParserState(name=n, terminator=halt()) for n in ("start", "mid", "end")],
     )
-    asm = to_asm(prog)
+    asm = to_pp_asm(prog)
     labels = [l.rstrip(":") for l in asm.splitlines() if l.endswith(":")]
     assert labels == ["start", "mid", "end"]
 
@@ -146,14 +146,14 @@ def test_registers_are_reallocated_per_state():
             ir.ParserState(name="b", ops=[extract(2)], terminator=halt()),
         ],
     )
-    exts = [i for i in instrs(to_asm(prog)) if i[0] == "ext"]
+    exts = [i for i in instrs(to_pp_asm(prog)) if i[0] == "ext"]
     assert exts[0][1][0] == exts[1][1][0]  # both states start from the same reg
 
 
 def test_out_of_registers_lists_live_values():
     ops = [extract(i, name=f"f{i}") for i in (1, 2, 3, 4)]
     with pytest.raises(LowerError, match="out of registers") as exc:
-        to_asm(one_state(ops))
+        to_pp_asm(one_state(ops))
     assert "f1" in str(exc.value) and "f3" in str(exc.value)
 
 
@@ -171,14 +171,14 @@ def test_dispatch_constant_over_16_bits_is_a_lower_error():
         )],
     )
     with pytest.raises(LowerError, match="16 bits"):
-        to_asm(prog)
+        to_pp_asm(prog)
 
 
 def test_advance_over_16_bits_is_a_lower_error():
     with pytest.raises(LowerError, match="ADVI"):
-        to_asm(one_state([ir.ParserOp(advance=ir.Advance(const_bytes=0x10000))]))
+        to_pp_asm(one_state([ir.ParserOp(advance=ir.Advance(const_bytes=0x10000))]))
 
 
 def test_ext_offset_over_11_bits_is_a_lower_error():
     with pytest.raises(LowerError, match="EXT"):
-        to_asm(one_state([extract(1, boff=2048)]))
+        to_pp_asm(one_state([extract(1, boff=2048)]))

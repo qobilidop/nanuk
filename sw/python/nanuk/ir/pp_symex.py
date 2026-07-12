@@ -6,8 +6,8 @@ array + symbolic length; every EXT/advance forks an in-bounds path and a
 header-violation path when both are satisfiable; dispatch forks per case.
 Each path yields a WITNESS packet (path-coverage corpus generation — the
 satellite's headline payoff) and an exact predicted (verdict, error,
-steps): step accounting mirrors interp.py tick-for-tick, so witnesses are
-differentially validated against interp AND the golden emulator on all
+steps): step accounting mirrors pp_interp.py tick-for-tick, so witnesses are
+differentially validated against pp_interp AND the golden emulator on all
 three fields.
 
 v1 pragmatics, documented rather than hidden:
@@ -26,7 +26,7 @@ from dataclasses import dataclass
 import z3
 
 from . import nanuk_ir_pb2 as ir
-from .interp import (
+from .pp_interp import (
     BUF_BYTES,
     ERR_HDR_VIOLATION,
     ERR_STEP_BUDGET,
@@ -35,7 +35,7 @@ from .interp import (
     VERDICT_DROP,
     VERDICT_ERROR,
 )
-from .validate import validate
+from .pp_validate import pp_validate
 
 _MASK64 = (1 << 64) - 1
 
@@ -79,7 +79,7 @@ class _Sym:
         return c
 
     def tick(self) -> None:
-        # Mirrors interp.tick(): budget checked before the instruction runs.
+        # Mirrors pp_interp.tick(): budget checked before the instruction runs.
         if self.steps >= STEP_BUDGET:
             raise _Budget()
         self.steps += 1
@@ -94,7 +94,7 @@ class _Sym:
 
 def _read_bits(m: _Sym, pos, width: int):
     """Concat 9 packet bytes from the byte at pos>>3, align, mask — the
-    symbolic mirror of interp's extract (and Sail's read_pkt_bits)."""
+    symbolic mirror of pp_interp's extract (and Sail's read_pkt_bits)."""
     first = z3.Extract(15, 0, z3.LShR(pos, 3))
     bib = z3.ZeroExt(64, z3.Extract(7, 0, pos & 7))  # bit-in-byte, 72-bit
     chunk = z3.Concat(*[z3.Select(m.pkt, first + i) for i in range(9)])
@@ -112,7 +112,7 @@ def symex(
 ) -> list[SymPath]:
     """Enumerate feasible paths; every emitted path carries a witness."""
     if check:
-        validate(program)
+        pp_validate(program)
     pkt = z3.Array("pkt", z3.BitVecSort(16), z3.BitVecSort(8))
     plen = z3.BitVec("plen", 16)
     hdr_limit = z3.If(

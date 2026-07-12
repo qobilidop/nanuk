@@ -1,7 +1,7 @@
 """Packet I/O harness around the nanuk-emu golden model.
 
 Feeds a program binary and raw packet bytes through the emulator CLI and
-parses its JSON output contract into a ParseResult. run_pcap drives a whole
+parses its JSON output contract into a ParserResult. run_pcap drives a whole
 pcap file, one emulator run per packet.
 """
 
@@ -31,7 +31,7 @@ _DEFAULT_EMU = Path(__file__).resolve().parents[4] / "spec" / "sail" / "build" /
 
 
 @dataclass(frozen=True)
-class ParseResult:
+class ParserResult:
     verdict: int
     error: int
     payload_offset: int
@@ -54,7 +54,7 @@ def emulator_path() -> Path:
     return Path(os.environ.get("NANUK_EMU", _DEFAULT_EMU))
 
 
-def run_program(prog: bytes, packet: bytes, emu: Path | None = None) -> ParseResult:
+def run_program(prog: bytes, packet: bytes, emu: Path | None = None) -> ParserResult:
     """Run one packet through the golden model."""
     emu = emu or emulator_path()
     if not emu.exists():
@@ -72,9 +72,9 @@ def run_program(prog: bytes, packet: bytes, emu: Path | None = None) -> ParseRes
             text=True,
             check=True,
         )
-    return ParseResult(**json.loads(out.stdout))
+    return ParserResult(**json.loads(out.stdout))
 
 
-def run_pcap(prog: bytes, pcap_path: Path, emu: Path | None = None) -> list[ParseResult]:
+def run_pcap(prog: bytes, pcap_path: Path, emu: Path | None = None) -> list[ParserResult]:
     """Run every packet of a pcap file through the golden model."""
     return [run_program(prog, bytes(pkt), emu=emu) for pkt in rdpcap(str(pcap_path))]

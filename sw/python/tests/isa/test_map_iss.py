@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 from nanuk.isa import map_encoding as e
 from nanuk.isa.map_asm import assemble
-from nanuk.isa.iss_map import (
+from nanuk.isa.map_iss import (
     ERR_HDR_ABSENT,
     ERR_ILLEGAL,
     ERR_SEND_RANGE,

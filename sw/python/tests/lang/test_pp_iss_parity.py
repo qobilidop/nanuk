@@ -1,10 +1,10 @@
 """The flagship level-diff, proven honest: ISS (assembled words) vs
-interp (IR) are step-exact on every demo program — same result fields,
-same step counts, and the alignment invariant holds: at every interp
+pp_interp (IR) are step-exact on every demo program — same result fields,
+same step counts, and the alignment invariant holds: at every pp_interp
 event boundary the architectural state matches the ISS trace at that
 step index (parser: cursor/hdr/SMD; MAP: window writes and lookups).
 
-Pure Python (interp + ISS), no emulator: ungated.
+Pure Python (pp_interp + ISS), no emulator: ungated.
 """
 
 import random
@@ -12,13 +12,13 @@ from pathlib import Path
 
 import pytest
 
-from nanuk.ir.interp import interp
-from nanuk.ir.interp_map import interp_map
-from nanuk.ir.lower import to_asm
-from nanuk.ir.lower_map import to_map_asm
-from nanuk.isa.asm import assemble_with_lines
-from nanuk.isa.iss import run_iss
-from nanuk.isa.iss_map import run_map_iss
+from nanuk.ir.pp_interp import pp_interp
+from nanuk.ir.map_interp import map_interp
+from nanuk.ir.pp_lower import to_pp_asm
+from nanuk.ir.map_lower import to_map_asm
+from nanuk.isa.pp_asm import assemble_with_lines
+from nanuk.isa.pp_iss import run_pp_iss
+from nanuk.isa.map_iss import run_map_iss
 from nanuk.isa.map_asm import assemble_with_lines as map_assemble_with_lines
 from nanuk.testkit.load import load_example
 nanukproto_parse = load_example("nanukproto/parse.py")
@@ -57,9 +57,9 @@ def random_packets(seed: int, n: int = 40) -> list[tuple[str, bytes]]:
 
 def check_parser(program, pkt: bytes, label: str) -> None:
     events = []
-    ri = interp(program, pkt, trace=events)
-    binary, lines = assemble_with_lines(to_asm(program))
-    rs = run_iss(binary, pkt, line_map=lines)
+    ri = pp_interp(program, pkt, trace=events)
+    binary, lines = assemble_with_lines(to_pp_asm(program))
+    rs = run_pp_iss(binary, pkt, line_map=lines)
     assert (
         ri.verdict, ri.error, ri.payload_offset, ri.steps,
         ri.hdr_present, ri.hdr_offset, ri.smd,
@@ -84,7 +84,7 @@ def test_parser_iss_interp_parity(name):
 
 def check_map(program, pkt: bytes, pp, tables, ingress: int, label: str) -> None:
     events = []
-    ri = interp_map(program, pkt, pp, tables, ingress, trace=events)
+    ri = map_interp(program, pkt, pp, tables, ingress, trace=events)
     binary, lines = map_assemble_with_lines(to_map_asm(program))
     rs = run_map_iss(binary, pkt, pp, tables, ingress, line_map=lines)
     assert (ri.verdict, ri.error, ri.egress, ri.delta, ri.steps, ri.frame) == (
@@ -102,7 +102,7 @@ def check_map(program, pkt: bytes, pp, tables, ingress: int, label: str) -> None
 
 
 def pp_for(pkt: bytes, parser):
-    return interp(parser, pkt, check=False)
+    return pp_interp(parser, pkt, check=False)
 
 
 @pytest.mark.parametrize("name", MAP_DEMOS)
@@ -128,7 +128,7 @@ def _tunnel_frame() -> bytes:
     inner = map_packets()[0][1]
     pp = pp_for(inner, l2l3l4_ir())
     assert pp.verdict == 0
-    pushed = interp_map(
+    pushed = map_interp(
         make_tunnel_push().build_ir(), inner, pp,
         [NO_TABLE, demo_tun_table()], 0,
     )

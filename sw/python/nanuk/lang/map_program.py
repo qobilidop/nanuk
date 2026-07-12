@@ -2,7 +2,7 @@
 
 Same shape end to end: states are functions decorated with ``@mp.state()``,
 ``build_ir()`` produces a nanuk.ir.v0 MatchActionProgram proto, ``compile()`` is
-``nanuk.ir.lower_map.to_map_asm(build_ir())``. Tables are declared on the
+``nanuk.ir.map_lower.to_map_asm(build_ir())``. Tables are declared on the
 program (``mp.table``) and referenced by lookups; headers are *bound* to
 the PP's hdr ids (``mp.header(eth, hdr_id=0)``) so field access resolves to
 hdr-relative byte addressing. The MAP is the byte machine: non-byte-aligned
@@ -16,10 +16,10 @@ import itertools
 import re
 
 from nanuk.ir import nanuk_ir_pb2 as ir
-from nanuk.ir.lower import LowerError
-from nanuk.ir.lower_map import to_map_asm
-from nanuk.ir.validate import ValidationError
-from nanuk.ir.validate_map import IR_VERSION
+from nanuk.ir.pp_lower import LowerError
+from nanuk.ir.map_lower import to_map_asm
+from nanuk.ir.pp_validate import ValidationError
+from nanuk.ir.map_validate import IR_VERSION
 
 from .header import CompileError, Field, Header
 
@@ -99,7 +99,7 @@ class BoundHeader:
         return f"<header {self.name} @ hdr {self.hdr_id}>"
 
 
-class MapValue:
+class MatchActionValue:
     """Handle to a defined IR value (load/load_md/const/add/lookup result)."""
 
     def __init__(self, value_id: int, name: str):
@@ -215,12 +215,12 @@ class MatchActionStateCompiler:
 
     # -- values ---------------------------------------------------------------
 
-    def load(self, field, *, hdr=None, byte_offset=None, nbytes=None) -> MapValue:
+    def load(self, field, *, hdr=None, byte_offset=None, nbytes=None) -> MatchActionValue:
         """Load window bytes: either a bound header field, or raw
         (hdr=..., byte_offset=..., nbytes=...) addressing (headroom access)."""
         self._check_open()
         hdr_id, off, n, name = self._resolve_access("load", field, hdr, byte_offset, nbytes)
-        v = MapValue(next(self._value_ids), name)
+        v = MatchActionValue(next(self._value_ids), name)
         self._ops.append(
             ir.MatchActionOp(
                 load=ir.MapLoad(
@@ -231,43 +231,43 @@ class MatchActionStateCompiler:
         )
         return v
 
-    def load_md(self, field: int) -> MapValue:
+    def load_md(self, field: int) -> MatchActionValue:
         """Load an inbound-SMD field (0-7 slots, MD_INGRESS/MD_FLOOD/MD_HDRS)."""
         self._check_open()
         if not isinstance(field, int) or not 0 <= field <= _MAX_MD_FIELD:
             raise CompileError(f"load_md field {field!r} out of range 0..{_MAX_MD_FIELD}")
         names = {MD_INGRESS: "ingress", MD_FLOOD: "flood", MD_HDRS: "hdr_present"}
         name = names.get(field, f"smd[{field}]")
-        v = MapValue(next(self._value_ids), name)
+        v = MatchActionValue(next(self._value_ids), name)
         self._ops.append(
             ir.MatchActionOp(load_md=ir.MapLoadMd(value_id=v.value_id, field=field, debug_name=name))
         )
         return v
 
-    def const(self, imm: int, *, name: str | None = None) -> MapValue:
+    def const(self, imm: int, *, name: str | None = None) -> MatchActionValue:
         """Materialize a 16-bit constant (MOVI)."""
         self._check_open()
         if not isinstance(imm, int) or isinstance(imm, bool) or not 0 <= imm <= _MAX_IMM16:
             raise CompileError(f"const {imm!r} out of range 0..{_MAX_IMM16:#x}")
-        v = MapValue(next(self._value_ids), name or f"{imm:#x}")
+        v = MatchActionValue(next(self._value_ids), name or f"{imm:#x}")
         self._ops.append(
             ir.MatchActionOp(const=ir.MapConst(value_id=v.value_id, imm=imm, debug_name=v.name))
         )
         return v
 
-    def add(self, value: MapValue, imm: int) -> MapValue:
+    def add(self, value: MatchActionValue, imm: int) -> MatchActionValue:
         """value + signed 16-bit immediate (ADDI; 64-bit wraparound)."""
         self._check_open()
         self._require_value(value, "add")
         if not _MIN_SIMM16 <= imm <= _MAX_SIMM16:
             raise CompileError(f"add immediate {imm} out of signed 16-bit range")
-        v = MapValue(next(self._value_ids), f"{value.name} + {imm}")
+        v = MatchActionValue(next(self._value_ids), f"{value.name} + {imm}")
         self._ops.append(
             ir.MatchActionOp(add=ir.MapAdd(value_id=v.value_id, src_value_id=value.value_id, imm=imm))
         )
         return v
 
-    def lookup(self, table: Table, key: MapValue, *, miss) -> MapValue:
+    def lookup(self, table: Table, key: MatchActionValue, *, miss) -> MatchActionValue:
         """Exact-match lookup: hit continues with the action value; miss
         transfers to the `miss` state."""
         self._check_open()
@@ -275,7 +275,7 @@ class MatchActionStateCompiler:
             raise CompileError(f"lookup expects a declared table, got {table!r}")
         self._require_value(key, "lookup key")
         label = self._target_label(miss, "lookup miss")
-        v = MapValue(next(self._value_ids), f"{table.name}[{key.name}]")
+        v = MatchActionValue(next(self._value_ids), f"{table.name}[{key.name}]")
         self._ops.append(
             ir.MatchActionOp(
                 lookup=ir.Lookup(
@@ -288,7 +288,7 @@ class MatchActionStateCompiler:
 
     # -- statements -------------------------------------------------------------
 
-    def store(self, value: MapValue, field=None, *, hdr=None, byte_offset=None,
+    def store(self, value: MatchActionValue, field=None, *, hdr=None, byte_offset=None,
               nbytes=None) -> None:
         """Store the low bytes of a value: bound field or raw addressing."""
         self._check_open()
@@ -316,7 +316,7 @@ class MatchActionStateCompiler:
 
     # -- terminators --------------------------------------------------------------
 
-    def send(self, bitmap: MapValue, *, delta: int = 0) -> None:
+    def send(self, bitmap: MatchActionValue, *, delta: int = 0) -> None:
         """Terminate: transmit to the port bitmap with a signed head delta."""
         self._check_open()
         self._require_value(bitmap, "send")
@@ -337,7 +337,7 @@ class MatchActionStateCompiler:
         label = self._target_label(target, "goto")
         self._terminator = ir.Terminator(goto=ir.Goto(target_state=label))
 
-    def dispatch(self, value: MapValue, arms: dict, *, default) -> None:
+    def dispatch(self, value: MatchActionValue, arms: dict, *, default) -> None:
         """Compare-and-branch over 16-bit constants; default is a state or a
         callable terminator shorthand (s.drop). Terminates the state."""
         self._check_open()
@@ -371,7 +371,7 @@ class MatchActionStateCompiler:
             )
 
     def _require_value(self, value, what: str) -> None:
-        if not isinstance(value, MapValue):
+        if not isinstance(value, MatchActionValue):
             raise CompileError(f"{what} expects a value handle, got {value!r}")
 
     def _target_label(self, target, what: str) -> str:

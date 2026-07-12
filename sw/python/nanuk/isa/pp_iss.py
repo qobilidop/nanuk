@@ -37,7 +37,7 @@ _RZ = 4
 
 
 @dataclass(frozen=True)
-class IssStep:
+class ParserIssStep:
     """One executed instruction: pc before, architectural state after."""
 
     pc: int
@@ -50,8 +50,8 @@ class IssStep:
 
 
 @dataclass(frozen=True)
-class IssResult:
-    """First seven fields mirror nanuk.testkit.harness.ParseResult."""
+class ParserIssResult:
+    """First seven fields mirror nanuk.testkit.pp_harness.ParserResult."""
 
     verdict: int
     error: int
@@ -60,7 +60,7 @@ class IssResult:
     hdr_present: list[int]
     hdr_offset: list[int]
     smd: list[int]
-    trace: list[IssStep]
+    trace: list[ParserIssStep]
 
 
 def _decode(w: int):
@@ -133,7 +133,7 @@ class _Machine:
         self.halted = False
         self.verdict = VERDICT_ACCEPT
         self.err = ERR_NONE
-        self.trace: list[IssStep] = []
+        self.trace: list[ParserIssStep] = []
 
     def read_reg(self, r: int) -> int:
         return 0 if r == _RZ else self.regs[r]
@@ -163,7 +163,7 @@ class _Machine:
         self.pc += 1
         self._execute(_decode(w))
         self.trace.append(
-            IssStep(
+            ParserIssStep(
                 pc=fetch_pc,
                 line=(
                     self.line_map[fetch_pc]
@@ -229,9 +229,9 @@ class _Machine:
         self.cursor += amount
 
 
-def run_iss(
+def run_pp_iss(
     prog: bytes, packet: bytes, *, line_map: list[int] | None = None
-) -> IssResult:
+) -> ParserIssResult:
     """Run one packet through the ISS. Total, like the ISA.
 
     prog: big-endian 32-bit words (the assembler's output). line_map:
@@ -243,7 +243,7 @@ def run_iss(
     m = _Machine(words, packet, line_map)
     while not m.halted:
         m.step()
-    return IssResult(
+    return ParserIssResult(
         verdict=m.verdict,
         error=m.err,
         payload_offset=m.cursor,

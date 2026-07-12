@@ -1,7 +1,7 @@
 """The IR interpreter agrees with the golden model on the REAL programs:
 l2l3l4 and nanukproto build_ir() over the full demo corpus (and a couple
 of tunnel packets nanukproto alone can reach). Together with test_parity
-(eDSL == hand asm) this closes the triangle: interp == emu == hand.
+(eDSL == hand asm) this closes the triangle: pp_interp == emu == hand.
 
 Gated behind NANUK_COSIM=1 (needs the built nanuk-emu golden model)."""
 
@@ -12,19 +12,19 @@ from pathlib import Path
 import pytest
 from scapy.layers.inet import IP, UDP
 
-from nanuk.ir.interp import interp
-from nanuk.ir.lower import to_asm
+from nanuk.ir.pp_interp import pp_interp
+from nanuk.ir.pp_lower import to_pp_asm
 from nanuk.testkit.load import load_example
 nanukproto_parse = load_example("nanukproto/parse.py")
 l2l3l4_ir = load_example("l2l3l4/parse.py").build_ir
-from nanuk.isa.asm import assemble
-from nanuk.testkit.harness import run_program
+from nanuk.isa.pp_asm import assemble
+from nanuk.testkit.pp_harness import run_program
 
-from test_parity import CORPUS
+from test_pp_parity import CORPUS
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("NANUK_COSIM") != "1",
-    reason="interp parity needs NANUK_COSIM=1 and a built nanuk-emu",
+    reason="pp_interp parity needs NANUK_COSIM=1 and a built nanuk-emu",
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -61,10 +61,10 @@ def program(request):
 
 @pytest.mark.parametrize("pkt", [p for _, p in PACKETS], ids=[n for n, _ in PACKETS])
 def test_interp_matches_golden_model(program, pkt):
-    ir_result = interp(program, pkt)
-    emu_result = run_program(assemble(to_asm(program)), pkt)
+    ir_result = pp_interp(program, pkt)
+    emu_result = run_program(assemble(to_pp_asm(program)), pkt)
     for field in FIELDS:
         assert getattr(ir_result, field) == getattr(emu_result, field), (
-            f"field {field!r}: interp={getattr(ir_result, field)!r} "
+            f"field {field!r}: pp_interp={getattr(ir_result, field)!r} "
             f"emu={getattr(emu_result, field)!r}"
         )

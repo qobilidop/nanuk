@@ -7,8 +7,8 @@ from scapy.layers.inet import IP, UDP
 from scapy.layers.l2 import Ether
 from scapy.utils import wrpcap
 
-from nanuk.isa.asm import assemble
-from nanuk.testkit.harness import (
+from nanuk.isa.pp_asm import assemble
+from nanuk.testkit.pp_harness import (
     ERR_HDR_VIOLATION,
     VERDICT_ACCEPT,
     VERDICT_DROP,

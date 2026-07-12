@@ -244,7 +244,7 @@ def test_remark_after_dynamic_advance_reanchors():
 
 
 def test_demo_program_compiles_and_assembles():
-    from nanuk.isa.asm import assemble
+    from nanuk.isa.pp_asm import assemble
 
     build = load_example("l2l3l4/parse.py").build
 

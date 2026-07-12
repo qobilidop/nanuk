@@ -18,7 +18,7 @@ _MAX_RUN_CYCLES = 2048
 class PPResult:
     """The core's output contract, plus a register-file peek for unit tests.
 
-    Field names and shapes match nanuk.testkit.harness.ParseResult so the cosim
+    Field names and shapes match nanuk.testkit.pp_harness.ParserResult so the cosim
     rig can diff them directly.
     """
 
@@ -34,7 +34,7 @@ class PPResult:
 
 def _to_words(prog) -> list[int]:
     """Program as a list of 32-bit words, from bytes (big-endian, as emitted
-    by nanuk.isa.asm) or an iterable of ints."""
+    by nanuk.isa.pp_asm) or an iterable of ints."""
     if isinstance(prog, (bytes, bytearray)):
         if len(prog) % 4:
             raise ValueError("program byte length must be a multiple of 4")

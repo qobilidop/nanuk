@@ -1,11 +1,11 @@
 """Symbolic executor: path enumeration with exact predictions, witness
 generation, and (cosim-gated) differential validation of every witness
-against interp AND the golden emulator — including the headline payoff:
+against pp_interp AND the golden emulator — including the headline payoff:
 symex INVENTS a valid nanukproto tunnel packet from constraints alone."""
 
 from nanuk.ir import nanuk_ir_pb2 as ir
-from nanuk.ir.interp import interp
-from nanuk.ir.symex import SymPath, gen_corpus, reachable_states, symex
+from nanuk.ir.pp_interp import pp_interp
+from nanuk.ir.pp_symex import SymPath, gen_corpus, reachable_states, symex
 
 
 def halt(drop=False):
@@ -63,10 +63,10 @@ def test_predictions_match_interp_on_witnesses():
     prog = tiny_program()
     for p in symex(prog):
         assert p.witness is not None
-        r = interp(prog, p.witness)
+        r = pp_interp(prog, p.witness)
         assert (r.verdict, r.error, r.steps) == (p.verdict, p.error, p.steps), (
             f"path {p.trace} predicted {(p.verdict, p.error, p.steps)}, "
-            f"interp said {(r.verdict, r.error, r.steps)}"
+            f"pp_interp said {(r.verdict, r.error, r.steps)}"
         )
 
 

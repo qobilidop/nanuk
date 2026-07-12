@@ -25,7 +25,7 @@ from nanuk.isa import map_encoding as e
 
 @dataclass(frozen=True)
 class StubPP:
-    """Minimal stand-in for ParseResult (hdr/smd fields only)."""
+    """Minimal stand-in for ParserResult (hdr/smd fields only)."""
 
     hdr_present: list
     hdr_offset: list

@@ -10,9 +10,9 @@ from pathlib import Path
 
 import pytest
 
-from nanuk.isa.asm import assemble
-from nanuk.isa.iss import run_iss
-from nanuk.testkit.harness import run_program
+from nanuk.isa.pp_asm import assemble
+from nanuk.isa.pp_iss import run_pp_iss
+from nanuk.testkit.pp_harness import run_program
 from nanuk.testkit.testkit import l2l3l4_packets
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -38,7 +38,7 @@ def fields(r):
 def test_iss_matches_emulator_on_corpus(prog_name):
     binary = assemble(PROGRAMS[prog_name].read_text())
     for name, pkt in l2l3l4_packets():
-        assert fields(run_iss(binary, pkt)) == fields(run_program(binary, pkt)), (
+        assert fields(run_pp_iss(binary, pkt)) == fields(run_program(binary, pkt)), (
             prog_name,
             name,
         )
@@ -49,7 +49,7 @@ def test_iss_matches_emulator_random_packets():
     binary = assemble(PROGRAMS["l2l3l4"].read_text())
     for i in range(60):
         pkt = bytes(rng.randrange(256) for _ in range(rng.randrange(0, 300)))
-        assert fields(run_iss(binary, pkt)) == fields(run_program(binary, pkt)), i
+        assert fields(run_pp_iss(binary, pkt)) == fields(run_program(binary, pkt)), i
 
 
 def test_iss_matches_emulator_random_words():
@@ -60,4 +60,4 @@ def test_iss_matches_emulator_random_words():
         words = [rng.randrange(1 << 32) for _ in range(8)]
         prog = b"".join(struct.pack(">I", w) for w in words)
         pkt = bytes(rng.randrange(256) for _ in range(64))
-        assert fields(run_iss(prog, pkt)) == fields(run_program(prog, pkt)), i
+        assert fields(run_pp_iss(prog, pkt)) == fields(run_program(prog, pkt)), i

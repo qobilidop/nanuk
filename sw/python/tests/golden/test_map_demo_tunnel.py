@@ -9,7 +9,7 @@ import pytest
 from scapy.layers.inet import IP, UDP
 from scapy.layers.l2 import Ether
 
-from nanuk.isa.asm import assemble as pp_assemble
+from nanuk.isa.pp_asm import assemble as pp_assemble
 from nanuk.isa.map_asm import assemble as map_assemble
 from nanuk.testkit.map_harness import run_pipeline
 from nanuk.testkit.testkit import DMAC, NO_TABLE, demo_tun_table

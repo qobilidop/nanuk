@@ -1,9 +1,9 @@
 """MAP harness tests: the smoke program through run_map, and a trivial
 PP-accept-all + MAP-flood program through run_pipeline for every ingress."""
 
-from nanuk.isa import encoding as pe
+from nanuk.isa import pp_encoding as pe
 from nanuk.isa import map_encoding as me
-from nanuk.testkit.harness import ParseResult, VERDICT_ACCEPT
+from nanuk.testkit.pp_harness import ParserResult, VERDICT_ACCEPT
 from nanuk.testkit.map_harness import (
     MAP_ERR_NONE,
     Table,
@@ -16,7 +16,7 @@ def _words(ws: list[int]) -> bytes:
     return b"".join(w.to_bytes(4, "big") for w in ws)
 
 
-def _pp_result(**kw) -> ParseResult:
+def _pp_result(**kw) -> ParserResult:
     base = dict(
         verdict=VERDICT_ACCEPT,
         error=0,
@@ -27,7 +27,7 @@ def _pp_result(**kw) -> ParseResult:
         smd=[0] * 8,
     )
     base.update(kw)
-    return ParseResult(**base)
+    return ParserResult(**base)
 
 
 def test_run_map_smoke():

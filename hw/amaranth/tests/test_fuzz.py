@@ -17,7 +17,7 @@ import pytest
 
 from nanuk_amaranth.map_sim_util import run_map_one
 from nanuk_amaranth.pp_sim_util import run_pp_one
-from nanuk.isa import encoding as enc
+from nanuk.isa import pp_encoding as enc
 from nanuk.isa.map_asm import assemble as map_assemble
 from nanuk.testkit.map_harness import Table, run_map
 
@@ -29,7 +29,7 @@ REGS = ["r0", "r1", "r2", "r3", "rz"]
 
 
 def golden(prog: bytes, packet: bytes):
-    from nanuk.testkit.harness import run_program
+    from nanuk.testkit.pp_harness import run_program
 
     return run_program(prog, packet)
 
@@ -121,7 +121,7 @@ class _StubPP:
     hdr_offset = [0] * 16
     smd = [0] * 8
 
-    # run_map consumes attribute access only; this mirrors ParseResult's shape.
+    # run_map consumes attribute access only; this mirrors ParserResult's shape.
     verdict = 0
     error = 0
     payload_offset = 0
@@ -151,8 +151,8 @@ def _random_table(rng, packet: bytes) -> Table:
 
 @pytest.mark.parametrize("seed", range(15))
 def test_fuzz_map_l2fwd(seed):
-    from nanuk.testkit.harness import run_program
-    from nanuk.isa.asm import assemble as pp_assemble
+    from nanuk.testkit.pp_harness import run_program
+    from nanuk.isa.pp_asm import assemble as pp_assemble
 
     rng = random.Random(3000 + seed)
     pp_prog = pp_assemble((_EXAMPLES / "l2l3l4" / "parse.asm").read_text())

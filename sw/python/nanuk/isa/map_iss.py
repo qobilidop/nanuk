@@ -5,7 +5,7 @@ frame), the inbound PP contract, and exact-match tables. Semantics
 mirror spec/sail/model/map ({exec,insts,decode,state}.sail): same error
 codes, same step accounting, reserved bits enforced. Table entries are
 masked to the declared widths, matching the emulator's load behavior
-and interp_map. Records a full per-step trace including window-write
+and map_interp. Records a full per-step trace including window-write
 and lookup events.
 """
 
@@ -41,7 +41,7 @@ _RZ = 4
 
 
 @dataclass(frozen=True)
-class MapIssStep:
+class MatchActionIssStep:
     """One executed instruction: pc before, registers after, effects."""
 
     pc: int
@@ -52,8 +52,8 @@ class MapIssStep:
 
 
 @dataclass(frozen=True)
-class MapIssResult:
-    """First six fields mirror nanuk.testkit.map_harness.MapResult."""
+class MatchActionIssResult:
+    """First six fields mirror nanuk.testkit.map_harness.MatchActionResult."""
 
     verdict: int
     error: int
@@ -61,7 +61,7 @@ class MapIssResult:
     delta: int
     steps: int
     frame: bytes | None
-    trace: list[MapIssStep]
+    trace: list[MatchActionIssStep]
 
 
 def _sext10(v: int) -> int:
@@ -157,7 +157,7 @@ class _Machine:
         self.err = ERR_NONE
         self.egress = 0
         self.delta = 0
-        self.trace: list[MapIssStep] = []
+        self.trace: list[MatchActionIssStep] = []
         # per-step effect accumulators
         self._writes: list[tuple[int, bytes]] = []
         self._lookup: tuple[int, int, bool, int] | None = None
@@ -213,7 +213,7 @@ class _Machine:
         self._lookup = None
         self._execute(_decode(w))
         self.trace.append(
-            MapIssStep(
+            MatchActionIssStep(
                 pc=fetch_pc,
                 line=(
                     self.line_map[fetch_pc]
@@ -327,10 +327,10 @@ def run_map_iss(
     ingress: int,
     *,
     line_map: list[int] | None = None,
-) -> MapIssResult:
+) -> MatchActionIssResult:
     """Run one already-parsed frame through the MAP ISS. Total, like the ISA.
 
-    pp: ParseResult-shaped (hdr_present/hdr_offset/smd). tables: list of
+    pp: ParserResult-shaped (hdr_present/hdr_offset/smd). tables: list of
     Table-shaped objects (key_width/action_width/entries), index = table
     id. prog: big-endian 32-bit words.
     """
@@ -346,7 +346,7 @@ def run_map_iss(
         frame = bytes(m.window[start : HEADROOM_BYTES + m.plen_min]) + bytes(
             packet[BUF_BYTES:]
         )
-    return MapIssResult(
+    return MatchActionIssResult(
         verdict=m.verdict,
         error=m.err,
         egress=m.egress,

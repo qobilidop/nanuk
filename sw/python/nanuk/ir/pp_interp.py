@@ -3,29 +3,29 @@
 Fills the IR-level execution gap (assembly-level execution already has two
 implementations: the Sail golden model and the RTL core; IR-level had
 zero). Because these semantics are defined here, independent of lower.py,
-running interp(program, packet) against emulate(lower(program), packet)
+running pp_interp(program, packet) against emulate(lower(program), packet)
 differentially tests the compiler — a lightweight translation-validation
 rig (tests/ir/test_differential.py, tests/lang/test_interp_parity.py).
 
 Semantics mirror ISA totality (spec/sail/model/parser, frozen in the stage-1 plan):
 same buffer clamp, same header-violation rule, same step budget, same
 output surface. Step accounting follows the v0 lowering's cost model
-instruction-for-instruction, so every InterpResult field — including
-`steps` and budget exhaustion — matches the golden model's ParseResult
+instruction-for-instruction, so every ParserInterpResult field — including
+`steps` and budget exhaustion — matches the golden model's ParserResult
 exactly. If the lowering's cost model ever changes (e.g. a dispatch
 accelerator in v0.x), this file must change with it.
 
 Error codes 3 (illegal decode) and 4 (pc range) are structurally
 impossible at IR level; 5 (SMD range) is rejected statically by
-validate(). Only 0/1/2 can appear in an InterpResult.
+pp_validate(). Only 0/1/2 can appear in an ParserInterpResult.
 """
 
 from dataclasses import dataclass
 
 from . import nanuk_ir_pb2 as ir
-from .validate import validate
+from .pp_validate import pp_validate
 
-# Mirror of spec/sail/model/parser/params.sail (see also nanuk.testkit.harness).
+# Mirror of spec/sail/model/parser/params.sail (see also nanuk.testkit.pp_harness).
 BUF_BYTES = 256
 NHDR = 16
 SMD_SLOTS = 8
@@ -45,8 +45,8 @@ _MASK16 = (1 << 16) - 1
 
 @dataclass(frozen=True)
 class TraceEvent:
-    """One executed IR event, recorded when interp/interp_map get a trace
-    list. `steps_after` is the machine-step clock: the interp mirrors the
+    """One executed IR event, recorded when pp_interp/map_interp get a trace
+    list. `steps_after` is the machine-step clock: the pp_interp mirrors the
     lowering's cost model, so it indexes the asm-level ISS trace directly
     (event N corresponds to ISS steps (prev.steps_after, steps_after]).
 
@@ -74,8 +74,8 @@ class TraceEvent:
 
 
 @dataclass(frozen=True)
-class InterpResult:
-    """Field-for-field compatible with nanuk.testkit.harness.ParseResult."""
+class ParserInterpResult:
+    """Field-for-field compatible with nanuk.testkit.pp_harness.ParserResult."""
 
     verdict: int
     error: int
@@ -143,22 +143,22 @@ class _Machine:
         raise _Halted(VERDICT_ERROR, code)
 
 
-def interp(
+def pp_interp(
     program: ir.ParserProgram,
     packet: bytes,
     *,
     check: bool = True,
     trace: list | None = None,
-) -> InterpResult:
+) -> ParserInterpResult:
     """Execute an IR program over a packet. Total, like the ISA.
 
     With check=True (default) the program is validated first, like
-    lower.to_asm; interpretation itself cannot fail on a valid program.
+    lower.to_pp_asm; interpretation itself cannot fail on a valid program.
     With a trace list, records one TraceEvent per executed IR event
     (see TraceEvent); default None costs nothing.
     """
     if check:
-        validate(program)
+        pp_validate(program)
     machine = _Machine(packet, trace)
     states = {state.name: state for state in program.states}
     state = program.states[0]
@@ -177,7 +177,7 @@ def interp(
                     raise
             state = states[_exec_terminator(machine, state.terminator)]
     except _Halted as halted:
-        return InterpResult(
+        return ParserInterpResult(
             verdict=halted.verdict,
             error=halted.error,
             payload_offset=machine.cursor,
@@ -232,7 +232,7 @@ def _exec_op(m: _Machine, op: ir.ParserOp, index: int) -> None:
             m.tick()
             value, width = m.values[e.value_id]
             nunits = (width + 15) // 16
-            for i in range(nunits):  # MSB-first; in range per validate()
+            for i in range(nunits):  # MSB-first; in range per pp_validate()
                 m.smd[e.slot + i] = (value >> (16 * (nunits - 1 - i))) & _MASK16
             m.record("op", index)
 

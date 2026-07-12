@@ -25,7 +25,7 @@ class ValidationError(Exception):
     """Raised when a Program violates the nanuk IR invariants."""
 
 
-def validate(program: ir.ParserProgram) -> None:
+def pp_validate(program: ir.ParserProgram) -> None:
     """Raise ValidationError if `program` is not a well-formed IR program."""
     if program.ir_version != IR_VERSION:
         raise ValidationError(
@@ -146,7 +146,7 @@ def _validate_terminator(
         case None:
             raise ValidationError(f"{where}: missing terminator")
         case other:
-            # send/drop belong to MapPrograms (validate_map), not parsers.
+            # send/drop belong to MapPrograms (map_validate), not parsers.
             raise ValidationError(
                 f"{where}: terminator kind {other!r} is not allowed in "
                 "parser programs"

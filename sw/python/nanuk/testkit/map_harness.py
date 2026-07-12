@@ -2,7 +2,7 @@
 PP -> MAP pipeline.
 
 run_map feeds a MAP program, the frame bytes, the PP's outputs (a
-ParseResult), and table config through the emulator CLI's ctx.txt contract.
+ParserResult), and table config through the emulator CLI's ctx.txt contract.
 run_pipeline chains the two golden models with the same gating the SimBricks
 glue applies: a PP verdict other than accept short-circuits (the MAP never
 runs; the packet is dropped/flooded per policy at the glue layer — here we
@@ -16,7 +16,7 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .harness import VERDICT_ACCEPT, ParseResult, run_program
+from .pp_harness import VERDICT_ACCEPT, ParserResult, run_program
 
 # Verdicts (mirror spec/sail/model/map/state.sail)
 VERDICT_SENT = 0
@@ -48,7 +48,7 @@ class Table:
 
 
 @dataclass(frozen=True)
-class MapResult:
+class MatchActionResult:
     verdict: int
     error: int
     egress: int
@@ -66,7 +66,7 @@ def map_emulator_path() -> Path:
     return Path(os.environ.get("NANUK_MAP_EMU", _DEFAULT_MAP_EMU))
 
 
-def _ctx_text(pp: ParseResult, tables: list[Table], ingress: int) -> str:
+def _ctx_text(pp: ParserResult, tables: list[Table], ingress: int) -> str:
     lines = [f"ingress {ingress}"]
     for slot, value in enumerate(pp.smd):
         if value:
@@ -84,11 +84,11 @@ def _ctx_text(pp: ParseResult, tables: list[Table], ingress: int) -> str:
 def run_map(
     prog: bytes,
     packet: bytes,
-    pp: ParseResult,
+    pp: ParserResult,
     tables: list[Table],
     ingress: int,
     emu: Path | None = None,
-) -> MapResult:
+) -> MatchActionResult:
     """Run one already-parsed frame through the MAP golden model."""
     emu = emu or map_emulator_path()
     if not emu.exists():
@@ -116,7 +116,7 @@ def run_map(
         # beyond it never entered the engine's custody and passes through.
         if len(packet) > BUF_BYTES:
             frame += packet[BUF_BYTES:]
-    return MapResult(
+    return MatchActionResult(
         verdict=raw["verdict"],
         error=raw["error"],
         egress=raw["egress"],
@@ -132,7 +132,7 @@ def run_pipeline(
     packet: bytes,
     tables: list[Table],
     ingress: int,
-) -> tuple[ParseResult, MapResult | None]:
+) -> tuple[ParserResult, MatchActionResult | None]:
     """Run one packet through PP then MAP (the composed golden model).
 
     Short-circuits when the PP verdict is not accept — the same gating the

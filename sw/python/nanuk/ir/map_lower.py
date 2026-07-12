@@ -9,13 +9,13 @@ Register discipline
     dispatch/compare constants.
 
 The cost model this lowering implies (instructions per op/terminator) is
-mirrored instruction-for-instruction by interp_map.py — change one, change
+mirrored instruction-for-instruction by map_interp.py — change one, change
 both, and the differential tests will catch you if you don't.
 """
 
 from . import nanuk_ir_pb2 as ir
-from .lower import LowerError
-from .validate_map import validate_map
+from .pp_lower import LowerError
+from .map_validate import map_validate
 
 _VALUE_REGS = ("r0", "r1", "r2")
 _SCRATCH_REG = "r3"
@@ -37,7 +37,7 @@ def to_map_asm_annotated(
     emitted instruction (emission order). With last-use liveness, a
     register visibly rebinds to the newest value after the old one dies."""
     if check:
-        validate_map(program)
+        map_validate(program)
     lines: list[str] = []
     bindings: list[dict[str, str]] = []
     for state in program.states:

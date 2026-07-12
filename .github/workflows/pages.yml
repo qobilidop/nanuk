@@ -29,7 +29,7 @@ jobs:
         working-directory: hw/amaranth
         run: |
           uv sync --quiet --group docs
-          uv run pdoc nanuk nanuk_amaranth nanuk.ir.symex '!nanuk.isa._asm_core' '!nanuk.testkit' -o build/api
+          uv run pdoc nanuk nanuk_amaranth nanuk.ir.pp_symex '!nanuk.isa._asm_core' '!nanuk.testkit' -o build/api
 
       - name: Install, test, build the SPA
         working-directory: web

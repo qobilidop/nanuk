@@ -1,5 +1,5 @@
-"""Translation validation, the light way: interp(IR) and
-emulate(lower(IR)) must agree on EVERY ParseResult field — including
+"""Translation validation, the light way: pp_interp(IR) and
+emulate(lower(IR)) must agree on EVERY ParserResult field — including
 `steps` and budget exhaustion, since the interpreter's cost accounting
 mirrors the v0 lowering instruction-for-instruction.
 
@@ -11,10 +11,10 @@ import random
 import pytest
 
 from nanuk.ir import nanuk_ir_pb2 as ir
-from nanuk.ir.interp import interp
-from nanuk.ir.lower import to_asm
-from nanuk.isa.asm import assemble
-from nanuk.testkit.harness import run_program
+from nanuk.ir.pp_interp import pp_interp
+from nanuk.ir.pp_lower import to_pp_asm
+from nanuk.isa.pp_asm import assemble
+from nanuk.testkit.pp_harness import run_program
 
 from test_roundtrip import rich_program
 
@@ -28,12 +28,12 @@ FIELDS = ("verdict", "error", "payload_offset", "steps",
 
 
 def assert_same(program: ir.ParserProgram, packet: bytes, label: str) -> None:
-    ir_result = interp(program, packet)
-    emu_result = run_program(assemble(to_asm(program)), packet)
+    ir_result = pp_interp(program, packet)
+    emu_result = run_program(assemble(to_pp_asm(program)), packet)
     for field in FIELDS:
         assert getattr(ir_result, field) == getattr(emu_result, field), (
             f"{label}: field {field!r} diverges: "
-            f"interp={getattr(ir_result, field)!r} "
+            f"pp_interp={getattr(ir_result, field)!r} "
             f"emu={getattr(emu_result, field)!r} packet={packet.hex()}"
         )
 

@@ -1,6 +1,6 @@
 """MAP IR validation: totality checks on nanuk.ir.v0 MapPrograms.
 
-Sibling of validate.py, same doctrine: value ids are SSA-ish (unique per
+Sibling of pp_validate.py, same doctrine: value ids are SSA-ish (unique per
 program, never 0, never crossing states), targets must exist, and every
 range the *IR* defines is enforced here. Encoding ranges that the MAP ISA
 fixes (10-bit signed offsets/deltas, 16-bit immediates, 1..8 byte
@@ -13,7 +13,7 @@ the values defined before the lookup.
 """
 
 from . import nanuk_ir_pb2 as ir
-from .validate import IR_VERSION, ValidationError
+from .pp_validate import IR_VERSION, ValidationError
 
 _N_TABLES = 4
 _MAX_HDR_ID = 15
@@ -24,7 +24,7 @@ _MAX_IMM16 = (1 << 16) - 1
 _MIN_SIMM16, _MAX_SIMM16 = -(1 << 15), (1 << 15) - 1
 
 
-def validate_map(program: ir.MatchActionProgram) -> None:
+def map_validate(program: ir.MatchActionProgram) -> None:
     """Raise ValidationError if `program` is not a well-formed MAP program."""
     if program.ir_version != IR_VERSION:
         raise ValidationError(

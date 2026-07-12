@@ -12,7 +12,7 @@ from scapy.layers.inet import IP, UDP
 from scapy.layers.l2 import Dot1Q, Ether
 from scapy.packet import Raw
 
-from nanuk.isa.asm import assemble as pp_assemble
+from nanuk.isa.pp_asm import assemble as pp_assemble
 from nanuk.isa.map_asm import assemble as map_assemble
 from nanuk.testkit.map_harness import run_pipeline
 from nanuk.testkit.testkit import DMAC, DMAC2, demo_l2_table

@@ -1,10 +1,10 @@
 """MAP-IR interpreter: executes nanuk.ir.v0 MapPrograms directly.
 
-Sibling of interp.py, same doctrine: semantics mirror the Sail MAP model's
+Sibling of pp_interp.py, same doctrine: semantics mirror the Sail MAP model's
 totality (window clamp, headroom, error codes, step budget), and step
-accounting follows lower_map's cost model instruction-for-instruction —
-every MapInterpResult field, including `steps` and budget exhaustion,
-matches the golden model's MapResult exactly. If lower_map's cost model
+accounting follows map_lower's cost model instruction-for-instruction —
+every MatchActionInterpResult field, including `steps` and budget exhaustion,
+matches the golden model's MatchActionResult exactly. If map_lower's cost model
 changes, this file changes with it.
 
 Error codes 3 (illegal) and 4 (pc range) are structurally impossible at IR
@@ -16,8 +16,8 @@ semantics.
 from dataclasses import dataclass
 
 from . import nanuk_ir_pb2 as ir
-from .interp import TraceEvent
-from .validate_map import validate_map
+from .pp_interp import TraceEvent
+from .map_validate import map_validate
 
 # Mirror of spec/sail/model/map/params.sail (see also nanuk.testkit.map_harness).
 HEADROOM_BYTES = 32
@@ -40,8 +40,8 @@ _MASK64 = (1 << 64) - 1
 
 
 @dataclass(frozen=True)
-class MapInterpResult:
-    """Field-for-field compatible with nanuk.testkit.map_harness.MapResult."""
+class MatchActionInterpResult:
+    """Field-for-field compatible with nanuk.testkit.map_harness.MatchActionResult."""
 
     verdict: int
     error: int
@@ -123,7 +123,7 @@ class _Machine:
             self.halt_err(ERR_WINDOW_VIOLATION)
 
 
-def interp_map(
+def map_interp(
     program: ir.MatchActionProgram,
     packet: bytes,
     pp,
@@ -132,16 +132,16 @@ def interp_map(
     *,
     check: bool = True,
     trace: list | None = None,
-) -> MapInterpResult:
+) -> MatchActionInterpResult:
     """Execute a MAP IR program. Total, like the ISA.
 
-    pp: ParseResult-shaped (hdr_present/hdr_offset/smd). tables: list of
+    pp: ParserResult-shaped (hdr_present/hdr_offset/smd). tables: list of
     nanuk.testkit.map_harness.Table, index = table id (entries masked to the
     declared widths, as every other implementation does). With a trace
-    list, records one interp.TraceEvent per executed IR event.
+    list, records one pp_interp.TraceEvent per executed IR event.
     """
     if check:
-        validate_map(program)
+        map_validate(program)
     m = _Machine(bytes(packet), pp, tables, ingress, trace)
     states = {state.name: state for state in program.states}
     state = program.states[0]
@@ -155,7 +155,7 @@ def interp_map(
                     jump = _exec_op(m, state.ops[i], i)
                 except _Halted as halted:
                     # Error-halting ops executed one instruction; budget
-                    # halts executed nothing (mirrors interp.py).
+                    # halts executed nothing (mirrors pp_interp.py).
                     if halted.error != ERR_STEP_BUDGET:
                         m.record("op", i)
                     raise
@@ -171,7 +171,7 @@ def interp_map(
             start = HEADROOM_BYTES - halted.delta
             end = HEADROOM_BYTES + m.plen_min
             frame = bytes(m.window[start:end]) + bytes(packet[BUF_BYTES:])
-        return MapInterpResult(
+        return MatchActionInterpResult(
             verdict=halted.verdict,
             error=halted.error,
             egress=halted.egress,

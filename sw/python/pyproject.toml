@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [project.scripts]
-nanuk-asm = "nanuk.isa.asm:main"
+nanuk-asm = "nanuk.isa.pp_asm:main"
 nanuk-map-asm = "nanuk.isa.map_asm:main"
 
 [dependency-groups]

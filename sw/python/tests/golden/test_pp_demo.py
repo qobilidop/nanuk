@@ -9,9 +9,9 @@ from scapy.layers.l2 import ARP, Dot1Q, Ether
 from scapy.packet import Raw
 from scapy.utils import wrpcap
 
-from nanuk.isa.asm import assemble
+from nanuk.isa.pp_asm import assemble
 from nanuk.testkit.testkit import DMAC
-from nanuk.testkit.harness import (
+from nanuk.testkit.pp_harness import (
     ERR_HDR_VIOLATION,
     VERDICT_ACCEPT,
     VERDICT_DROP,

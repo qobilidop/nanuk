@@ -15,8 +15,8 @@ from scapy.packet import Raw
 
 from nanuk.testkit.load import load_example
 build = load_example("l2l3l4/parse.py").build
-from nanuk.isa.asm import assemble
-from nanuk.testkit.harness import run_program
+from nanuk.isa.pp_asm import assemble
+from nanuk.testkit.pp_harness import run_program
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("NANUK_COSIM") != "1",

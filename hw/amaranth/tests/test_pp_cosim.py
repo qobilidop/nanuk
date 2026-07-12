@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from nanuk.isa.asm import assemble
-from nanuk.testkit.harness import run_program
+from nanuk.isa.pp_asm import assemble
+from nanuk.testkit.pp_harness import run_program
 from nanuk.testkit.testkit import l2l3l4_packets
 
 from nanuk_amaranth.pp_sim_util import run_pp

@@ -1,5 +1,5 @@
 """Symbolic-executor differential validation over the real nanuk-lang
-programs: every witness reproduces its exact prediction on interp AND the
+programs: every witness reproduces its exact prediction on pp_interp AND the
 golden emulator, all states are reachable, and — the headline payoff —
 symex INVENTS a valid nanukproto tunnel packet from constraints alone.
 
@@ -10,12 +10,12 @@ from pathlib import Path
 
 import pytest
 
-from nanuk.ir.interp import interp
-from nanuk.ir.symex import reachable_states, symex
+from nanuk.ir.pp_interp import pp_interp
+from nanuk.ir.pp_symex import reachable_states, symex
 from nanuk.testkit.load import load_example
 make_parser = load_example("l2l3l4/parse.py").make_parser
-from nanuk.isa.asm import assemble
-from nanuk.testkit.harness import run_program
+from nanuk.isa.pp_asm import assemble
+from nanuk.testkit.pp_harness import run_program
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("NANUK_COSIM") != "1",
@@ -34,7 +34,7 @@ def test_witnesses_reproduce_on_golden_model():
     for p in paths:
         assert p.witness is not None
         golden = run_program(binary, p.witness)
-        it = interp(prog, p.witness)
+        it = pp_interp(prog, p.witness)
         assert (golden.verdict, golden.error, golden.steps) == (
             p.verdict, p.error, p.steps,
         ), f"golden diverged on {p.trace}"

@@ -7,8 +7,8 @@ from nanuk.lang import CompileError, MatchActionProgram, MD_FLOOD
 from nanuk.testkit.load import load_example
 _ex = load_example("l2l3l4/parse.py"); eth, ipv4 = _ex.eth, _ex.ipv4
 
-from nanuk.ir.lower_map import to_map_asm
-from nanuk.ir.validate_map import validate_map
+from nanuk.ir.map_lower import to_map_asm
+from nanuk.ir.map_validate import map_validate
 
 
 def l2fwd() -> MatchActionProgram:
@@ -31,7 +31,7 @@ def l2fwd() -> MatchActionProgram:
 
 def test_l2fwd_ir_shape():
     program = l2fwd().build_ir()
-    validate_map(program)
+    map_validate(program)
     assert [t.debug_name for t in program.tables] == ["l2"]
     assert [st.name for st in program.states] == ["forward", "flood"]
     fw = program.states[0]
@@ -109,7 +109,7 @@ def test_raw_headroom_store_and_dispatch():
         s.send(s.load_md(MD_FLOOD))
 
     program = mp.build_ir()
-    validate_map(program)
+    map_validate(program)
     asm = to_map_asm(program)
     assert "st      r0, 15, -10, 2" in asm
     assert "send    r0, -22" in asm  # liveness: the stored const died at the st

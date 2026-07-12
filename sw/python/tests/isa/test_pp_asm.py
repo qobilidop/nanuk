@@ -1,7 +1,7 @@
 import pytest
 
-from nanuk.isa import encoding
-from nanuk.isa.asm import AsmError, assemble, assemble_with_lines
+from nanuk.isa import pp_encoding
+from nanuk.isa.pp_asm import AsmError, assemble, assemble_with_lines
 
 
 def words(binary: bytes) -> list[int]:
@@ -29,15 +29,15 @@ done:
 """
     binary = assemble(src)
     assert words(binary) == [
-        encoding.encode_beq("r0", "r1", 2),  # done = word 2
-        encoding.encode_jmp(0),              # loop = word 0
-        encoding.encode_halt(drop=False),
+        pp_encoding.encode_beq("r0", "r1", 2),  # done = word 2
+        pp_encoding.encode_jmp(0),              # loop = word 0
+        pp_encoding.encode_halt(drop=False),
     ]
 
 
 def test_label_on_instruction_line():
     binary = assemble("start: jmp start\n")
-    assert words(binary) == [encoding.encode_jmp(0)]
+    assert words(binary) == [pp_encoding.encode_jmp(0)]
 
 
 def test_equ_constants():
@@ -49,8 +49,8 @@ def test_equ_constants():
     halt accept
 """
     binary = assemble(src)
-    assert words(binary)[0] == encoding.encode_sethdr(0)
-    assert words(binary)[1] == encoding.encode_ext("r0", 96, 16)
+    assert words(binary)[0] == pp_encoding.encode_sethdr(0)
+    assert words(binary)[1] == pp_encoding.encode_ext("r0", 96, 16)
 
 
 def test_all_instructions_assemble():

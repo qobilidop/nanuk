@@ -5,14 +5,14 @@ parser programs (and vice versa)."""
 import pytest
 
 from nanuk.ir import nanuk_ir_pb2 as ir
-from nanuk.ir.validate import ValidationError, validate
-from nanuk.ir.validate_map import validate_map
+from nanuk.ir.pp_validate import ValidationError, pp_validate
+from nanuk.ir.map_validate import map_validate
 
 from tests.ir.irbuild import drop, l2_table, l2fwd_program, load
 
 
 def test_valid_program_passes():
-    validate_map(l2fwd_program())
+    map_validate(l2fwd_program())
 
 
 def test_ttl_shaped_program_passes():
@@ -36,7 +36,7 @@ def test_ttl_shaped_program_passes():
             ),
         ],
     )
-    validate_map(p)
+    map_validate(p)
 
 
 @pytest.mark.parametrize(
@@ -67,14 +67,14 @@ def test_violations_rejected(mutate, message):
     p = l2fwd_program()
     mutate(p)
     with pytest.raises(ValidationError, match=message):
-        validate_map(p)
+        map_validate(p)
 
 
 def test_parser_terminators_rejected_in_map():
     p = l2fwd_program()
     p.states[1].terminator.CopyFrom(ir.Terminator(halt=ir.Halt(drop=False)))
     with pytest.raises(ValidationError, match="not allowed in"):
-        validate_map(p)
+        map_validate(p)
 
 
 def test_map_terminators_rejected_in_parser():
@@ -83,4 +83,4 @@ def test_map_terminators_rejected_in_parser():
         states=[ir.ParserState(name="start", terminator=drop())],
     )
     with pytest.raises(ValidationError, match="not allowed in"):
-        validate(p)
+        pp_validate(p)

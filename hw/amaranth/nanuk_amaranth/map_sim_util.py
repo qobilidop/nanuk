@@ -29,7 +29,7 @@ _MAX_RUN_CYCLES = 65536
 
 @dataclass(frozen=True)
 class MAPResult:
-    """MatchActionProcessor's outbound contract; field names match map_harness.MapResult
+    """MatchActionProcessor's outbound contract; field names match map_harness.MatchActionResult
     so the cosim rig can diff them directly (frame includes the >256B tail
     passthrough, same rule as run_map)."""
 
@@ -63,7 +63,7 @@ def run_map(prog, packets, ctxs, tables) -> list[MAPResult]:
 
     prog: MAP program (bytes or word list). packets: list of frames.
     ctxs: list of (pp_result, ingress) — pp_result needs .hdr_present,
-    .hdr_offset, .smd (ParseResult or PPResult shape). tables: list of
+    .hdr_offset, .smd (ParserResult or PPResult shape). tables: list of
     nanuk.testkit.map_harness.Table, index = table id.
     """
     words = _to_words(prog)
