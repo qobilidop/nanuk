@@ -4,7 +4,9 @@ Building a programmable packet processor from chip to programming language. 🐻
 
 **[Landing page](https://qobilidop.github.io/nanuk/)** ·
 **[Playground](https://qobilidop.github.io/nanuk/play/)** — the eDSL, IR,
-and assembly, live in your browser.
+and assembly, live in your browser, with a step-scrubber debugger that
+walks each packet through the IR interpreter and an instruction-set
+simulator in lockstep.
 
 nanuk is an educational project: a programmable packet-processing
 pipeline of two sibling ISAs (inspired by
@@ -24,7 +26,8 @@ the full design.
 ## Layout
 
 ```
-spec/     Sail ISA specs (the source of truth: parser-model/ + map-model/), emulators, assemblers
+spec/     Sail ISA specs (the source of truth: parser-model/ + map-model/), emulators, pcap rig
+spec/isa/ nanuk-isa: dependency-free assemblers, encodings, and instruction-set simulators
 lang/     Python eDSL (parser programs and match-action programs -> the IR)
 compiler/ protobuf nanuk IR: schema, validation, lowerings, interpreters, symbolic executor
 hw/       Amaranth RTL cores (cosimulated against the specs) + SimBricks demos

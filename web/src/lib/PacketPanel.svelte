@@ -59,7 +59,7 @@
   {#if runOut && cursorByte !== null && bytes.length}
     <div class="cursorview">
       <span class="caption">
-        parser cursor @ {cursorByte}{cursorByte >= bytes.length ? ' (past the header buffer view)' : ''}
+        parser cursor @ {cursorByte}{cursorByte >= bytes.length ? ' (payload start — past the shown bytes)' : ''}
       </span>
       <code>
         {#each bytes as b, i}<span class:at={i === cursorByte}>{b}</span>{/each}
