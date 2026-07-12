@@ -16,9 +16,9 @@ from scapy.layers.l2 import Ether
 
 from nanuk.isa.asm import assemble as pp_assemble
 from nanuk.isa.map_asm import assemble as map_assemble
-from tests.support.harness import VERDICT_ACCEPT, run_program
-from tests.support.map_harness import run_map, run_pipeline
-from tests.support.testkit import (
+from nanuk.testkit.harness import VERDICT_ACCEPT, run_program
+from nanuk.testkit.map_harness import run_map, run_pipeline
+from nanuk.testkit.testkit import (
     DMAC,
     NO_TABLE,
     demo_l2_table,

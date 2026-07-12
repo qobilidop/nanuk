@@ -18,7 +18,7 @@ _MAX_RUN_CYCLES = 2048
 class CoreResult:
     """The core's output contract, plus a register-file peek for unit tests.
 
-    Field names and shapes match tests.support.harness.ParseResult so the cosim
+    Field names and shapes match nanuk.testkit.harness.ParseResult so the cosim
     rig can diff them directly.
     """
 

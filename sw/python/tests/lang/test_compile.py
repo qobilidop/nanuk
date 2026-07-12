@@ -5,7 +5,7 @@ documented compile errors."""
 import pytest
 
 from nanuk.lang import CompileError, Header, Parser
-from tests.support.load import load_example
+from nanuk.testkit.load import load_example
 
 # -- helpers -----------------------------------------------------------------
 

@@ -13,13 +13,13 @@ from scapy.layers.l2 import ARP, Dot1Q, Ether
 
 from nanuk.isa.asm import assemble as pp_assemble
 from nanuk.isa.map_asm import assemble as map_assemble
-from tests.support.map_harness import (
+from nanuk.testkit.map_harness import (
     MAP_ERR_HDR_ABSENT,
     VERDICT_DROP,
     VERDICT_ERROR,
     run_pipeline,
 )
-from tests.support.testkit import DMAC, demo_l2_table
+from nanuk.testkit.testkit import DMAC, demo_l2_table
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 PP_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"

@@ -14,11 +14,11 @@ from scapy.layers.inet import IP, UDP
 
 from nanuk.ir.interp import interp
 from nanuk.ir.lower import to_asm
-from tests.support.load import load_example
+from nanuk.testkit.load import load_example
 nanukproto_parse = load_example("nanukproto/parse.py")
 l2l3l4_ir = load_example("l2l3l4/parse.py").build_ir
 from nanuk.isa.asm import assemble
-from tests.support.harness import run_program
+from nanuk.testkit.harness import run_program
 
 from test_parity import CORPUS
 

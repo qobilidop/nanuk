@@ -19,7 +19,7 @@ from . import nanuk_ir_pb2 as ir
 from .interp import TraceEvent
 from .validate_map import validate_map
 
-# Mirror of spec/map-model/params.sail (see also tests.support.map_harness).
+# Mirror of spec/map-model/params.sail (see also nanuk.testkit.map_harness).
 HEADROOM_BYTES = 32
 BUF_BYTES = 256
 WIN_BYTES = 288
@@ -41,7 +41,7 @@ _MASK64 = (1 << 64) - 1
 
 @dataclass(frozen=True)
 class MapInterpResult:
-    """Field-for-field compatible with tests.support.map_harness.MapResult."""
+    """Field-for-field compatible with nanuk.testkit.map_harness.MapResult."""
 
     verdict: int
     error: int
@@ -136,7 +136,7 @@ def interp_map(
     """Execute a MAP IR program. Total, like the ISA.
 
     pp: ParseResult-shaped (hdr_present/hdr_offset/smd). tables: list of
-    tests.support.map_harness.Table, index = table id (entries masked to the
+    nanuk.testkit.map_harness.Table, index = table id (entries masked to the
     declared widths, as every other implementation does). With a trace
     list, records one interp.TraceEvent per executed IR event.
     """

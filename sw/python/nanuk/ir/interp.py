@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from . import nanuk_ir_pb2 as ir
 from .validate import validate
 
-# Mirror of spec/parser-model/params.sail (see also tests.support.harness).
+# Mirror of spec/parser-model/params.sail (see also nanuk.testkit.harness).
 BUF_BYTES = 256
 NHDR = 16
 SMD_SLOTS = 8
@@ -75,7 +75,7 @@ class TraceEvent:
 
 @dataclass(frozen=True)
 class InterpResult:
-    """Field-for-field compatible with tests.support.harness.ParseResult."""
+    """Field-for-field compatible with nanuk.testkit.harness.ParseResult."""
 
     verdict: int
     error: int

@@ -64,7 +64,7 @@ def run_map_core(prog, packets, ctxs, tables) -> list[MapCoreResult]:
     prog: MAP program (bytes or word list). packets: list of frames.
     ctxs: list of (pp_result, ingress) — pp_result needs .hdr_present,
     .hdr_offset, .smd (ParseResult or CoreResult shape). tables: list of
-    tests.support.map_harness.Table, index = table id.
+    nanuk.testkit.map_harness.Table, index = table id.
     """
     words = _to_words(prog)
     if len(words) > IMEM_WORDS:
@@ -170,7 +170,7 @@ def run_map_core(prog, packets, ctxs, tables) -> list[MapCoreResult]:
 
 def run_map_one(prog, packet, pp, tables, ingress) -> MapCoreResult:
     """Single-packet convenience wrapper (argument order matches
-    tests.support.map_harness.run_map)."""
+    nanuk.testkit.map_harness.run_map)."""
     return run_map_core(prog, [packet], [(pp, ingress)], tables)[0]
 
 

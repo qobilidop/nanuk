@@ -5,6 +5,10 @@ nanuk.ir   -- portable parser-level IR (what tools exchange)
 nanuk.isa  -- the architectural contract (encodings, asm, reference sims)
 nanuk.rtl  -- the implementation below it (Amaranth cores + switch)
 
+nanuk.testkit is not a level: it is the conformance machinery (golden-model
+emulator rig, pcap fixtures) shared by every test suite. Dev-only — it
+imports scapy and is excluded from wheels.
+
 Demo programs are content, not code: they live in examples/ at the repo
 root, standalone by design, and are never imported by shipping code.
 

@@ -14,7 +14,7 @@ from nanuk.ir import nanuk_ir_pb2 as ir
 from nanuk.ir.interp_map import interp_map
 from nanuk.ir.lower_map import to_map_asm
 from nanuk.isa.map_asm import assemble
-from tests.support.map_harness import Table, run_map
+from nanuk.testkit.map_harness import Table, run_map
 
 from tests.ir.irbuild import l2fwd_program, load, send
 

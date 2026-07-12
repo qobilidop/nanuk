@@ -6,7 +6,7 @@ and self references — bodies only run at build time). ``build_ir()`` runs
 every state body and returns a nanuk.ir.v0 Program proto (start state
 first, the rest in definition order); ``compile()`` is the composition
 ``nanuk.ir.lower.to_asm(build_ir())`` and returns assembly text for
-tests.support's assembler.
+nanuk.testkit's assembler.
 """
 
 import itertools

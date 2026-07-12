@@ -11,8 +11,8 @@ from scapy.layers.l2 import Ether
 
 from nanuk.isa.asm import assemble as pp_assemble
 from nanuk.isa.map_asm import assemble as map_assemble
-from tests.support.map_harness import run_pipeline
-from tests.support.testkit import DMAC, NO_TABLE, demo_tun_table
+from nanuk.testkit.map_harness import run_pipeline
+from nanuk.testkit.testkit import DMAC, NO_TABLE, demo_tun_table
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 EXAMPLES = REPO_ROOT / "examples"

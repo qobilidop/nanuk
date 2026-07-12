@@ -13,9 +13,9 @@ import pytest
 from nanuk.isa.asm import assemble as pp_assemble
 from nanuk.isa.iss_map import run_map_iss
 from nanuk.isa.map_asm import assemble as map_assemble
-from tests.support.harness import VERDICT_ACCEPT, run_program
-from tests.support.map_harness import Table, run_map
-from tests.support.testkit import demo_l2_table, demo_tun_table, map_packets
+from nanuk.testkit.harness import VERDICT_ACCEPT, run_program
+from nanuk.testkit.map_harness import Table, run_map
+from nanuk.testkit.testkit import demo_l2_table, demo_tun_table, map_packets
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 PP_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"

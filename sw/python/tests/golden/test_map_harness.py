@@ -3,8 +3,8 @@ PP-accept-all + MAP-flood program through run_pipeline for every ingress."""
 
 from nanuk.isa import encoding as pe
 from nanuk.isa import map_encoding as me
-from tests.support.harness import ParseResult, VERDICT_ACCEPT
-from tests.support.map_harness import (
+from nanuk.testkit.harness import ParseResult, VERDICT_ACCEPT
+from nanuk.testkit.map_harness import (
     MAP_ERR_NONE,
     Table,
     run_map,

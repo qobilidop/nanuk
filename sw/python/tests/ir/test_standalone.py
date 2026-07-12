@@ -69,7 +69,7 @@ def test_hand_built_ir_validates_and_assembles():
 class TestOnEmulator:
     def test_accept_path(self):
         from nanuk.isa.asm import assemble
-        from tests.support.harness import VERDICT_ACCEPT, run_program
+        from nanuk.testkit.harness import VERDICT_ACCEPT, run_program
 
         prog = assemble(to_asm(hand_built_program()))
         # magic 0xBEEF, len 2 -> skip 4 body bytes; 1 byte of payload left.
@@ -83,7 +83,7 @@ class TestOnEmulator:
 
     def test_drop_path(self):
         from nanuk.isa.asm import assemble
-        from tests.support.harness import VERDICT_DROP, run_program
+        from nanuk.testkit.harness import VERDICT_DROP, run_program
 
         prog = assemble(to_asm(hand_built_program()))
         r = run_program(prog, bytes(8))

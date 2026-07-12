@@ -29,7 +29,7 @@ docs = ["pdoc>=15"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]  # makes tests.support importable
+pythonpath = ["."]  # makes tests.ir helpers importable
 
 [build-system]
 requires = ["hatchling"]
@@ -37,3 +37,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["nanuk"]
+# Test machinery (imports scapy, GPL dev-only) never ships in the wheel;
+# editable installs still expose it to sibling projects' test suites.
+exclude = ["nanuk/testkit"]

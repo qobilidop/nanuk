@@ -2,7 +2,7 @@
 
 import json
 
-from tests.support.load import load_example
+from nanuk.testkit.load import load_example
 l2l3l4 = load_example("l2l3l4/parse.py")
 
 import bridge

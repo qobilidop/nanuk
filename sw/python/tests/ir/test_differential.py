@@ -14,7 +14,7 @@ from nanuk.ir import nanuk_ir_pb2 as ir
 from nanuk.ir.interp import interp
 from nanuk.ir.lower import to_asm
 from nanuk.isa.asm import assemble
-from tests.support.harness import run_program
+from nanuk.testkit.harness import run_program
 
 from test_roundtrip import rich_program
 

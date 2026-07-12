@@ -53,7 +53,7 @@ class MapIssStep:
 
 @dataclass(frozen=True)
 class MapIssResult:
-    """First six fields mirror tests.support.map_harness.MapResult."""
+    """First six fields mirror nanuk.testkit.map_harness.MapResult."""
 
     verdict: int
     error: int

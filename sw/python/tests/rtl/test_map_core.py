@@ -217,7 +217,7 @@ def test_st_edits_show_in_frame():
 
 
 def _l2_table():
-    from tests.support.map_harness import Table
+    from nanuk.testkit.map_harness import Table
 
     return Table(
         key_width=48,
@@ -262,7 +262,7 @@ def test_lookup_key_masking():
 
 
 def test_lookup_always_miss_tables():
-    from tests.support.map_harness import Table
+    from nanuk.testkit.map_harness import Table
 
     prog = words(
         e.encode_lookup("r1", 1, "rz", 2),

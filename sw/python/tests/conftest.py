@@ -1,4 +1,4 @@
-# examples/ are content, loaded by path (tests.support.load) — keep Python
+# examples/ are content, loaded by path (nanuk.testkit.load) — keep Python
 # from strewing __pycache__ into them.
 import sys
 

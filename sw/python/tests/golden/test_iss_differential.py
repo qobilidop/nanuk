@@ -12,8 +12,8 @@ import pytest
 
 from nanuk.isa.asm import assemble
 from nanuk.isa.iss import run_iss
-from tests.support.harness import run_program
-from tests.support.testkit import l2l3l4_packets
+from nanuk.testkit.harness import run_program
+from nanuk.testkit.testkit import l2l3l4_packets
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 PROGRAMS = {

@@ -51,7 +51,7 @@ class IssStep:
 
 @dataclass(frozen=True)
 class IssResult:
-    """First seven fields mirror tests.support.harness.ParseResult."""
+    """First seven fields mirror nanuk.testkit.harness.ParseResult."""
 
     verdict: int
     error: int

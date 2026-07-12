@@ -19,7 +19,7 @@ from nanuk.rtl.map_sim_util import run_map_one
 from nanuk.rtl.sim_util import run_one
 from nanuk.isa import encoding as enc
 from nanuk.isa.map_asm import assemble as map_assemble
-from tests.support.map_harness import Table, run_map
+from nanuk.testkit.map_harness import Table, run_map
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("NANUK_COSIM") != "1", reason="needs nanuk-emu (devcontainer)"
@@ -29,7 +29,7 @@ REGS = ["r0", "r1", "r2", "r3", "rz"]
 
 
 def golden(prog: bytes, packet: bytes):
-    from tests.support.harness import run_program
+    from nanuk.testkit.harness import run_program
 
     return run_program(prog, packet)
 
@@ -151,7 +151,7 @@ def _random_table(rng, packet: bytes) -> Table:
 
 @pytest.mark.parametrize("seed", range(15))
 def test_fuzz_map_l2fwd(seed):
-    from tests.support.harness import run_program
+    from nanuk.testkit.harness import run_program
     from nanuk.isa.asm import assemble as pp_assemble
 
     rng = random.Random(3000 + seed)

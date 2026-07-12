@@ -14,8 +14,8 @@ from pathlib import Path
 import pytest
 
 from nanuk.isa.asm import assemble
-from tests.support.harness import run_program
-from tests.support.testkit import l2l3l4_packets
+from nanuk.testkit.harness import run_program
+from nanuk.testkit.testkit import l2l3l4_packets
 
 from nanuk.rtl.sim_util import run_core
 

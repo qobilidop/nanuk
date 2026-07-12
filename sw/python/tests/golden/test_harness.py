@@ -8,7 +8,7 @@ from scapy.layers.l2 import Ether
 from scapy.utils import wrpcap
 
 from nanuk.isa.asm import assemble
-from tests.support.harness import (
+from nanuk.testkit.harness import (
     ERR_HDR_VIOLATION,
     VERDICT_ACCEPT,
     VERDICT_DROP,

@@ -10,8 +10,8 @@ from scapy.packet import Raw
 from scapy.utils import wrpcap
 
 from nanuk.isa.asm import assemble
-from tests.support.testkit import DMAC
-from tests.support.harness import (
+from nanuk.testkit.testkit import DMAC
+from nanuk.testkit.harness import (
     ERR_HDR_VIOLATION,
     VERDICT_ACCEPT,
     VERDICT_DROP,

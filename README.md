@@ -32,7 +32,7 @@ sw/python/ The nanuk package, four descending abstraction levels: nanuk.lang
            (eDSL) -> nanuk.ir (protobuf IR, lowerings, interpreters, symex)
            -> nanuk.isa (assemblers, encodings, ISS) -> nanuk.rtl (Amaranth
            cores). Plus the whole Python test suite (tests/; the golden-model
-           pcap rig = tests/golden, its machinery in tests/support).
+           pcap rig = tests/golden, its machinery in nanuk.testkit).
 examples/  Example programs: hand-written asm paired with its eDSL twin
 demo/      The end-to-end SimBricks demo staging the examples on the RTL cores
 docs/      Design docs, plans, and lab notes

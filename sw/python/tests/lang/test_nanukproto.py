@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.support.load import load_example
+from nanuk.testkit.load import load_example
 build = load_example("nanukproto/parse.py").build
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -44,7 +44,7 @@ class TestOnGoldenModel:
         return assemble(build())
 
     def _run(self, prog, packet):
-        from tests.support.harness import run_program
+        from nanuk.testkit.harness import run_program
 
         return run_program(prog, packet)
 
