@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Regenerate nanuk/ir/nanuk_ir_pb2.py from nanuk/ir/nanuk_ir.proto.
+"""Regenerate nanuk/ir/nanuk_ir_pb2.py from the IR schema in spec/proto/.
 
-The generated file is checked in so nanuk needs no build-time protoc
-dependency; rerun this (in an env with the dev group, e.g.
+The schema's source of truth is spec/proto/ (language-neutral, shared by
+every implementation); this package vendors the generated code so nanuk
+needs no build-time protoc dependency. The include path is the schema's
+leaf directory on purpose: gencode lands flat in nanuk/ir/, keeping the
+import path (nanuk.ir.nanuk_ir_pb2) a per-language detail rather than a
+mirror of the proto package. Rerun (in an env with the dev group, e.g.
 `uv run python scripts/gen.py` from sw/python/) after editing the schema.
 """
 
@@ -11,16 +15,18 @@ from pathlib import Path
 
 from grpc_tools import protoc
 
-PKG = Path(__file__).resolve().parents[1] / "nanuk" / "ir"
+_HERE = Path(__file__).resolve()
+SCHEMA = _HERE.parents[3] / "spec" / "proto" / "nanuk" / "ir" / "v0"
+PKG = _HERE.parents[1] / "nanuk" / "ir"
 
 
 def main() -> int:
     return protoc.main(
         [
             "protoc",
-            f"-I{PKG}",
+            f"-I{SCHEMA}",
             f"--python_out={PKG}",
-            str(PKG / "nanuk_ir.proto"),
+            str(SCHEMA / "nanuk_ir.proto"),
         ]
     )
 

@@ -1,4 +1,5 @@
-"""nanuk.ir: the nanuk IR (protobuf, package nanuk.ir.v0), its validation
+"""nanuk.ir: the nanuk IR (protobuf, package nanuk.ir.v0; schema at
+spec/proto/, gencode vendored here via scripts/gen.py), its validation
 pass, the IR -> assembly lowering (stage 3 of the nanuk project), and the
 IR-level interpreter (differential chassis for the satellites).
 
