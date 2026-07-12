@@ -2,7 +2,7 @@
 .agent_scratch/
 third_party/
 
-# Build outputs (matches at any level: root CMake build, hw/build, ...)
+# Build outputs (matches at any level: root CMake build, demo/build, ...)
 build/
 sail_smt_cache
 
@@ -21,10 +21,8 @@ web/dist/
 web/public/wheels/
 
 # SimBricks demo staging and artifacts
-hw/simbricks/stage/
-hw/simbricks/out/
-hw/simbricks/prog.bin
-hw/simbricks/drop_all.bin
+demo/stage/
+demo/out/
 
 # OS
 .DS_Store

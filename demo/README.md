@@ -1,10 +1,12 @@
 # nanuk × SimBricks integration
 
 The e2e demo: two QEMU Linux hosts with i40e NICs exchange traffic through
-the Verilator'd nanuk parser core, wrapped as a SimBricks network component
-with parser-gated flood forwarding (verdict accept ⇒ flood to other ports,
-anything else ⇒ drop). The loaded parser program decides what the switch
-passes — reload a different program, get a different switch.
+the Verilator'd composed PP→MAP cores, wrapped as a SimBricks network
+component. The parser program gates what enters (verdict ≠ accept ⇒ drop),
+the MAP program + tables decide forwarding (lookup hit ⇒ egress bitmap,
+miss ⇒ program's choice, e.g. flood). The loaded programs and tables ARE
+the switch policy — reload different ones, get a different switch. The
+demo programs are assembled from the repo-root `examples/`.
 
 ## Recon findings (2026-07-11, SimBricks main @ shallow clone)
 
@@ -39,8 +41,12 @@ passes — reload a different program, get a different switch.
   flood controller)
 - `rules.mk` — in-tree build rules (for a full SimBricks checkout;
   `build_and_run.sh` compiles directly instead)
-- `nanuk_demo.py` — the experiment (stock classes only)
-- `nanuk_run.sh` — executable wrapper baking in the program path
-- `build_and_run.sh` — end-to-end driver: assembles the parser program,
-  exports Verilog, builds the component in the SimBricks container, runs the
-  experiment, checks ping output
+- `nanuk_demo.py` / `nanuk_demo_tunnel.py` — the experiments (stock classes
+  only; single switch / two switches with a nanukproto tunnel between them)
+- `nanuk_run.sh` — executable wrapper selecting per-switch prog/map/tables
+- `build_component.sh` — exports Verilog (nanuk-export), verilates natively,
+  compiles + links `out/nanuk_hw` in the SimBricks container
+- `build_and_run.sh` — e2e smoke: build component, assemble programs from
+  `examples/`, run the ping experiment, check output
+- `run_beats12.sh` / `run_beat3.sh` — the M2 demo beats (table-is-the-policy;
+  tunnel push/pop)

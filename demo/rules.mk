@@ -1,5 +1,5 @@
 # SimBricks build rules for the nanuk network component. This file is copied
-# (with the rest of hw/simbricks/) into the SimBricks tree as sims/net/nanuk/
+# (with the rest of demo/) into the SimBricks tree as sims/net/nanuk/
 # and registered in sims/net/rules.mk. Modeled on sims/net/menshen/rules.mk.
 
 include mk/subdir_pre.mk

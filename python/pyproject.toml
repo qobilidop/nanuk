@@ -15,6 +15,7 @@ rtl = ["amaranth[builtin-yosys]>=0.5"]  # heavy; never enters the Pyodide bundle
 [project.scripts]
 nanuk-asm = "nanuk.isa.asm:main"
 nanuk-map-asm = "nanuk.isa.map_asm:main"
+nanuk-export = "nanuk.rtl.export:main"  # needs the rtl extra
 
 [dependency-groups]
 dev = [

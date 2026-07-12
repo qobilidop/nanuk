@@ -1,8 +1,8 @@
 """Emit Verilog for the nanuk cores.
 
-Usage (env: the python/ project with the rtl extra):
-    uv run --project ../python python export.py build/nanuk_core.v
-    uv run --project ../python python export.py --core map build/nanuk_map_core.v
+Usage (needs the `rtl` extra):
+    uv run nanuk-export ../demo/build/nanuk_core.v
+    uv run nanuk-export --core map ../demo/build/nanuk_map_core.v
 """
 
 import argparse

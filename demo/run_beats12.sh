@@ -10,13 +10,13 @@
 #                       -> ping must fail. Same silicon, same programs;
 #                       only the table changed.
 #
-# Run from anywhere: hw/simbricks/run_beats12.sh
+# Run from anywhere: demo/run_beats12.sh
 set -euo pipefail
 
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/.."
 REPO="$PWD"
 IMG=simbricks/simbricks-local:latest
-SB="$REPO/hw/simbricks"
+SB="$REPO/demo"
 OUT="$SB/out"
 
 "$SB/build_component.sh"
@@ -24,8 +24,8 @@ OUT="$SB/out"
 echo "==> assembling programs"
 ./dev.sh bash -lc '
     cd python && uv sync --quiet &&
-    uv run nanuk-asm ../examples/l2l3l4/parse.asm -o ../hw/simbricks/out/prog.bin &&
-    uv run nanuk-map-asm ../examples/map_l2fwd/fwd.asm -o ../hw/simbricks/out/map.bin
+    uv run nanuk-asm ../examples/l2l3l4/parse.asm -o ../demo/out/prog.bin &&
+    uv run nanuk-map-asm ../examples/map_l2fwd/fwd.asm -o ../demo/out/map.bin
 '
 
 run_phase() {  # $1 = phase name; tables.txt (or absence) already staged in $OUT
@@ -36,8 +36,8 @@ run_phase() {  # $1 = phase name; tables.txt (or absence) already staged in $OUT
     -v "$REPO:/nanuk:ro" -v "$OUT:/out" \
     $IMG bash -ec '
       mkdir -p /simbricks/sims/net/nanuk
-      cp /out/nanuk_hw /nanuk/hw/simbricks/nanuk_run.sh \
-         /nanuk/hw/simbricks/nanuk_demo.py /out/prog.bin /out/map.bin \
+      cp /out/nanuk_hw /nanuk/demo/nanuk_run.sh \
+         /nanuk/demo/nanuk_demo.py /out/prog.bin /out/map.bin \
          /simbricks/sims/net/nanuk/
       [ -f /out/tables.txt ] && cp /out/tables.txt /simbricks/sims/net/nanuk/
       chmod +x /simbricks/sims/net/nanuk/nanuk_run.sh

@@ -18,7 +18,7 @@ The web playground additionally needs Node ≥ 22 on the host (`cd web`).
 | playground SPA | `cd web && npm test && npm run build` (host; `web/scripts/build_wheels.sh` first) |
 | lint (ruff, whole repo) | `./dev.sh bash -lc 'cd python && uv run ruff check ..'` |
 | API docs (pdoc → build/api, deployed at /api/) | `./dev.sh bash -lc 'cd python && uv sync --extra rtl --group docs && uv run pdoc nanuk nanuk.ir.symex "!nanuk.isa._asm_core" -o ../build/api'` |
-| SimBricks e2e (not in CI) | `hw/simbricks/run_beats12.sh` and `hw/simbricks/run_beat3.sh` (host; needs Docker) |
+| SimBricks e2e (not in CI) | `demo/run_beats12.sh` and `demo/run_beat3.sh` (host; needs Docker) |
 
 Run a single layer with `uv run pytest tests/rtl` (or `tests/isa`,
 `tests/ir`, `tests/lang`, `tests/spec`) from `python/`.

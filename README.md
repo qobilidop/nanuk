@@ -32,14 +32,14 @@ python/   The nanuk package, four descending abstraction levels: nanuk.lang
           -> nanuk.isa (assemblers, encodings, ISS) -> nanuk.rtl (Amaranth
           cores). Plus the whole Python test suite (tests/, incl. the
           golden-model pcap rig in tests/support).
-examples/ Demo programs: hand-written asm paired with its eDSL twin
-hw/       Hardware workbench: Verilog export, SimBricks demos, RTL build outputs
+examples/ Example programs: hand-written asm paired with its eDSL twin
+demo/     The end-to-end SimBricks demo staging the examples on the RTL cores
 docs/     Design docs, plans, and lab notes
 ```
 
 ## The demo
 
-`hw/simbricks/build_and_run.sh` runs the end-to-end demo: two QEMU Linux
+`demo/build_and_run.sh` runs the end-to-end demo: two QEMU Linux
 hosts exchange real traffic through the Verilator'd nanuk parser core
 inside SimBricks — `ping` works because the loaded parser program accepts
 the frames. Load `examples/drop_all/parse.asm` instead and the network

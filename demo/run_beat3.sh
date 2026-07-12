@@ -10,13 +10,13 @@
 #                    (frames encapsulated) AND sw_decap delta_neg>0
 #                    (frames decapsulated).
 #
-# Run from anywhere: hw/simbricks/run_beat3.sh
+# Run from anywhere: demo/run_beat3.sh
 set -euo pipefail
 
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/.."
 REPO="$PWD"
 IMG=simbricks/simbricks-local:latest
-SB="$REPO/hw/simbricks"
+SB="$REPO/demo"
 OUT="$SB/out"
 
 "$SB/build_component.sh"
@@ -24,10 +24,10 @@ OUT="$SB/out"
 echo "==> assembling programs (encap + decap pairs)"
 ./dev.sh bash -lc '
     cd python && uv sync --quiet &&
-    uv run nanuk-asm ../examples/l2l3l4/parse.asm -o ../hw/simbricks/out/encap-prog.bin &&
-    uv run nanuk-map-asm ../examples/nanukproto/tunnel_push.asm -o ../hw/simbricks/out/encap-map.bin &&
-    uv run nanuk-asm ../examples/nanukproto/parse_tunnel.asm -o ../hw/simbricks/out/decap-prog.bin &&
-    uv run nanuk-map-asm ../examples/nanukproto/tunnel_pop.asm -o ../hw/simbricks/out/decap-map.bin
+    uv run nanuk-asm ../examples/l2l3l4/parse.asm -o ../demo/out/encap-prog.bin &&
+    uv run nanuk-map-asm ../examples/nanukproto/tunnel_push.asm -o ../demo/out/encap-map.bin &&
+    uv run nanuk-asm ../examples/nanukproto/parse_tunnel.asm -o ../demo/out/decap-prog.bin &&
+    uv run nanuk-map-asm ../examples/nanukproto/tunnel_pop.asm -o ../demo/out/decap-map.bin
 '
 
 run_phase() {  # $1 = phase; encap-tables.txt optionally staged in $OUT
@@ -38,8 +38,8 @@ run_phase() {  # $1 = phase; encap-tables.txt optionally staged in $OUT
     $IMG bash -ec '
       D=/simbricks/sims/net/nanuk
       mkdir -p $D/encap $D/decap
-      cp /out/nanuk_hw /nanuk/hw/simbricks/nanuk_run.sh \
-         /nanuk/hw/simbricks/nanuk_demo_tunnel.py $D/
+      cp /out/nanuk_hw /nanuk/demo/nanuk_run.sh \
+         /nanuk/demo/nanuk_demo_tunnel.py $D/
       cp /out/encap-prog.bin $D/encap/prog.bin
       cp /out/encap-map.bin  $D/encap/map.bin
       cp /out/decap-prog.bin $D/decap/prog.bin
