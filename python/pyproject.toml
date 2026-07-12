@@ -24,6 +24,7 @@ dev = [
     "z3-solver>=4.16.0.0",
     "grpcio-tools>=1.82",
 ]
+docs = ["pdoc>=15"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
