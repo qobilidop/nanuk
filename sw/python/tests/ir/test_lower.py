@@ -26,16 +26,16 @@ def halt(drop: bool = False) -> ir.Terminator:
     return ir.Terminator(halt=ir.Halt(drop=drop))
 
 
-def extract(vid: int, boff: int = 0, width: int = 16, name: str = "") -> ir.Op:
-    return ir.Op(
+def extract(vid: int, boff: int = 0, width: int = 16, name: str = "") -> ir.ParserOp:
+    return ir.ParserOp(
         extract=ir.Extract(value_id=vid, bit_offset=boff, width=width, debug_name=name)
     )
 
 
-def one_state(ops, terminator=None, name="start") -> ir.Program:
-    return ir.Program(
+def one_state(ops, terminator=None, name="start") -> ir.ParserProgram:
+    return ir.ParserProgram(
         ir_version=1,
-        states=[ir.State(name=name, ops=ops, terminator=terminator or halt())],
+        states=[ir.ParserState(name=name, ops=ops, terminator=terminator or halt())],
     )
 
 
@@ -53,8 +53,8 @@ def test_extract_without_debug_name_gets_vid_comment():
 
 def test_mark_lowers_to_sethdr_only_when_emit_sethdr():
     asm = to_asm(one_state([
-        ir.Op(mark=ir.Mark(hdr_id=3, emit_sethdr=True, debug_name="udp")),
-        ir.Op(mark=ir.Mark(emit_sethdr=False, debug_name="ghost")),
+        ir.ParserOp(mark=ir.Mark(hdr_id=3, emit_sethdr=True, debug_name="udp")),
+        ir.ParserOp(mark=ir.Mark(emit_sethdr=False, debug_name="ghost")),
     ]))
     assert instrs(asm) == [("sethdr", ["3"]), ("halt", ["accept"])]
     assert "ghost" not in asm
@@ -63,9 +63,9 @@ def test_mark_lowers_to_sethdr_only_when_emit_sethdr():
 def test_smd_units_follow_value_width():
     asm = to_asm(one_state([
         extract(1, 0, 48),
-        ir.Op(emit_smd=ir.EmitSmd(value_id=1, slot=0)),
+        ir.ParserOp(emit_smd=ir.EmitSmd(value_id=1, slot=0)),
         extract(2, 48, 16),
-        ir.Op(emit_smd=ir.EmitSmd(value_id=2, slot=3)),
+        ir.ParserOp(emit_smd=ir.EmitSmd(value_id=2, slot=3)),
     ]))
     stmds = [i for i in instrs(asm) if i[0] == "stmd"]
     assert stmds[0][1][0] == "0" and stmds[0][1][2] == "3"
@@ -75,8 +75,8 @@ def test_smd_units_follow_value_width():
 def test_shift_then_advance_lowers_to_shl_advr():
     asm = to_asm(one_state([
         extract(1, 4, 4, "ipv4.ihl"),
-        ir.Op(shift=ir.Shift(value_id=2, src_value_id=1, amount=2)),
-        ir.Op(advance=ir.Advance(value_id=2)),
+        ir.ParserOp(shift=ir.Shift(value_id=2, src_value_id=1, amount=2)),
+        ir.ParserOp(advance=ir.Advance(value_id=2)),
     ]))
     ins = instrs(asm)
     assert [i[0] for i in ins[:3]] == ["ext", "shl", "advr"]
@@ -88,15 +88,15 @@ def test_shift_then_advance_lowers_to_shl_advr():
 
 
 def test_const_advance_lowers_to_advi():
-    asm = to_asm(one_state([ir.Op(advance=ir.Advance(const_bytes=14))]))
+    asm = to_asm(one_state([ir.ParserOp(advance=ir.Advance(const_bytes=14))]))
     assert instrs(asm)[0] == ("advi", ["14"])
 
 
 def test_dispatch_lowers_to_movi_beq_chain():
-    prog = ir.Program(
+    prog = ir.ParserProgram(
         ir_version=1,
         states=[
-            ir.State(
+            ir.ParserState(
                 name="start",
                 ops=[extract(1, 0, 16, "ety")],
                 terminator=ir.Terminator(dispatch=ir.Dispatch(
@@ -105,7 +105,7 @@ def test_dispatch_lowers_to_movi_beq_chain():
                     default=ir.Terminator(goto=ir.Goto(target_state="start")),
                 )),
             ),
-            ir.State(name="other", terminator=halt(drop=True)),
+            ir.ParserState(name="other", terminator=halt(drop=True)),
         ],
     )
     ins = instrs(to_asm(prog))
@@ -118,20 +118,20 @@ def test_dispatch_lowers_to_movi_beq_chain():
 
 
 def test_goto_lowers_to_jmp():
-    prog = ir.Program(
+    prog = ir.ParserProgram(
         ir_version=1,
         states=[
-            ir.State(name="a", terminator=ir.Terminator(goto=ir.Goto(target_state="b"))),
-            ir.State(name="b", terminator=halt()),
+            ir.ParserState(name="a", terminator=ir.Terminator(goto=ir.Goto(target_state="b"))),
+            ir.ParserState(name="b", terminator=halt()),
         ],
     )
     assert instrs(to_asm(prog))[0] == ("jmp", ["b"])
 
 
 def test_labels_emitted_per_state_in_order():
-    prog = ir.Program(
+    prog = ir.ParserProgram(
         ir_version=1,
-        states=[ir.State(name=n, terminator=halt()) for n in ("start", "mid", "end")],
+        states=[ir.ParserState(name=n, terminator=halt()) for n in ("start", "mid", "end")],
     )
     asm = to_asm(prog)
     labels = [l.rstrip(":") for l in asm.splitlines() if l.endswith(":")]
@@ -139,11 +139,11 @@ def test_labels_emitted_per_state_in_order():
 
 
 def test_registers_are_reallocated_per_state():
-    prog = ir.Program(
+    prog = ir.ParserProgram(
         ir_version=1,
         states=[
-            ir.State(name="a", ops=[extract(1)], terminator=halt()),
-            ir.State(name="b", ops=[extract(2)], terminator=halt()),
+            ir.ParserState(name="a", ops=[extract(1)], terminator=halt()),
+            ir.ParserState(name="b", ops=[extract(2)], terminator=halt()),
         ],
     )
     exts = [i for i in instrs(to_asm(prog)) if i[0] == "ext"]
@@ -158,9 +158,9 @@ def test_out_of_registers_lists_live_values():
 
 
 def test_dispatch_constant_over_16_bits_is_a_lower_error():
-    prog = ir.Program(
+    prog = ir.ParserProgram(
         ir_version=1,
-        states=[ir.State(
+        states=[ir.ParserState(
             name="start",
             ops=[extract(1)],
             terminator=ir.Terminator(dispatch=ir.Dispatch(
@@ -176,7 +176,7 @@ def test_dispatch_constant_over_16_bits_is_a_lower_error():
 
 def test_advance_over_16_bits_is_a_lower_error():
     with pytest.raises(LowerError, match="ADVI"):
-        to_asm(one_state([ir.Op(advance=ir.Advance(const_bytes=0x10000))]))
+        to_asm(one_state([ir.ParserOp(advance=ir.Advance(const_bytes=0x10000))]))
 
 
 def test_ext_offset_over_11_bits_is_a_lower_error():

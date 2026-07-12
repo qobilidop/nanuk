@@ -11,11 +11,11 @@ Known DMACs go out exactly one port; anything else floods every port but
 the ingress. Try the presets, then rewrite the miss path to drop instead.
 """
 
-from nanuk.lang import Header, MapProgram, MD_FLOOD
+from nanuk.lang import Header, MatchActionProgram, MD_FLOOD
 
 eth = Header("eth", dst=48, src=48, ethertype=16)
 
-mp = MapProgram()
+mp = MatchActionProgram()
 l2 = mp.table("l2", key_width=48, action_width=8)
 ethh = mp.header(eth, hdr_id=0)  # h_eth, as marked by the l2l3l4 parser
 

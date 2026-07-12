@@ -36,14 +36,14 @@ def test_lowered_asm_assembles():
 def test_out_of_registers():
     # Four genuinely-overlapping live ranges: each load is consumed by a
     # store AFTER all four loads, so liveness cannot free anything early.
-    p = ir.MapProgram(
+    p = ir.MatchActionProgram(
         ir_version=1,
         states=[
-            ir.MapState(
+            ir.MatchActionState(
                 name="s",
                 ops=[load(i, n=1, off=i - 1) for i in range(1, 5)]
                 + [
-                    ir.MapOp(
+                    ir.MatchActionOp(
                         store=ir.MapStore(
                             value_id=i, hdr_id=15, byte_offset=8 + i, nbytes=1
                         )
@@ -60,10 +60,10 @@ def test_out_of_registers():
 
 def test_dispatch_lowering_cost_shape():
     # dispatch with 2 cases -> movi+beq per case + default terminator.
-    p = ir.MapProgram(
+    p = ir.MatchActionProgram(
         ir_version=1,
         states=[
-            ir.MapState(
+            ir.MatchActionState(
                 name="s",
                 ops=[load(1, n=2)],
                 terminator=ir.Terminator(
@@ -77,8 +77,8 @@ def test_dispatch_lowering_cost_shape():
                     )
                 ),
             ),
-            ir.MapState(name="a", terminator=ir.Terminator(drop=ir.Drop())),
-            ir.MapState(name="b", terminator=ir.Terminator(drop=ir.Drop())),
+            ir.MatchActionState(name="a", terminator=ir.Terminator(drop=ir.Drop())),
+            ir.MatchActionState(name="b", terminator=ir.Terminator(drop=ir.Drop())),
         ],
     )
     asm = to_map_asm(p)

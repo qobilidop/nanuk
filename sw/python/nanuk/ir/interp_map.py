@@ -124,7 +124,7 @@ class _Machine:
 
 
 def interp_map(
-    program: ir.MapProgram,
+    program: ir.MatchActionProgram,
     packet: bytes,
     pp,
     tables,
@@ -187,7 +187,7 @@ def _mask(value: int, width: int) -> int:
     return value & ((1 << min(width, 64)) - 1)
 
 
-def _exec_op(m: _Machine, op: ir.MapOp, index: int) -> str | None:
+def _exec_op(m: _Machine, op: ir.MatchActionOp, index: int) -> str | None:
     """Execute one op; returns a state name on a lookup miss (control
     transfer), else None."""
     match op.WhichOneof("op"):

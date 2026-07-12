@@ -5,7 +5,7 @@ Table id follows the examples' control-plane layout: t0 is the L2 FDB.
 Header ids follow ../l2l3l4/parse.asm: h_eth=0, h_ipv4=2.
 """
 
-from nanuk.lang import MD_FLOOD, Header, MapProgram
+from nanuk.lang import MD_FLOOD, Header, MatchActionProgram
 
 eth = Header("eth", dst=48, src=48, ethertype=16)
 ipv4 = Header(
@@ -17,8 +17,8 @@ ipv4 = Header(
 H_ETH, H_IPV4 = 0, 2
 
 
-def make_ttl() -> MapProgram:
-    mp = MapProgram()
+def make_ttl() -> MatchActionProgram:
+    mp = MatchActionProgram()
     l2 = mp.table("l2", key_width=48, action_width=8)
     ethh = mp.header(eth, hdr_id=H_ETH)
     ipv4h = mp.header(ipv4, hdr_id=H_IPV4)

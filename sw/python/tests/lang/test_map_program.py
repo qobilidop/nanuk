@@ -1,9 +1,9 @@
-"""MapProgram eDSL unit tests: IR shape for the L2-forward program,
+"""MatchActionProgram eDSL unit tests: IR shape for the L2-forward program,
 byte-alignment guards, terminator discipline, table/header binding."""
 
 import pytest
 
-from nanuk.lang import CompileError, MapProgram, MD_FLOOD
+from nanuk.lang import CompileError, MatchActionProgram, MD_FLOOD
 from nanuk.testkit.load import load_example
 _ex = load_example("l2l3l4/parse.py"); eth, ipv4 = _ex.eth, _ex.ipv4
 
@@ -11,8 +11,8 @@ from nanuk.ir.lower_map import to_map_asm
 from nanuk.ir.validate_map import validate_map
 
 
-def l2fwd() -> MapProgram:
-    mp = MapProgram()
+def l2fwd() -> MatchActionProgram:
+    mp = MatchActionProgram()
     l2 = mp.table("l2", key_width=48, action_width=8)
     ethh = mp.header(eth, hdr_id=0)
 
@@ -54,21 +54,21 @@ def test_l2fwd_compiles_to_five_instructions():
 
 
 def test_non_byte_aligned_field_rejected():
-    mp = MapProgram()
+    mp = MatchActionProgram()
     ipv4h = mp.header(ipv4, hdr_id=2)
     with pytest.raises(CompileError, match="byte-aligned"):
         _ = ipv4h.version  # 4-bit field
 
 
 def test_ttl_is_byte_aligned():
-    mp = MapProgram()
+    mp = MatchActionProgram()
     ipv4h = mp.header(ipv4, hdr_id=2)
     f = ipv4h.ttl
     assert (f.byte_offset, f.nbytes) == (8, 1)
 
 
 def test_statement_after_terminator_rejected():
-    mp = MapProgram()
+    mp = MatchActionProgram()
 
     @mp.state(start=True)
     def s0(s):
@@ -80,7 +80,7 @@ def test_statement_after_terminator_rejected():
 
 
 def test_lookup_requires_declared_table():
-    mp = MapProgram()
+    mp = MatchActionProgram()
 
     @mp.state(start=True)
     def s0(s):
@@ -91,7 +91,7 @@ def test_lookup_requires_declared_table():
 
 
 def test_raw_headroom_store_and_dispatch():
-    mp = MapProgram()
+    mp = MatchActionProgram()
 
     @mp.state(start=True)
     def s0(s):

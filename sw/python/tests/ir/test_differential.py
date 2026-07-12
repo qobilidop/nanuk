@@ -27,7 +27,7 @@ FIELDS = ("verdict", "error", "payload_offset", "steps",
           "hdr_present", "hdr_offset", "smd")
 
 
-def assert_same(program: ir.Program, packet: bytes, label: str) -> None:
+def assert_same(program: ir.ParserProgram, packet: bytes, label: str) -> None:
     ir_result = interp(program, packet)
     emu_result = run_program(assemble(to_asm(program)), packet)
     for field in FIELDS:
@@ -38,13 +38,13 @@ def assert_same(program: ir.Program, packet: bytes, label: str) -> None:
         )
 
 
-def budget_loop() -> ir.Program:
+def budget_loop() -> ir.ParserProgram:
     """Extract + self-goto forever: exhausts the step budget on any packet
     long enough to extract from, exercising error-2 + steps parity."""
-    return ir.Program(ir_version=1, states=[
-        ir.State(
+    return ir.ParserProgram(ir_version=1, states=[
+        ir.ParserState(
             name="spin",
-            ops=[ir.Op(extract=ir.Extract(value_id=1, bit_offset=0, width=8))],
+            ops=[ir.ParserOp(extract=ir.Extract(value_id=1, bit_offset=0, width=8))],
             terminator=ir.Terminator(goto=ir.Goto(target_state="spin")),
         ),
     ])

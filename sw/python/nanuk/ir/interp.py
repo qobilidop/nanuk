@@ -144,7 +144,7 @@ class _Machine:
 
 
 def interp(
-    program: ir.Program,
+    program: ir.ParserProgram,
     packet: bytes,
     *,
     check: bool = True,
@@ -188,7 +188,7 @@ def interp(
         )
 
 
-def _exec_op(m: _Machine, op: ir.Op, index: int) -> None:
+def _exec_op(m: _Machine, op: ir.ParserOp, index: int) -> None:
     match op.WhichOneof("op"):
         case "extract":  # EXT
             e = op.extract

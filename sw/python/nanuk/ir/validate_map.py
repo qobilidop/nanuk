@@ -4,7 +4,7 @@ Sibling of validate.py, same doctrine: value ids are SSA-ish (unique per
 program, never 0, never crossing states), targets must exist, and every
 range the *IR* defines is enforced here. Encoding ranges that the MAP ISA
 fixes (10-bit signed offsets/deltas, 16-bit immediates, 1..8 byte
-accesses) are IR-level ranges too — the MapProgram IR is deliberately
+accesses) are IR-level ranges too — the MatchActionProgram IR is deliberately
 byte-granular and offset-bounded like its engine.
 
 Lookup is the one op with control flow: its miss_state must exist, and the
@@ -24,7 +24,7 @@ _MAX_IMM16 = (1 << 16) - 1
 _MIN_SIMM16, _MAX_SIMM16 = -(1 << 15), (1 << 15) - 1
 
 
-def validate_map(program: ir.MapProgram) -> None:
+def validate_map(program: ir.MatchActionProgram) -> None:
     """Raise ValidationError if `program` is not a well-formed MAP program."""
     if program.ir_version != IR_VERSION:
         raise ValidationError(
@@ -80,7 +80,7 @@ def _check_access(where: str, what: str, hdr_id: int, off: int, nbytes: int) -> 
 
 
 def _validate_map_state(
-    state: ir.MapState, state_names: set[str], table_ids: set[int], seen_ids: set[int]
+    state: ir.MatchActionState, state_names: set[str], table_ids: set[int], seen_ids: set[int]
 ) -> None:
     where = f"state {state.name!r}"
     defined: dict[int, int] = {}  # value_id -> width (bits)
@@ -162,7 +162,7 @@ def _validate_map_state(
                     )
                 define(lk.value_id, 64, "lookup")
             case None:
-                raise ValidationError(f"{where}: empty MapOp (no oneof member set)")
+                raise ValidationError(f"{where}: empty MatchActionOp (no oneof member set)")
 
     _validate_map_terminator(state.terminator, where, state_names, use, top_level=True)
 

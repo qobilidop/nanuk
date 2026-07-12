@@ -6,11 +6,11 @@ from nanuk.ir.lower import to_asm, to_asm_annotated
 from nanuk.ir.lower_map import to_map_asm, to_map_asm_annotated
 
 
-def parser_prog() -> ir.Program:
-    return ir.Program(ir_version=1, states=[
-        ir.State(
+def parser_prog() -> ir.ParserProgram:
+    return ir.ParserProgram(ir_version=1, states=[
+        ir.ParserState(
             name="start",
-            ops=[ir.Op(extract=ir.Extract(value_id=1, bit_offset=96, width=16,
+            ops=[ir.ParserOp(extract=ir.Extract(value_id=1, bit_offset=96, width=16,
                                           debug_name="eth.type"))],
             terminator=ir.Terminator(dispatch=ir.Dispatch(
                 value_id=1,
@@ -18,7 +18,7 @@ def parser_prog() -> ir.Program:
                 default=ir.Terminator(halt=ir.Halt(drop=True)),
             )),
         ),
-        ir.State(name="done", ops=[],
+        ir.ParserState(name="done", ops=[],
                  terminator=ir.Terminator(halt=ir.Halt(drop=False))),
     ])
 
@@ -37,17 +37,17 @@ def test_parser_bindings_and_identical_text():
     assert bindings[-1] == {}  # done: halt with nothing live
 
 
-def map_reuse_prog() -> ir.MapProgram:
+def map_reuse_prog() -> ir.MatchActionProgram:
     ops = []
     for i in range(1, 5):  # four short-lived constants, stored immediately
-        ops.append(ir.MapOp(const=ir.MapConst(value_id=i, imm=i,
+        ops.append(ir.MatchActionOp(const=ir.MapConst(value_id=i, imm=i,
                                               debug_name=f"c{i}")))
-        ops.append(ir.MapOp(store=ir.MapStore(value_id=i, hdr_id=15,
+        ops.append(ir.MatchActionOp(store=ir.MapStore(value_id=i, hdr_id=15,
                                               byte_offset=i, nbytes=1)))
-    ops.append(ir.MapOp(load_md=ir.MapLoadMd(value_id=9, field=9,
+    ops.append(ir.MatchActionOp(load_md=ir.MapLoadMd(value_id=9, field=9,
                                              debug_name="flood")))
-    return ir.MapProgram(ir_version=1, states=[
-        ir.MapState(name="start", ops=ops,
+    return ir.MatchActionProgram(ir_version=1, states=[
+        ir.MatchActionState(name="start", ops=ops,
                     terminator=ir.Terminator(send=ir.MapSend(bitmap_value_id=9))),
     ])
 

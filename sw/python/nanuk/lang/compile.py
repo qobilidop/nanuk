@@ -119,13 +119,13 @@ class Terminator:
 
 
 class StateCompiler:
-    """The ``s`` object handed to each @p.state function; builds one IR State."""
+    """The ``s`` object handed to each @p.state function; builds one IR ParserState."""
 
     def __init__(self, state_name: str, states: set, value_ids):
         self._state_name = state_name
-        self._states = states  # registered State objects; dispatch/goto targets
+        self._states = states  # registered ParserState objects; dispatch/goto targets
         self._value_ids = value_ids  # program-wide id counter (ids unique per program)
-        self._ops: list[ir.Op] = []
+        self._ops: list[ir.ParserOp] = []
         self._terminator: ir.Terminator | None = None
         self._anchors: dict[Header, tuple[int, int]] = {}  # header -> (epoch, delta)
         self._epoch = 0
@@ -149,7 +149,7 @@ class StateCompiler:
                     f"hdr_id {hdr_id!r} out of range 0..{_MAX_HDR_ID} (SETHDR)"
                 )
             mark = ir.Mark(hdr_id=hdr_id, emit_sethdr=True, debug_name=header.name)
-        self._ops.append(ir.Op(mark=mark))
+        self._ops.append(ir.ParserOp(mark=mark))
 
     def extract(self, field: Field) -> Value:
         """Extract a header field into a fresh IR value; returns a handle."""
@@ -185,7 +185,7 @@ class StateCompiler:
             )
         value = Value(next(self._value_ids), field.width, field.qualname)
         self._ops.append(
-            ir.Op(
+            ir.ParserOp(
                 extract=ir.Extract(
                     value_id=value.value_id,
                     bit_offset=boff,
@@ -209,7 +209,7 @@ class StateCompiler:
                 f"{slot}..{slot + nunits - 1}, but only slots 0..{_SMD_SLOTS - 1} exist"
             )
         self._ops.append(
-            ir.Op(emit_smd=ir.EmitSmd(value_id=materialized.value_id, slot=slot))
+            ir.ParserOp(emit_smd=ir.EmitSmd(value_id=materialized.value_id, slot=slot))
         )
 
     def advance(self, amount) -> None:
@@ -221,11 +221,11 @@ class StateCompiler:
                 raise CompileError(
                     f"advance amount {amount} out of range 0..{_MAX_IMM16} (ADVI)"
                 )
-            self._ops.append(ir.Op(advance=ir.Advance(const_bytes=amount)))
+            self._ops.append(ir.ParserOp(advance=ir.Advance(const_bytes=amount)))
             self._delta += amount
         elif isinstance(amount, (Value, Shifted)):
             materialized = self._materialize(amount)
-            self._ops.append(ir.Op(advance=ir.Advance(value_id=materialized.value_id)))
+            self._ops.append(ir.ParserOp(advance=ir.Advance(value_id=materialized.value_id)))
             self._epoch += 1
             self._delta = 0
         else:
@@ -282,7 +282,7 @@ class StateCompiler:
         if isinstance(value, Shifted):
             materialized = Value(next(self._value_ids), value.width, value.name)
             self._ops.append(
-                ir.Op(
+                ir.ParserOp(
                     shift=ir.Shift(
                         value_id=materialized.value_id,
                         src_value_id=value.base.value_id,

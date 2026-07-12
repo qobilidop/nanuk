@@ -25,7 +25,7 @@ class ValidationError(Exception):
     """Raised when a Program violates the nanuk IR invariants."""
 
 
-def validate(program: ir.Program) -> None:
+def validate(program: ir.ParserProgram) -> None:
     """Raise ValidationError if `program` is not a well-formed IR program."""
     if program.ir_version != IR_VERSION:
         raise ValidationError(
@@ -47,7 +47,7 @@ def validate(program: ir.Program) -> None:
         _validate_state(state, state_names, seen_ids)
 
 
-def _validate_state(state: ir.State, state_names: set[str], seen_ids: set[int]) -> None:
+def _validate_state(state: ir.ParserState, state_names: set[str], seen_ids: set[int]) -> None:
     where = f"state {state.name!r}"
     defined: dict[int, int] = {}  # value_id -> width, defs in this state
 

@@ -12,19 +12,19 @@ def halt(drop=False):
     return ir.Terminator(halt=ir.Halt(drop=drop))
 
 
-def tiny_program() -> ir.Program:
+def tiny_program() -> ir.ParserProgram:
     """EXT ethertype-ish field at bit 96, dispatch on it, drop default."""
-    return ir.Program(
+    return ir.ParserProgram(
         ir_version=1,
         states=[
-            ir.State(
+            ir.ParserState(
                 name="start",
                 ops=[
-                    ir.Op(mark=ir.Mark(hdr_id=0, emit_sethdr=True)),
-                    ir.Op(
+                    ir.ParserOp(mark=ir.Mark(hdr_id=0, emit_sethdr=True)),
+                    ir.ParserOp(
                         extract=ir.Extract(value_id=1, bit_offset=96, width=16)
                     ),
-                    ir.Op(advance=ir.Advance(const_bytes=14)),
+                    ir.ParserOp(advance=ir.Advance(const_bytes=14)),
                 ],
                 terminator=ir.Terminator(
                     dispatch=ir.Dispatch(
@@ -34,7 +34,7 @@ def tiny_program() -> ir.Program:
                     )
                 ),
             ),
-            ir.State(name="v4", terminator=halt()),
+            ir.ParserState(name="v4", terminator=halt()),
         ],
     )
 
@@ -72,12 +72,12 @@ def test_predictions_match_interp_on_witnesses():
 
 def test_unroll_terminates_loops():
     # start -> start via goto: unbounded without the unroll cap.
-    prog = ir.Program(
+    prog = ir.ParserProgram(
         ir_version=1,
         states=[
-            ir.State(
+            ir.ParserState(
                 name="start",
-                ops=[ir.Op(advance=ir.Advance(const_bytes=4))],
+                ops=[ir.ParserOp(advance=ir.Advance(const_bytes=4))],
                 terminator=ir.Terminator(goto=ir.Goto(target_state="start")),
             )
         ],

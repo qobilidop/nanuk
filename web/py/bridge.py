@@ -35,7 +35,7 @@ def _value_name(names: dict[int, str], value_id: int) -> str:
     return names.get(value_id, f"v{value_id}")
 
 
-def render_ir(program: ir.Program) -> RenderedIr:
+def render_ir(program: ir.ParserProgram) -> RenderedIr:
     lines: list[str] = []
     states: list[RenderedState] = []
     for st in program.states:
@@ -338,7 +338,7 @@ from nanuk.ir.lower_map import to_map_asm_annotated
 from nanuk.ir.validate_map import validate_map
 
 
-def render_map_ir(program: ir.MapProgram) -> RenderedIr:
+def render_map_ir(program: ir.MatchActionProgram) -> RenderedIr:
     """MAP sibling of render_ir; asm emission counts mirror lower_map."""
     lines: list[str] = []
     states: list[RenderedState] = []
@@ -476,7 +476,7 @@ _DEMO_ENTRIES = {0xAABBCCDDEE01: 0x4, 0xAABBCCDDEE02: 0x8}
 _LAST_MAP_PROGRAM = None
 
 
-def _default_tables(program: ir.MapProgram) -> list:
+def _default_tables(program: ir.MatchActionProgram) -> list:
     tables: list = []
     for t in program.tables:
         while len(tables) < t.table_id:

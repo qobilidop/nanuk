@@ -6,7 +6,7 @@ the tunnel map (t0 left unused, as the M1 tests do). Header ids follow
 l2l3l4/parse.asm: h_eth=0.
 """
 
-from nanuk.lang import MD_FLOOD, Header, MapProgram
+from nanuk.lang import MD_FLOOD, Header, MatchActionProgram
 
 eth = Header("eth", dst=48, src=48, ethertype=16)
 
@@ -26,8 +26,8 @@ NK_MAGIC = 0x4E4B
 SMD_TENANT = 5  # parse_tunnel.asm: SMD slot 5 = magic when a tunnel was parsed
 
 
-def make_tunnel_push() -> MapProgram:
-    mp = MapProgram()
+def make_tunnel_push() -> MatchActionProgram:
+    mp = MatchActionProgram()
     mp.table("l2", key_width=48, action_width=8)  # t0: unused placeholder
     tun = mp.table("tun", key_width=48, action_width=8)  # t1
     ethh = mp.header(eth, hdr_id=H_ETH)
@@ -46,8 +46,8 @@ def make_tunnel_push() -> MapProgram:
     return mp
 
 
-def make_tunnel_pop() -> MapProgram:
-    mp = MapProgram()
+def make_tunnel_pop() -> MatchActionProgram:
+    mp = MatchActionProgram()
 
     @mp.state(start=True)
     def check(s):

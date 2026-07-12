@@ -16,21 +16,21 @@ def test_valid_program_passes():
 
 
 def test_ttl_shaped_program_passes():
-    p = ir.MapProgram(
+    p = ir.MatchActionProgram(
         ir_version=1,
         tables=[l2_table()],
         states=[
-            ir.MapState(
+            ir.MatchActionState(
                 name="ttl",
                 ops=[
                     load(1, hdr=2, off=8, n=1),
-                    ir.MapOp(add=ir.MapAdd(value_id=2, src_value_id=1, imm=-1)),
-                    ir.MapOp(
+                    ir.MatchActionOp(add=ir.MapAdd(value_id=2, src_value_id=1, imm=-1)),
+                    ir.MatchActionOp(
                         store=ir.MapStore(
                             value_id=2, hdr_id=2, byte_offset=8, nbytes=1
                         )
                     ),
-                    ir.MapOp(csum=ir.CsumUpdate(hdr_id=2, byte_offset=0)),
+                    ir.MatchActionOp(csum=ir.CsumUpdate(hdr_id=2, byte_offset=0)),
                 ],
                 terminator=drop(),
             ),
@@ -78,9 +78,9 @@ def test_parser_terminators_rejected_in_map():
 
 
 def test_map_terminators_rejected_in_parser():
-    p = ir.Program(
+    p = ir.ParserProgram(
         ir_version=1,
-        states=[ir.State(name="start", terminator=drop())],
+        states=[ir.ParserState(name="start", terminator=drop())],
     )
     with pytest.raises(ValidationError, match="not allowed in"):
         validate(p)

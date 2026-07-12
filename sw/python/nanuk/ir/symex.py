@@ -103,7 +103,7 @@ def _read_bits(m: _Sym, pos, width: int):
 
 
 def symex(
-    program: ir.Program,
+    program: ir.ParserProgram,
     *,
     max_packet: int = 128,
     unroll: int = 3,
@@ -164,7 +164,7 @@ def symex(
         except _Budget:
             emit(m, VERDICT_ERROR, ERR_STEP_BUDGET)
 
-    def _exec_op(m: _Sym, op: ir.Op) -> bool:
+    def _exec_op(m: _Sym, op: ir.ParserOp) -> bool:
         """Returns False when the path was fully handled via forks."""
         match op.WhichOneof("op"):
             case "extract":
@@ -253,7 +253,7 @@ def symex(
     return paths
 
 
-def gen_corpus(program: ir.Program, **kw) -> list[bytes]:
+def gen_corpus(program: ir.ParserProgram, **kw) -> list[bytes]:
     """Deduped witness packets — one per feasible path (the pcap-corpus
     generator the design doc promised)."""
     seen: set[bytes] = set()
@@ -265,7 +265,7 @@ def gen_corpus(program: ir.Program, **kw) -> list[bytes]:
     return out
 
 
-def reachable_states(program: ir.Program, **kw) -> set[str]:
+def reachable_states(program: ir.ParserProgram, **kw) -> set[str]:
     """States on at least one feasible path (unreachable = defined dead code)."""
     reached: set[str] = set()
     for p in symex(program, **kw):

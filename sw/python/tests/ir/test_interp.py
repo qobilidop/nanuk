@@ -19,8 +19,8 @@ from nanuk.ir.interp import (
 
 # -- tiny builders -----------------------------------------------------------
 
-def prog(*states: ir.State) -> ir.Program:
-    return ir.Program(ir_version=1, states=list(states))
+def prog(*states: ir.ParserState) -> ir.ParserProgram:
+    return ir.ParserProgram(ir_version=1, states=list(states))
 
 
 def halt(drop: bool = False) -> ir.Terminator:
@@ -34,7 +34,7 @@ def goto(target: str) -> ir.Terminator:
 # -- halts, run loop, budget -------------------------------------------------
 
 def test_halt_accept():
-    r = interp(prog(ir.State(name="s", terminator=halt(drop=False))), b"\x00")
+    r = interp(prog(ir.ParserState(name="s", terminator=halt(drop=False))), b"\x00")
     assert r.verdict == VERDICT_ACCEPT
     assert r.error == ERR_NONE
     assert r.accepted
@@ -43,16 +43,16 @@ def test_halt_accept():
 
 
 def test_halt_drop():
-    r = interp(prog(ir.State(name="s", terminator=halt(drop=True))), b"\x00")
+    r = interp(prog(ir.ParserState(name="s", terminator=halt(drop=True))), b"\x00")
     assert r.verdict == VERDICT_DROP
     assert not r.accepted
 
 
 def test_goto_chains_states_and_costs_one_step_each():
     p = prog(
-        ir.State(name="a", terminator=goto("b")),
-        ir.State(name="b", terminator=goto("c")),
-        ir.State(name="c", terminator=halt()),
+        ir.ParserState(name="a", terminator=goto("b")),
+        ir.ParserState(name="b", terminator=goto("c")),
+        ir.ParserState(name="c", terminator=halt()),
     )
     r = interp(p, b"")
     assert r.accepted
@@ -61,8 +61,8 @@ def test_goto_chains_states_and_costs_one_step_each():
 
 def test_goto_loop_exhausts_step_budget():
     p = prog(
-        ir.State(name="a", terminator=goto("b")),
-        ir.State(name="b", terminator=goto("a")),
+        ir.ParserState(name="a", terminator=goto("b")),
+        ir.ParserState(name="b", terminator=goto("a")),
     )
     r = interp(p, b"\x00" * 8)
     assert r.verdict == VERDICT_ERROR
@@ -71,20 +71,20 @@ def test_goto_loop_exhausts_step_budget():
 
 
 def test_empty_packet_is_fine():
-    r = interp(prog(ir.State(name="s", terminator=halt())), b"")
+    r = interp(prog(ir.ParserState(name="s", terminator=halt())), b"")
     assert r.accepted
 
 
 def test_start_state_is_states_zero_not_name():
     p = prog(
-        ir.State(name="not_start", terminator=halt(drop=True)),
-        ir.State(name="start", terminator=halt(drop=False)),
+        ir.ParserState(name="not_start", terminator=halt(drop=True)),
+        ir.ParserState(name="start", terminator=halt(drop=False)),
     )
     assert interp(p, b"").verdict == VERDICT_DROP
 
 
 def test_outputs_are_fresh_per_run():
-    p = prog(ir.State(name="s", terminator=halt()))
+    p = prog(ir.ParserState(name="s", terminator=halt()))
     a, b = interp(p, b""), interp(p, b"")
     assert a.hdr_present == [0] * 16 and a.smd == [0] * 8
     assert a.hdr_present is not b.hdr_present  # no shared mutable state
@@ -92,16 +92,16 @@ def test_outputs_are_fresh_per_run():
 
 # -- linear ops (values mirror the stage-1 Sail test vectors) ----------------
 
-def one_state(ops: list[ir.Op], term: ir.Terminator | None = None) -> ir.Program:
-    return prog(ir.State(name="s", ops=ops, terminator=term or halt()))
+def one_state(ops: list[ir.ParserOp], term: ir.Terminator | None = None) -> ir.ParserProgram:
+    return prog(ir.ParserState(name="s", ops=ops, terminator=term or halt()))
 
 
-def ext(vid: int, boff: int, width: int) -> ir.Op:
-    return ir.Op(extract=ir.Extract(value_id=vid, bit_offset=boff, width=width))
+def ext(vid: int, boff: int, width: int) -> ir.ParserOp:
+    return ir.ParserOp(extract=ir.Extract(value_id=vid, bit_offset=boff, width=width))
 
 
-def smd_op(vid: int, slot: int) -> ir.Op:
-    return ir.Op(emit_smd=ir.EmitSmd(value_id=vid, slot=slot))
+def smd_op(vid: int, slot: int) -> ir.ParserOp:
+    return ir.ParserOp(emit_smd=ir.EmitSmd(value_id=vid, slot=slot))
 
 
 def test_extract_crossing_byte_boundary():
@@ -124,13 +124,13 @@ def test_extract_past_hdr_limit_is_error_1_and_counted():
 
 
 def test_advance_const_moves_cursor_into_payload_offset():
-    p = one_state([ir.Op(advance=ir.Advance(const_bytes=3))])
+    p = one_state([ir.ParserOp(advance=ir.Advance(const_bytes=3))])
     r = interp(p, b"\x00" * 8)
     assert r.accepted and r.payload_offset == 3
 
 
 def test_advance_past_hdr_limit_is_error_1():
-    p = one_state([ir.Op(advance=ir.Advance(const_bytes=9))])
+    p = one_state([ir.ParserOp(advance=ir.Advance(const_bytes=9))])
     r = interp(p, b"\x00" * 8)
     assert (r.verdict, r.error) == (VERDICT_ERROR, ERR_HDR_VIOLATION)
     assert r.payload_offset == 0  # cursor unchanged by the failing ADVI
@@ -138,7 +138,7 @@ def test_advance_past_hdr_limit_is_error_1():
 
 def test_advance_by_value_uses_low_16_bits():
     # 24-bit value 0x010002: ADVR must advance by 0x0002, not 0x10002.
-    p = one_state([ext(1, 0, 24), ir.Op(advance=ir.Advance(value_id=1))])
+    p = one_state([ext(1, 0, 24), ir.ParserOp(advance=ir.Advance(value_id=1))])
     r = interp(p, b"\x01\x00\x02" + b"\x00" * 5)
     assert r.accepted and r.payload_offset == 2
 
@@ -147,7 +147,7 @@ def test_shift_widens_and_truncates_at_64():
     # 60-bit extract shifted by 8: width saturates at 64, value masked.
     body = [
         ext(1, 0, 60),
-        ir.Op(shift=ir.Shift(value_id=2, src_value_id=1, amount=8)),
+        ir.ParserOp(shift=ir.Shift(value_id=2, src_value_id=1, amount=8)),
         smd_op(2, 0),  # 64-bit value -> 4 slots
     ]
     r = interp(one_state(body), b"\xff" * 8)
@@ -156,9 +156,9 @@ def test_shift_widens_and_truncates_at_64():
 
 def test_mark_records_cursor_and_reanchor_is_free():
     body = [
-        ir.Op(advance=ir.Advance(const_bytes=2)),
-        ir.Op(mark=ir.Mark(hdr_id=3, emit_sethdr=True)),
-        ir.Op(mark=ir.Mark(emit_sethdr=False)),  # re-anchor: no step, no record
+        ir.ParserOp(advance=ir.Advance(const_bytes=2)),
+        ir.ParserOp(mark=ir.Mark(hdr_id=3, emit_sethdr=True)),
+        ir.ParserOp(mark=ir.Mark(emit_sethdr=False)),  # re-anchor: no step, no record
     ]
     r = interp(one_state(body), b"\x00" * 4)
     assert r.hdr(3) == 2
@@ -183,13 +183,13 @@ def dispatch(vid: int, cases: list[tuple[int, str]], default: ir.Terminator) -> 
     ))
 
 
-def two_way(cases, default=None) -> ir.Program:
+def two_way(cases, default=None) -> ir.ParserProgram:
     """start extracts byte 0 and dispatches; 'acc' accepts, 'drp' drops."""
     return prog(
-        ir.State(name="start", ops=[ext(1, 0, 8)],
+        ir.ParserState(name="start", ops=[ext(1, 0, 8)],
                  terminator=dispatch(1, cases, default or halt(drop=True))),
-        ir.State(name="acc", terminator=halt(drop=False)),
-        ir.State(name="drp", terminator=halt(drop=True)),
+        ir.ParserState(name="acc", terminator=halt(drop=False)),
+        ir.ParserState(name="drp", terminator=halt(drop=True)),
     )
 
 
@@ -206,9 +206,9 @@ def test_dispatch_falls_through_to_default():
 def test_dispatch_compares_full_value_not_low_16_bits():
     # 24-bit value 0x01BEEF must NOT match case 0xBEEF.
     p = prog(
-        ir.State(name="start", ops=[ext(1, 0, 24)],
+        ir.ParserState(name="start", ops=[ext(1, 0, 24)],
                  terminator=dispatch(1, [(0xBEEF, "acc")], halt(drop=True))),
-        ir.State(name="acc", terminator=halt(drop=False)),
+        ir.ParserState(name="acc", terminator=halt(drop=False)),
     )
     assert interp(p, b"\x01\xbe\xef").verdict == VERDICT_DROP
 
@@ -233,7 +233,7 @@ def test_budget_can_exhaust_mid_dispatch():
     # A 1-state ext+self-goto loop; each lap is 2 steps (ext, jmp), so the
     # 128th lap's ext is step 255, jmp is 256, and the next lap's ext
     # attempt is #257 -> budget error, steps saturated.
-    p = prog(ir.State(name="a", ops=[ext(1, 0, 8)], terminator=goto("a")))
+    p = prog(ir.ParserState(name="a", ops=[ext(1, 0, 8)], terminator=goto("a")))
     r = interp(p, b"\xff")
     assert (r.verdict, r.error) == (VERDICT_ERROR, ERR_STEP_BUDGET)
     assert r.steps == STEP_BUDGET
@@ -243,13 +243,13 @@ def test_budget_can_exhaust_mid_dispatch():
 
 def test_invalid_program_rejected_by_default():
     from nanuk.ir.validate import ValidationError
-    bad = prog(ir.State(name="s", terminator=goto("nowhere")))
+    bad = prog(ir.ParserState(name="s", terminator=goto("nowhere")))
     with pytest.raises(ValidationError):
         interp(bad, b"")
 
 
 def test_check_false_skips_validation():
-    ok = prog(ir.State(name="s", terminator=halt()))
+    ok = prog(ir.ParserState(name="s", terminator=halt()))
     assert interp(ok, b"", check=False).accepted
 
 

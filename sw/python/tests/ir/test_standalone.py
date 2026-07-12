@@ -11,7 +11,7 @@ from nanuk.ir.lower import to_asm
 from nanuk.ir.validate import validate
 
 
-def hand_built_program() -> ir.Program:
+def hand_built_program() -> ir.ParserProgram:
     """A tiny TLV-ish parser, written as protos by hand:
 
     start: record hdr 0; extract a 16-bit magic into SMD slot 0; skip the
@@ -19,17 +19,17 @@ def hand_built_program() -> ir.Program:
     payload: extract a 1-byte length, advance by length*2 (SHL+ADVR),
     record hdr 1 at the payload start; accept.
     """
-    return ir.Program(
+    return ir.ParserProgram(
         ir_version=1,
         states=[
-            ir.State(
+            ir.ParserState(
                 name="start",
                 ops=[
-                    ir.Op(mark=ir.Mark(hdr_id=0, emit_sethdr=True, debug_name="tlv")),
-                    ir.Op(extract=ir.Extract(
+                    ir.ParserOp(mark=ir.Mark(hdr_id=0, emit_sethdr=True, debug_name="tlv")),
+                    ir.ParserOp(extract=ir.Extract(
                         value_id=1, bit_offset=0, width=16, debug_name="tlv.magic")),
-                    ir.Op(emit_smd=ir.EmitSmd(value_id=1, slot=0)),
-                    ir.Op(advance=ir.Advance(const_bytes=2)),
+                    ir.ParserOp(emit_smd=ir.EmitSmd(value_id=1, slot=0)),
+                    ir.ParserOp(advance=ir.Advance(const_bytes=2)),
                 ],
                 terminator=ir.Terminator(dispatch=ir.Dispatch(
                     value_id=1,
@@ -37,15 +37,15 @@ def hand_built_program() -> ir.Program:
                     default=ir.Terminator(halt=ir.Halt(drop=True)),
                 )),
             ),
-            ir.State(
+            ir.ParserState(
                 name="payload",
                 ops=[
-                    ir.Op(extract=ir.Extract(
+                    ir.ParserOp(extract=ir.Extract(
                         value_id=2, bit_offset=0, width=8, debug_name="tlv.len")),
-                    ir.Op(advance=ir.Advance(const_bytes=1)),
-                    ir.Op(mark=ir.Mark(hdr_id=1, emit_sethdr=True, debug_name="body")),
-                    ir.Op(shift=ir.Shift(value_id=3, src_value_id=2, amount=1)),
-                    ir.Op(advance=ir.Advance(value_id=3)),
+                    ir.ParserOp(advance=ir.Advance(const_bytes=1)),
+                    ir.ParserOp(mark=ir.Mark(hdr_id=1, emit_sethdr=True, debug_name="body")),
+                    ir.ParserOp(shift=ir.Shift(value_id=3, src_value_id=2, amount=1)),
+                    ir.ParserOp(advance=ir.Advance(value_id=3)),
                 ],
                 terminator=ir.Terminator(halt=ir.Halt(drop=False)),
             ),

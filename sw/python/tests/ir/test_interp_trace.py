@@ -8,11 +8,11 @@ from nanuk.ir.interp_map import interp_map
 PKT = bytes.fromhex("aabb") + bytes(20)
 
 
-def three_state_program() -> ir.Program:
-    return ir.Program(ir_version=1, states=[
-        ir.State(
+def three_state_program() -> ir.ParserProgram:
+    return ir.ParserProgram(ir_version=1, states=[
+        ir.ParserState(
             name="start",
-            ops=[ir.Op(extract=ir.Extract(value_id=1, bit_offset=0, width=16,
+            ops=[ir.ParserOp(extract=ir.Extract(value_id=1, bit_offset=0, width=16,
                                           debug_name="first16"))],
             terminator=ir.Terminator(dispatch=ir.Dispatch(
                 value_id=1,
@@ -23,12 +23,12 @@ def three_state_program() -> ir.Program:
                 default=ir.Terminator(halt=ir.Halt(drop=True)),
             )),
         ),
-        ir.State(
+        ir.ParserState(
             name="match",
-            ops=[ir.Op(advance=ir.Advance(const_bytes=2))],
+            ops=[ir.ParserOp(advance=ir.Advance(const_bytes=2))],
             terminator=ir.Terminator(halt=ir.Halt(drop=False)),
         ),
-        ir.State(
+        ir.ParserState(
             name="other",
             ops=[],
             terminator=ir.Terminator(halt=ir.Halt(drop=True)),
@@ -67,9 +67,9 @@ def test_trace_dispatch_default():
 
 
 def test_trace_error_mid_op():
-    prog = ir.Program(ir_version=1, states=[
-        ir.State(name="start",
-                 ops=[ir.Op(advance=ir.Advance(const_bytes=300))],
+    prog = ir.ParserProgram(ir_version=1, states=[
+        ir.ParserState(name="start",
+                 ops=[ir.ParserOp(advance=ir.Advance(const_bytes=300))],
                  terminator=ir.Terminator(halt=ir.Halt(drop=False))),
     ])
     events = []
@@ -97,26 +97,26 @@ class _Tbl:
     entries = {0xAB: 0x2}
 
 
-def map_prog() -> ir.MapProgram:
-    return ir.MapProgram(
+def map_prog() -> ir.MatchActionProgram:
+    return ir.MatchActionProgram(
         ir_version=1,
         tables=[ir.TableDecl(table_id=0, key_width=48, action_width=8,
                              debug_name="fdb")],
         states=[
-            ir.MapState(
+            ir.MatchActionState(
                 name="start",
                 ops=[
-                    ir.MapOp(const=ir.MapConst(value_id=1, imm=0xAB,
+                    ir.MatchActionOp(const=ir.MapConst(value_id=1, imm=0xAB,
                                                debug_name="val")),
-                    ir.MapOp(store=ir.MapStore(value_id=1, hdr_id=15,
+                    ir.MatchActionOp(store=ir.MapStore(value_id=1, hdr_id=15,
                                                byte_offset=0, nbytes=1)),
-                    ir.MapOp(lookup=ir.Lookup(value_id=2, table_id=0,
+                    ir.MatchActionOp(lookup=ir.Lookup(value_id=2, table_id=0,
                                               key_value_id=1,
                                               miss_state="bye")),
                 ],
                 terminator=ir.Terminator(send=ir.MapSend(bitmap_value_id=2)),
             ),
-            ir.MapState(name="bye", ops=[],
+            ir.MatchActionState(name="bye", ops=[],
                         terminator=ir.Terminator(drop=ir.Drop())),
         ],
     )

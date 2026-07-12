@@ -1,4 +1,4 @@
-"""MapProgram IR -> nanuk MAP assembly lowering. Sibling of lower.py.
+"""MatchActionProgram IR -> nanuk MAP assembly lowering. Sibling of lower.py.
 
 Register discipline
     r0..r2 hold IR values, allocated per state in op order; unlike the
@@ -25,13 +25,13 @@ _MAX_IMM16 = (1 << 16) - 1
 _MD_NAMES = {8: "ingress", 9: "flood", 10: "hdr_present"}
 
 
-def to_map_asm(program: ir.MapProgram, *, check: bool = True) -> str:
-    """Lower a MapProgram to assembly text for nanuk.isa's map assembler."""
+def to_map_asm(program: ir.MatchActionProgram, *, check: bool = True) -> str:
+    """Lower a MatchActionProgram to assembly text for nanuk.isa's map assembler."""
     return to_map_asm_annotated(program, check=check)[0]
 
 
 def to_map_asm_annotated(
-    program: ir.MapProgram, *, check: bool = True
+    program: ir.MatchActionProgram, *, check: bool = True
 ) -> tuple[str, list[dict[str, str]]]:
     """to_map_asm, plus one {register: value name} binding snapshot per
     emitted instruction (emission order). With last-use liveness, a
@@ -49,7 +49,7 @@ def to_map_asm_annotated(
     return "\n".join(lines).rstrip() + "\n", bindings
 
 
-def _last_uses(state: ir.MapState) -> dict[int, int]:
+def _last_uses(state: ir.MatchActionState) -> dict[int, int]:
     """value_id -> index of its last consuming op (len(ops) = terminator)."""
     last: dict[int, int] = {}
 
@@ -76,7 +76,7 @@ def _last_uses(state: ir.MapState) -> dict[int, int]:
 
 
 class _StateLowering:
-    def __init__(self, state: ir.MapState):
+    def __init__(self, state: ir.MatchActionState):
         self.state = state
         self.lines: list[str] = []
         self.regs: dict[int, str] = {}
@@ -123,7 +123,7 @@ class _StateLowering:
                 del self.regs[vid]
 
 
-def _lower_state(state: ir.MapState) -> "_StateLowering":
+def _lower_state(state: ir.MatchActionState) -> "_StateLowering":
     lo = _StateLowering(state)
     for idx, op in enumerate(state.ops):
         match op.WhichOneof("op"):

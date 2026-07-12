@@ -15,18 +15,18 @@ syntax = "proto3";
 
 package nanuk.ir.v0;
 
-message Program {
+message ParserProgram {
   uint32 ir_version = 1;          // = 1
-  repeated State states = 2;      // states[0] is the start state
+  repeated ParserState states = 2;      // states[0] is the start state
 }
 
-message State {
+message ParserState {
   string name = 1;
-  repeated Op ops = 2;
+  repeated ParserOp ops = 2;
   Terminator terminator = 3;
 }
 
-message Op {
+message ParserOp {
   oneof op {
     Extract extract = 1;          // value_id = extracted bits
     Advance advance = 2;
@@ -103,11 +103,11 @@ message Goto {
 // header-relative and signed (negative reaches the headroom); hdr_id 15 is
 // h_frame (frame start, always valid).
 
-message MapProgram {
-  uint32 ir_version = 1;          // = 1 (same version space as Program)
+message MatchActionProgram {
+  uint32 ir_version = 1;          // = 1 (same version space as ParserProgram)
   repeated TableDecl tables = 2;  // declarations only — entries are
                                   // control-plane state, never program text
-  repeated MapState states = 3;   // states[0] is the start state
+  repeated MatchActionState states = 3;   // states[0] is the start state
 }
 
 message TableDecl {
@@ -117,13 +117,13 @@ message TableDecl {
   string debug_name = 4;          // e.g. "l2"
 }
 
-message MapState {
+message MatchActionState {
   string name = 1;
-  repeated MapOp ops = 2;
+  repeated MatchActionOp ops = 2;
   Terminator terminator = 3;      // send/drop/goto/dispatch
 }
 
-message MapOp {
+message MatchActionOp {
   oneof op {
     MapLoad load = 1;             // value_id = window bytes (hdr-relative)
     MapLoadMd load_md = 2;        // value_id = inbound-SMD field

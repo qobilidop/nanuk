@@ -1,4 +1,4 @@
-"""Shared MapProgram IR builders for the compiler test suite."""
+"""Shared MatchActionProgram IR builders for the compiler test suite."""
 
 from nanuk.ir import nanuk_ir_pb2 as ir
 
@@ -11,8 +11,8 @@ def drop() -> ir.Terminator:
     return ir.Terminator(drop=ir.Drop())
 
 
-def load(vid: int, hdr: int = 15, off: int = 0, n: int = 1) -> ir.MapOp:
-    return ir.MapOp(
+def load(vid: int, hdr: int = 15, off: int = 0, n: int = 1) -> ir.MatchActionOp:
+    return ir.MatchActionOp(
         load=ir.MapLoad(value_id=vid, hdr_id=hdr, byte_offset=off, nbytes=n)
     )
 
@@ -21,17 +21,17 @@ def l2_table() -> ir.TableDecl:
     return ir.TableDecl(table_id=0, key_width=48, action_width=8, debug_name="l2")
 
 
-def l2fwd_program() -> ir.MapProgram:
+def l2fwd_program() -> ir.MatchActionProgram:
     """The 5-instruction L2 forward, as IR."""
-    return ir.MapProgram(
+    return ir.MatchActionProgram(
         ir_version=1,
         tables=[l2_table()],
         states=[
-            ir.MapState(
+            ir.MatchActionState(
                 name="forward",
                 ops=[
                     load(1, hdr=0, off=0, n=6),
-                    ir.MapOp(
+                    ir.MatchActionOp(
                         lookup=ir.Lookup(
                             value_id=2, table_id=0, key_value_id=1,
                             miss_state="flood",
@@ -40,9 +40,9 @@ def l2fwd_program() -> ir.MapProgram:
                 ],
                 terminator=send(2),
             ),
-            ir.MapState(
+            ir.MatchActionState(
                 name="flood",
-                ops=[ir.MapOp(load_md=ir.MapLoadMd(value_id=3, field=9))],
+                ops=[ir.MatchActionOp(load_md=ir.MapLoadMd(value_id=3, field=9))],
                 terminator=send(3),
             ),
         ],

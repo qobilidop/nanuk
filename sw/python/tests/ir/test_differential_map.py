@@ -50,16 +50,16 @@ def assert_same(program, packet, pp, tables, ingress, info):
         )
 
 
-def ttl_program() -> ir.MapProgram:
-    return ir.MapProgram(
+def ttl_program() -> ir.MatchActionProgram:
+    return ir.MatchActionProgram(
         ir_version=1,
         tables=[ir.TableDecl(table_id=0, key_width=48, action_width=8)],
         states=[
-            ir.MapState(
+            ir.MatchActionState(
                 name="ttl",
                 ops=[
                     load(1, hdr=2, off=8, n=1),
-                    ir.MapOp(const=ir.MapConst(value_id=2, imm=1)),
+                    ir.MatchActionOp(const=ir.MapConst(value_id=2, imm=1)),
                 ],
                 terminator=ir.Terminator(
                     dispatch=ir.Dispatch(
@@ -72,23 +72,23 @@ def ttl_program() -> ir.MapProgram:
                     )
                 ),
             ),
-            ir.MapState(
+            ir.MatchActionState(
                 name="dec",
                 ops=[
                     load(3, hdr=2, off=8, n=1),
-                    ir.MapOp(add=ir.MapAdd(value_id=4, src_value_id=3, imm=-1)),
-                    ir.MapOp(
+                    ir.MatchActionOp(add=ir.MapAdd(value_id=4, src_value_id=3, imm=-1)),
+                    ir.MatchActionOp(
                         store=ir.MapStore(value_id=4, hdr_id=2, byte_offset=8, nbytes=1)
                     ),
-                    ir.MapOp(csum=ir.CsumUpdate(hdr_id=2, byte_offset=0)),
+                    ir.MatchActionOp(csum=ir.CsumUpdate(hdr_id=2, byte_offset=0)),
                 ],
                 terminator=ir.Terminator(goto=ir.Goto(target_state="fwd")),
             ),
-            ir.MapState(
+            ir.MatchActionState(
                 name="fwd",
                 ops=[
                     load(5, hdr=0, off=0, n=6),
-                    ir.MapOp(
+                    ir.MatchActionOp(
                         lookup=ir.Lookup(
                             value_id=6, table_id=0, key_value_id=5, miss_state="flood"
                         )
@@ -96,12 +96,12 @@ def ttl_program() -> ir.MapProgram:
                 ],
                 terminator=send(6),
             ),
-            ir.MapState(
+            ir.MatchActionState(
                 name="flood",
-                ops=[ir.MapOp(load_md=ir.MapLoadMd(value_id=7, field=9))],
+                ops=[ir.MatchActionOp(load_md=ir.MapLoadMd(value_id=7, field=9))],
                 terminator=send(7),
             ),
-            ir.MapState(name="expired", terminator=ir.Terminator(drop=ir.Drop())),
+            ir.MatchActionState(name="expired", terminator=ir.Terminator(drop=ir.Drop())),
         ],
     )
 
@@ -133,12 +133,12 @@ def test_absent_header_and_send_range_differential():
     pp = StubPP([1] + [0] * 15, [0] * 16, [0] * 8)
     assert_same(ttl_program(), IPV4, pp, [L2], 0, "absent h2")
     # Send delta out of range for a short packet.
-    p = ir.MapProgram(
+    p = ir.MatchActionProgram(
         ir_version=1,
         states=[
-            ir.MapState(
+            ir.MatchActionState(
                 name="s",
-                ops=[ir.MapOp(load_md=ir.MapLoadMd(value_id=1, field=9))],
+                ops=[ir.MatchActionOp(load_md=ir.MapLoadMd(value_id=1, field=9))],
                 terminator=send(1, delta=-30),
             )
         ],
@@ -151,23 +151,23 @@ def test_random_program_differential():
     rng = random.Random(0x4D4150)  # "MAP"
     for trial in range(20):
         ops = [
-            ir.MapOp(load=ir.MapLoad(value_id=1, hdr_id=15,
+            ir.MatchActionOp(load=ir.MapLoad(value_id=1, hdr_id=15,
                                      byte_offset=rng.randrange(0, 8), nbytes=6)),
-            ir.MapOp(
+            ir.MatchActionOp(
                 lookup=ir.Lookup(value_id=2, table_id=0, key_value_id=1,
                                  miss_state="flood")
             ),
-            ir.MapOp(add=ir.MapAdd(value_id=3, src_value_id=2,
+            ir.MatchActionOp(add=ir.MapAdd(value_id=3, src_value_id=2,
                                    imm=rng.randrange(-10, 10))),
         ]
-        prog = ir.MapProgram(
+        prog = ir.MatchActionProgram(
             ir_version=1,
             tables=[ir.TableDecl(table_id=0, key_width=48, action_width=8)],
             states=[
-                ir.MapState(name="s", ops=ops, terminator=send(3)),
-                ir.MapState(
+                ir.MatchActionState(name="s", ops=ops, terminator=send(3)),
+                ir.MatchActionState(
                     name="flood",
-                    ops=[ir.MapOp(load_md=ir.MapLoadMd(value_id=9, field=9))],
+                    ops=[ir.MatchActionOp(load_md=ir.MapLoadMd(value_id=9, field=9))],
                     terminator=send(9, delta=rng.choice([0, 4, 32])),
                 ),
             ],

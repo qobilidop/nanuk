@@ -38,7 +38,7 @@ def test_ir_round_trip_lowers_byte_identically():
     direct = to_asm(program)
 
     wire = program.SerializeToString()
-    reparsed = ir.Program()
+    reparsed = ir.ParserProgram()
     reparsed.ParseFromString(wire)
 
     assert to_asm(reparsed) == direct

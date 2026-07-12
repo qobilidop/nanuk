@@ -1,7 +1,7 @@
 """MAP programs: the match-action sibling of Parser (parser.py).
 
 Same shape end to end: states are functions decorated with ``@mp.state()``,
-``build_ir()`` produces a nanuk.ir.v0 MapProgram proto, ``compile()`` is
+``build_ir()`` produces a nanuk.ir.v0 MatchActionProgram proto, ``compile()`` is
 ``nanuk.ir.lower_map.to_map_asm(build_ir())``. Tables are declared on the
 program (``mp.table``) and referenced by lookups; headers are *bound* to
 the PP's hdr ids (``mp.header(eth, hdr_id=0)``) so field access resolves to
@@ -110,7 +110,7 @@ class MapValue:
         return f"<value {self.name}>"
 
 
-class MapState:
+class MatchActionState:
     """A registered MAP state; its name doubles as the assembly label."""
 
     def __init__(self, fn, start: bool):
@@ -122,9 +122,9 @@ class MapState:
         return f"<state {self.name}>"
 
 
-class MapProgram:
+class MatchActionProgram:
     def __init__(self):
-        self._states: list[MapState] = []
+        self._states: list[MatchActionState] = []
         self._tables: list[Table] = []
 
     def table(self, name: str, *, key_width: int, action_width: int) -> Table:
@@ -148,12 +148,12 @@ class MapProgram:
     def state(self, fn=None, *, start: bool = False):
         """Decorator registering a MAP state, as Parser.state does."""
 
-        def register(fn) -> MapState:
+        def register(fn) -> MatchActionState:
             if not _LABEL_RE.match(fn.__name__):
                 raise CompileError(f"state name {fn.__name__!r} is not a valid label")
             if any(st.name == fn.__name__ for st in self._states):
                 raise CompileError(f"duplicate state name {fn.__name__!r}")
-            st = MapState(fn, start)
+            st = MatchActionState(fn, start)
             self._states.append(st)
             return st
 
@@ -161,8 +161,8 @@ class MapProgram:
             return register(fn)
         return register
 
-    def build_ir(self) -> ir.MapProgram:
-        """Run every state body and return the nanuk.ir.v0 MapProgram."""
+    def build_ir(self) -> ir.MatchActionProgram:
+        """Run every state body and return the nanuk.ir.v0 MatchActionProgram."""
         starts = [st for st in self._states if st.start]
         if len(starts) != 1:
             raise CompileError(
@@ -172,7 +172,7 @@ class MapProgram:
         states = set(self._states)
         value_ids = itertools.count(1)
 
-        program = ir.MapProgram(ir_version=IR_VERSION)
+        program = ir.MatchActionProgram(ir_version=IR_VERSION)
         for t in self._tables:
             program.tables.add(
                 table_id=t.table_id,
@@ -181,7 +181,7 @@ class MapProgram:
                 debug_name=t.name,
             )
         for st in ordered:
-            sc = MapStateCompiler(st.name, states, value_ids)
+            sc = MatchActionStateCompiler(st.name, states, value_ids)
             st.fn(sc)
             if sc._terminator is None:
                 raise CompileError(
@@ -203,14 +203,14 @@ class MapProgram:
         return _BANNER + body
 
 
-class MapStateCompiler:
-    """The ``s`` object handed to each @mp.state function; builds one MapState."""
+class MatchActionStateCompiler:
+    """The ``s`` object handed to each @mp.state function; builds one MatchActionState."""
 
     def __init__(self, state_name: str, states: set, value_ids):
         self._state_name = state_name
         self._states = states
         self._value_ids = value_ids
-        self._ops: list[ir.MapOp] = []
+        self._ops: list[ir.MatchActionOp] = []
         self._terminator: ir.Terminator | None = None
 
     # -- values ---------------------------------------------------------------
@@ -222,7 +222,7 @@ class MapStateCompiler:
         hdr_id, off, n, name = self._resolve_access("load", field, hdr, byte_offset, nbytes)
         v = MapValue(next(self._value_ids), name)
         self._ops.append(
-            ir.MapOp(
+            ir.MatchActionOp(
                 load=ir.MapLoad(
                     value_id=v.value_id, hdr_id=hdr_id, byte_offset=off,
                     nbytes=n, debug_name=name,
@@ -240,7 +240,7 @@ class MapStateCompiler:
         name = names.get(field, f"smd[{field}]")
         v = MapValue(next(self._value_ids), name)
         self._ops.append(
-            ir.MapOp(load_md=ir.MapLoadMd(value_id=v.value_id, field=field, debug_name=name))
+            ir.MatchActionOp(load_md=ir.MapLoadMd(value_id=v.value_id, field=field, debug_name=name))
         )
         return v
 
@@ -251,7 +251,7 @@ class MapStateCompiler:
             raise CompileError(f"const {imm!r} out of range 0..{_MAX_IMM16:#x}")
         v = MapValue(next(self._value_ids), name or f"{imm:#x}")
         self._ops.append(
-            ir.MapOp(const=ir.MapConst(value_id=v.value_id, imm=imm, debug_name=v.name))
+            ir.MatchActionOp(const=ir.MapConst(value_id=v.value_id, imm=imm, debug_name=v.name))
         )
         return v
 
@@ -263,7 +263,7 @@ class MapStateCompiler:
             raise CompileError(f"add immediate {imm} out of signed 16-bit range")
         v = MapValue(next(self._value_ids), f"{value.name} + {imm}")
         self._ops.append(
-            ir.MapOp(add=ir.MapAdd(value_id=v.value_id, src_value_id=value.value_id, imm=imm))
+            ir.MatchActionOp(add=ir.MapAdd(value_id=v.value_id, src_value_id=value.value_id, imm=imm))
         )
         return v
 
@@ -277,7 +277,7 @@ class MapStateCompiler:
         label = self._target_label(miss, "lookup miss")
         v = MapValue(next(self._value_ids), f"{table.name}[{key.name}]")
         self._ops.append(
-            ir.MapOp(
+            ir.MatchActionOp(
                 lookup=ir.Lookup(
                     value_id=v.value_id, table_id=table.table_id,
                     key_value_id=key.value_id, miss_state=label,
@@ -297,7 +297,7 @@ class MapStateCompiler:
             "store", field, hdr, byte_offset, nbytes
         )
         self._ops.append(
-            ir.MapOp(
+            ir.MatchActionOp(
                 store=ir.MapStore(
                     value_id=value.value_id, hdr_id=hdr_id, byte_offset=off,
                     nbytes=n, debug_name=name,
@@ -311,7 +311,7 @@ class MapStateCompiler:
         if not isinstance(header, BoundHeader):
             raise CompileError(f"csum_update expects a bound header, got {header!r}")
         self._ops.append(
-            ir.MapOp(csum=ir.CsumUpdate(hdr_id=header.hdr_id, byte_offset=byte_offset))
+            ir.MatchActionOp(csum=ir.CsumUpdate(hdr_id=header.hdr_id, byte_offset=byte_offset))
         )
 
     # -- terminators --------------------------------------------------------------

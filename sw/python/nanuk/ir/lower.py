@@ -29,7 +29,7 @@ class LowerError(Exception):
     """Raised when a (valid) IR program cannot be lowered to ISA v0."""
 
 
-def to_asm(program: ir.Program, *, check: bool = True) -> str:
+def to_asm(program: ir.ParserProgram, *, check: bool = True) -> str:
     """Lower an IR program to assembly text for nanuk.isa's assembler.
 
     With check=True (default) the program is validated first; lowering
@@ -40,7 +40,7 @@ def to_asm(program: ir.Program, *, check: bool = True) -> str:
 
 
 def to_asm_annotated(
-    program: ir.Program, *, check: bool = True
+    program: ir.ParserProgram, *, check: bool = True
 ) -> tuple[str, list[dict[str, str]]]:
     """to_asm, plus one {register: value name} binding snapshot per
     emitted instruction (emission order; labels/blanks excluded). The
@@ -60,7 +60,7 @@ def to_asm_annotated(
 
 
 class _StateLowering:
-    def __init__(self, state: ir.State):
+    def __init__(self, state: ir.ParserState):
         self.state = state
         self.lines: list[str] = []
         self.regs: dict[int, str] = {}    # value_id -> register
@@ -100,7 +100,7 @@ class _StateLowering:
         return reg
 
 
-def _lower_state(state: ir.State) -> "_StateLowering":
+def _lower_state(state: ir.ParserState) -> "_StateLowering":
     lo = _StateLowering(state)
     for op in state.ops:
         match op.WhichOneof("op"):
