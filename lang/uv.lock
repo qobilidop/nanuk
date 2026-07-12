@@ -62,6 +62,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "nanuk-isa" },
     { name = "nanuk-spec" },
     { name = "pytest" },
     { name = "scapy" },
@@ -73,6 +74,7 @@ requires-dist = [{ name = "nanuk-ir", editable = "../compiler" }]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "nanuk-isa", editable = "../spec/isa" },
     { name = "nanuk-spec", editable = "../spec/python" },
     { name = "pytest", specifier = ">=8" },
     { name = "scapy", specifier = ">=2.5" },
