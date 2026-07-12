@@ -33,6 +33,8 @@ jobs:
             cmake --build sail/build --target check
             cmake --build sail/build
             ctest --test-dir sail/build --output-on-failure
-            (cd sw/python && uv sync --quiet --extra rtl \
+            (cd sw/python && uv sync --quiet \
               && NANUK_COSIM=1 uv run pytest tests ../../web/py/tests -q \
               && uv run ruff check ../..)
+            (cd hw/amaranth && uv sync --quiet \
+              && NANUK_COSIM=1 uv run pytest tests -q)

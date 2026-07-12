@@ -26,16 +26,19 @@ the full design.
 ## Layout
 
 ```
-sail/      Sail ISA models (the source of truth: model/{parser,map}) and the
-           generated golden-model emulators
-sw/python/ The nanuk package, four descending abstraction levels: nanuk.lang
-           (eDSL) -> nanuk.ir (protobuf IR, lowerings, interpreters, symex)
-           -> nanuk.isa (assemblers, encodings, ISS) -> nanuk.rtl (Amaranth
-           cores). Plus the whole Python test suite (tests/; the golden-model
-           pcap rig = tests/golden, its machinery in nanuk.testkit).
-examples/  Example programs: hand-written asm paired with its eDSL twin
-demo/      The end-to-end SimBricks demo staging the examples on the RTL cores
-docs/      Design docs, plans, and lab notes
+sail/        Sail ISA models (the source of truth: model/{parser,map}) and the
+             generated golden-model emulators
+sw/python/   The nanuk package, three descending abstraction levels: nanuk.lang
+             (eDSL) -> nanuk.ir (protobuf IR, lowerings, interpreters, symex)
+             -> nanuk.isa (assemblers, encodings, ISS). Plus its test suite
+             (tests/; the golden-model pcap rig = tests/golden) and
+             nanuk.testkit, the conformance machinery every suite shares.
+hw/amaranth/ The RTL below the ISA: Amaranth parser + MAP cores
+             (nanuk_amaranth), with cosim tests judging them against the ISS
+             oracle and the Sail golden models.
+examples/    Example programs: hand-written asm paired with its eDSL twin
+demo/        The end-to-end SimBricks demo staging the examples on the RTL cores
+docs/        Design docs, plans, and lab notes
 ```
 
 ## The demo
@@ -62,9 +65,11 @@ devcontainer up --workspace-folder .
 # Sail model tests + emulator smoke test
 ./dev.sh ctest --test-dir sail/build --output-on-failure
 
-# The whole Python suite: ISA, IR, eDSL, RTL, golden-model pcap rig, and
-# playground bridge (NANUK_COSIM=1 also runs RTL-vs-golden-model cosim)
-./dev.sh bash -lc 'cd sw/python && uv sync --extra rtl && NANUK_COSIM=1 uv run pytest tests ../../web/py/tests'
+# The SW suite: ISA, IR, eDSL, golden-model pcap rig, and playground bridge
+./dev.sh bash -lc 'cd sw/python && uv sync && NANUK_COSIM=1 uv run pytest tests ../../web/py/tests'
+
+# The HW suite: Amaranth cores (NANUK_COSIM=1 also runs RTL-vs-oracle cosim)
+./dev.sh bash -lc 'cd hw/amaranth && uv sync && NANUK_COSIM=1 uv run pytest tests'
 ```
 
 The first thing nanuk ever parsed: `examples/l2l3l4/parse.asm` — Ethernet,

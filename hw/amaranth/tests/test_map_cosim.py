@@ -26,14 +26,14 @@ from nanuk.testkit.testkit import (
     map_packets,
 )
 
-from nanuk.rtl.map_sim_util import run_map_one, run_pipeline_rtl
+from nanuk_amaranth.map_sim_util import run_map_one, run_pipeline_rtl
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("NANUK_COSIM") != "1",
     reason="needs nanuk-emu + nanuk-map-emu (linux container)",
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 EXAMPLES = REPO_ROOT / "examples"
 
 L2_TABLE = demo_l2_table()

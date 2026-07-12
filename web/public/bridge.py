@@ -462,7 +462,7 @@ def _render_map_terminator(
 
 
 class _Table:
-    """Table-shaped (key_width/action_width/entries) without tests.support."""
+    """Table-shaped (key_width/action_width/entries) without nanuk.testkit."""
 
     def __init__(self, key_width: int, action_width: int, entries: dict):
         self.key_width = key_width

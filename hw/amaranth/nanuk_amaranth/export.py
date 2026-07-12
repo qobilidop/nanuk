@@ -11,8 +11,8 @@ from pathlib import Path
 
 from amaranth.back import verilog
 
-from nanuk.rtl.core import NanukCore
-from nanuk.rtl.map_core import MapCore
+from nanuk_amaranth.core import NanukCore
+from nanuk_amaranth.map_core import MapCore
 
 
 def main(argv: list[str] | None = None) -> int:

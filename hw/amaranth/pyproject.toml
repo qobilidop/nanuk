@@ -1,0 +1,36 @@
+[project]
+name = "nanuk-amaranth"
+version = "0.1.0"
+description = "nanuk RTL in Amaranth: parser core and MAP core below the nanuk ISA"
+requires-python = ">=3.12"
+dependencies = [
+    "amaranth[builtin-yosys]>=0.5",
+]
+
+[project.scripts]
+nanuk-export = "nanuk_amaranth.export:main"
+
+[dependency-groups]
+# The design depends only on amaranth; nanuk (editable, with its scapy-using
+# testkit) is test machinery — the cosim suites judge this RTL against the
+# ISS oracle and the Sail golden models.
+dev = [
+    "pytest>=8",
+    "nanuk",
+    "scapy>=2.5",
+]
+# z3: pdoc imports nanuk.ir.symex, which needs it at import time.
+docs = ["pdoc>=15", "z3-solver>=4.16.0.0"]
+
+[tool.uv.sources]
+nanuk = { path = "../../sw/python", editable = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["nanuk_amaranth"]

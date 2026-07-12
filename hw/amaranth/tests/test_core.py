@@ -12,7 +12,7 @@ encoder, itself pinned to the Sail encdec golden words).
 
 from nanuk.isa import encoding as enc
 
-from nanuk.rtl.core import (
+from nanuk_amaranth.core import (
     ERR_HDR_VIOLATION,
     ERR_ILLEGAL,
     ERR_PC_RANGE,
@@ -24,7 +24,7 @@ from nanuk.rtl.core import (
     VERDICT_DROP,
     VERDICT_ERROR,
 )
-from nanuk.rtl.sim_util import run_core, run_one
+from nanuk_amaranth.sim_util import run_core, run_one
 
 # Ethernet-ish prefix used by the Sail exec tests (test_exec_linear.sail):
 # 0x45 = IPv4 version 4, IHL 5; plen 4.

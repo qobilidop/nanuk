@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from nanuk.rtl.map_core import (
+from nanuk_amaranth.map_core import (
     ERR_HDR_ABSENT,
     ERR_ILLEGAL,
     ERR_PC_RANGE,
@@ -18,7 +18,7 @@ from nanuk.rtl.map_core import (
     VERDICT_ERROR,
     VERDICT_SENT,
 )
-from nanuk.rtl.map_sim_util import run_map_one
+from nanuk_amaranth.map_sim_util import run_map_one
 
 from nanuk.isa import map_encoding as e
 

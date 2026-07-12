@@ -17,14 +17,14 @@ from nanuk.isa.asm import assemble
 from nanuk.testkit.harness import run_program
 from nanuk.testkit.testkit import l2l3l4_packets
 
-from nanuk.rtl.sim_util import run_core
+from nanuk_amaranth.sim_util import run_core
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("NANUK_COSIM") != "1",
     reason="needs nanuk-emu (linux container)",
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 DEMO_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"
 
 

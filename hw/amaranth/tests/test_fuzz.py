@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-from nanuk.rtl.map_sim_util import run_map_one
-from nanuk.rtl.sim_util import run_one
+from nanuk_amaranth.map_sim_util import run_map_one
+from nanuk_amaranth.sim_util import run_one
 from nanuk.isa import encoding as enc
 from nanuk.isa.map_asm import assemble as map_assemble
 from nanuk.testkit.map_harness import Table, run_map
@@ -111,7 +111,7 @@ def test_fuzz_raw_words(seed):
 # --- MAP leg: random packets/tables through the M1 demo programs, plus raw
 # random MAP programs — nanuk-map-emu vs MapCore, full contract. ---
 
-_EXAMPLES = Path(__file__).resolve().parents[4] / "examples"
+_EXAMPLES = Path(__file__).resolve().parents[3] / "examples"
 
 
 class _StubPP:
