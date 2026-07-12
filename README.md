@@ -6,24 +6,29 @@ Building a programmable packet processor from chip to programming language. 🐻
 **[Playground](https://qobilidop.github.io/nanuk/play/)** — the eDSL, IR,
 and assembly, live in your browser.
 
-nanuk is an educational project: a packet-parser ISA (inspired by
+nanuk is an educational project: a programmable packet-processing
+pipeline of two sibling ISAs (inspired by
 [xISA](https://xsightlabs.com/wp-content/uploads/2025/03/XISA_Public-.pdf))
-specified formally in [Sail](https://github.com/rems-project/sail), with a
-generated golden-model emulator, an assembler, a Python eDSL that compiles
-to a protobuf IR, and an Amaranth RTL core cosimulated against the spec —
-demonstrated end to end by pushing real traffic through the core in a
-SimBricks network simulation. A Tiny Tapeout chip is deferred to future
-work. See [docs/superpowers/specs/](docs/superpowers/specs/) for the full
-design.
+— a **parser** engine that classifies packets and a **match-action**
+engine whose lookup tables ARE the forwarding policy. Both are specified
+formally in [Sail](https://github.com/rems-project/sail) with generated
+golden-model emulators, assemblers, a Python eDSL compiling to a protobuf
+IR (with step-exact interpreters and a Z3 symbolic executor), and Amaranth
+RTL cores cosimulated against the specs — demonstrated end to end by
+pushing real traffic through the composed pipeline in a SimBricks network
+simulation: table-driven forwarding, live policy swaps, and a two-switch
+tunnel speaking an invented protocol. A Tiny Tapeout chip is deferred to
+future work. See [docs/superpowers/specs/](docs/superpowers/specs/) for
+the full design.
 
 ## Layout
 
 ```
-spec/     Sail ISA spec (the source of truth), emulator CLI, assembler, harness
-lang/     Python eDSL (compiles protocol declarations + parse graphs to the IR)
-compiler/ protobuf nanuk IR: schema, validation, IR -> assembly lowering, interpreter
-hw/       Amaranth RTL core (cosimulated against the spec) + SimBricks demo
-examples/ Parser programs
+spec/     Sail ISA specs (the source of truth: parser-model/ + map-model/), emulators, assemblers
+lang/     Python eDSL (parser programs and match-action programs -> the IR)
+compiler/ protobuf nanuk IR: schema, validation, lowerings, interpreters, symbolic executor
+hw/       Amaranth RTL cores (cosimulated against the specs) + SimBricks demos
+examples/ Parser + match-action programs (hand-written asm and eDSL pairs)
 guide/    Lab notes and decision records
 docs/     Design docs and plans
 ```
