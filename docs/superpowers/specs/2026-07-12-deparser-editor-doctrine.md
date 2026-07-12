@@ -88,6 +88,49 @@ spans the spectrum: map_l2fwd = pure lookup engine, tunnel_pop = pure
 editor (no table access), ttl / tunnel_push = fused. "MAP acting as a
 pure edit engine" is a demo (run tunnel_pop), not a hardware project.
 
+## Structure validity window (added 2026-07-12, follow-up discussion)
+
+Bili's observation: the parser-derived header structure
+(hdr_offsets + SMD) describes the *unmodified* packet; after MAP edits
+— especially length-changing ones — it is stale. Does that argue for a
+third editor engine after all? No, and pinning down why yields a
+doctrine invariant:
+
+- **Bytes are authoritative; structure is a cached view with a
+  validity window.** The two coherent doctrines are
+  structure-authoritative (PISA: the PHV *is* the packet, edits can't
+  stale it, the deparser is the tax for re-materializing bytes) and
+  bytes-authoritative (nanuk, xISA, eBPF, skb: views expire; the
+  recompute primitive is *reparse*). nanuk chose bytes-authoritative
+  when it chose zero-copy.
+- **In v0 the staleness has no observer, by construction.** During the
+  MAP program the structure never goes stale — headroom+delta means
+  edits are *staged, not committed*: ST moves nothing, h_frame and all
+  header bases stay pinned, re-basing happens atomically at SEND after
+  the last instruction. At SEND the structure dies — outbound SMD
+  carries verdict/egress/delta only, never hdr_offsets. Contract scope
+  (PP→MAP) coincides with validity window (until SEND).
+- **An editor engine wouldn't fix staleness anyway.** Command-vector
+  editors apply edits even later in the pipeline; the outgoing
+  packet's structure is exactly as stale. The editor split is a
+  throughput decision, not a semantics one — staleness is orthogonal
+  to which engine applies the edits.
+- **Precedent for the fix:** xISA's own answer is Packet Reparse;
+  eBPF's verifier forcibly invalidates all packet pointers after
+  bpf_xdp_adjust_head and mandates re-parsing. Nobody adds an engine
+  to keep metadata fresh.
+
+**Rule going forward:** post-SEND consumers of header structure must
+either (a) reparse — the parked MAP→PP loop, whose trigger
+(decap-then-reparse) is the first real instance of this concern — or
+(b) receive **program-declared structure**: a MAP-side SETHDR analog
+(`STHDR hdr_id, offset`) letting the program that staged the edit
+declare the outgoing layout. (b) is a new parked v0.x instruction, one
+opcode not one engine; trigger: a post-MAP consumer of outgoing
+structure appears (second MAP stage, egress checksum/segmentation
+offload, a MAC-layer editor à la xISA). Never ship silently-stale
+metadata past SEND.
+
 ## Parked: the unfused editor engine
 
 A real third block — MAP reduced to match/compute, plus an EDIT engine

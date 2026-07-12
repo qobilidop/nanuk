@@ -26,6 +26,8 @@ A clean boundary between two engines, each with its own minimal ISA — the xISA
 
 Honest counterexample: Intel IXP / Netronome NFP — one microengine ISA, a pooled sea of identical cores. That design trades stage fit for pooling flexibility and is notoriously hard to program; nanuk is a staged pipeline with distinct roles, not a pooled many-core.
 
+*2026-07-12 addendum:* this call was stress-tested from the opposite extreme after the MAT arc completed; sharper arguments (state-model conflict, mode-bit decay, the diamond problem, "two is the minimum") recorded in the [single-ISA doctrine](2026-07-12-single-isa-doctrine.md).
+
 What the siblings **share** is the design language and infrastructure: encoding style, register conventions, step budget, Sail build/CI machinery, assembler framework, eDSL/IR patterns, and the four-rung conformance ladder.
 
 ### Why no third engine (deparser / modifier)
