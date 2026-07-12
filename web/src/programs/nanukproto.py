@@ -2,7 +2,7 @@
 # the standard L2/L3/L4 parse. Adding a protocol is one Header + 3 states.
 
 from nanuk.lang import Header, Parser
-from nanuk.lang.programs.l2l3l4 import eth, ipv4, udp, vlan
+from nanuk.examples.l2l3l4.parse import eth, ipv4, udp, vlan
 
 nk = Header(
     "nanukproto",

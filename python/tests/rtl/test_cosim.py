@@ -25,7 +25,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-DEMO_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"
+DEMO_ASM = REPO_ROOT / "python" / "nanuk" / "examples" / "l2l3l4" / "parse.asm"
 
 
 @pytest.fixture(scope="module")

@@ -1,20 +1,15 @@
 """Beat 3: the invented nanukproto tunnel parses on the golden model, bad
 magic/version drop, and untunneled traffic is untouched."""
 
-import importlib.util
 import os
 import struct
 from pathlib import Path
 
 import pytest
 
+from nanuk.examples.nanukproto.parse import build
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
-_spec = importlib.util.spec_from_file_location(
-    "nanukproto_parse", REPO_ROOT / "examples" / "nanukproto" / "parse.py"
-)
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
-build = _mod.build
 
 
 def nk_hdr(magic=0x4E4B, version=1, flags=0, tenant=0x0ABCDE, inner=0x0800):

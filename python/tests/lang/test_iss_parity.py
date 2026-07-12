@@ -7,7 +7,6 @@ step index (parser: cursor/hdr/SMD; MAP: window writes and lookups).
 Pure Python (interp + ISS), no emulator: ungated.
 """
 
-import importlib.util
 import random
 from pathlib import Path
 
@@ -21,13 +20,11 @@ from nanuk.isa.asm import assemble_with_lines
 from nanuk.isa.iss import run_iss
 from nanuk.isa.iss_map import run_map_iss
 from nanuk.isa.map_asm import assemble_with_lines as map_assemble_with_lines
-from nanuk.lang.programs.l2l3l4 import build_ir as l2l3l4_ir
-from nanuk.lang.programs.map_demos import (
-    make_l2fwd,
-    make_ttl,
-    make_tunnel_pop,
-    make_tunnel_push,
-)
+from nanuk.examples.nanukproto import parse as nanukproto_parse
+from nanuk.examples.l2l3l4.parse import build_ir as l2l3l4_ir
+from nanuk.examples.map_l2fwd.fwd import make_l2fwd
+from nanuk.examples.map_ttl.fwd import make_ttl
+from nanuk.examples.nanukproto.tunnel import make_tunnel_pop, make_tunnel_push
 from tests.support.testkit import (
     NO_TABLE,
     demo_l2_table,
@@ -37,12 +34,7 @@ from tests.support.testkit import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-_spec = importlib.util.spec_from_file_location(
-    "nanukproto_parse", REPO_ROOT / "examples" / "nanukproto" / "parse.py"
-)
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
-nanukproto_ir = _mod.build_ir
+nanukproto_ir = nanukproto_parse.build_ir
 
 PARSER_PROGRAMS = {"l2l3l4": l2l3l4_ir, "nanukproto": nanukproto_ir}
 

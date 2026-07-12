@@ -1,6 +1,6 @@
 """The v0 demo parse in the eDSL: Ethernet -> 802.1Q (incl. QinQ) ->
 IPv4 (with options) -> UDP, behaviorally identical to the hand-written
-examples/l2l3l4/parse.asm.
+nanuk/examples/l2l3l4/parse.asm.
 
 Header ids and SMD layout (shared with tests/spec/test_demo.py):
     h_eth=0  h_vlan=1  h_ipv4=2  h_udp=3

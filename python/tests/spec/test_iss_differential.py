@@ -17,8 +17,8 @@ from tests.support.testkit import l2l3l4_packets
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PROGRAMS = {
-    "l2l3l4": REPO_ROOT / "examples" / "l2l3l4" / "parse.asm",
-    "nanukproto": REPO_ROOT / "examples" / "nanukproto" / "parse_tunnel.asm",
+    "l2l3l4": REPO_ROOT / "python" / "nanuk" / "examples" / "l2l3l4" / "parse.asm",
+    "nanukproto": REPO_ROOT / "python" / "nanuk" / "examples" / "nanukproto" / "parse_tunnel.asm",
 }
 
 

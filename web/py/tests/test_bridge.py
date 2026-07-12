@@ -2,7 +2,7 @@
 
 import json
 
-from nanuk.lang.programs import l2l3l4  # noqa: F401  (env sanity)
+from nanuk.examples.l2l3l4 import parse as l2l3l4  # noqa: F401  (env sanity)
 
 import bridge
 
