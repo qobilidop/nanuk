@@ -6,10 +6,16 @@ design doctrine, survey evidence, and parked options with triggers)
 
 ## Context
 
-Stated design goals: nanuk.lang should read like a P4 subset (with
-deviations where they simplify), the IR stays ONNX-style, the ISAs stay
-xISA-subset-shaped. The question: P4 has a deparser construct — should
-nanuk invent a third processor type (besides parser and MAP) for it?
+The question arose under a tentative design goal — nanuk.lang as a P4
+subset — which Bili retracted the same day after seeing where it leads:
+**nanuk.lang optimizes for education, not P4 surface compatibility.**
+The lang stays first-principles-shaped around the zero-copy machine; the
+P4 relationship is (a) a concept-mapping section in the docs/paper and
+(b) the parked P4-frontend satellite, which would translate real P4 to
+the IR without contorting nanuk.lang. The IR stays ONNX-style and the
+ISAs xISA-subset-shaped as before. The deparser question and its answer
+survive the retraction unchanged (they're about the machine, not the
+syntax): should nanuk invent a third processor type for deparsing?
 
 ## Survey: how real targets handle the P4 deparser
 
@@ -47,14 +53,14 @@ with its own ISA. Three recurring forms:
   at SEND — the xISA/eBPF/VPP camp), where deparsing degenerates to
   edit ops. This confirms the MAT-arc "no deparser by construction"
   decision with survey evidence.
-- **P4-subset lang keeps the construct, compiles it away** (the
-  p4c-ebpf existence proof). When P4-alignment work happens, a
-  deparser-shaped emit-list block lowers as: emit order matches parsed
-  wire layout → no-op; insertions/removals → headroom stores + SEND
-  delta (mechanically what tunnel push/pop do today); true header
-  *reordering* → CompileError in v0, a documented deviation with a
-  revisit trigger. MAP's ST + SEND(delta) are exactly the two
-  primitives the eBPF lowering needs.
+- **nanuk.lang gets no deparser construct at all** (education-first: no
+  construct whose only job is P4 resemblance). The lowering rule
+  transfers to the parked P4-frontend satellite: if it ever lands, it
+  compiles P4 deparser blocks the p4c-ebpf way — emit order matches
+  parsed wire layout → no-op; insertions/removals → headroom stores +
+  SEND delta (mechanically what tunnel push/pop do today); true header
+  *reordering* → unsupported, a documented deviation. MAP's ST +
+  SEND(delta) are exactly the two primitives the eBPF lowering needs.
 - **IR**: lower early (lang → existing store/delta ops). Add a
   declarative emit/edit node only when a backend wants the intent
   preserved (see parked editor below).
