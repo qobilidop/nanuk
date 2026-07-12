@@ -1,5 +1,5 @@
 """IR interpreter semantics, mirrored from the frozen ISA v0 semantics
-(stage-1 plan / spec/sail/model/parser). No emulator needed: these are pure-Python
+(stage-1 plan / spec/sail/model/pp). No emulator needed: these are pure-Python
 unit tests; the emulator comparison lives in test_differential.py."""
 
 import pytest

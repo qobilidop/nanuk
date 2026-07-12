@@ -14,12 +14,12 @@ from pathlib import Path
 
 from scapy.utils import rdpcap
 
-# Verdicts (mirror spec/sail/model/parser/state.sail)
+# Verdicts (mirror spec/sail/model/pp/state.sail)
 VERDICT_ACCEPT = 0
 VERDICT_DROP = 1
 VERDICT_ERROR = 2
 
-# Error codes (mirror spec/sail/model/parser/state.sail)
+# Error codes (mirror spec/sail/model/pp/state.sail)
 ERR_NONE = 0
 ERR_HDR_VIOLATION = 1
 ERR_STEP_BUDGET = 2

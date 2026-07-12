@@ -26,7 +26,7 @@ the full design.
 ## Layout
 
 ```
-spec/sail/   Sail ISA models (the source of truth: model/{parser,map}) and the
+spec/sail/   Sail ISA models (the source of truth: model/{pp,map}) and the
              generated golden-model emulators
 spec/proto/  The protobuf IR schema (nanuk.ir.v0) — the language-neutral
              interchange contract; each implementation vendors its gencode
