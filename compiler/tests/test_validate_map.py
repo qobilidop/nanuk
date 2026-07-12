@@ -8,7 +8,7 @@ from nanuk_ir import nanuk_ir_pb2 as ir
 from nanuk_ir.validate import ValidationError, validate
 from nanuk_ir.validate_map import validate_map
 
-from tests.irbuild import drop, l2_table, l2fwd_program, load, send
+from tests.irbuild import drop, l2_table, l2fwd_program, load
 
 
 def test_valid_program_passes():

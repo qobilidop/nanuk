@@ -13,6 +13,7 @@ nanuk-asm = "nanuk_spec.asm:main"
 [dependency-groups]
 dev = [
     "pytest>=8",
+    "ruff>=0.15.21",
 ]
 
 [build-system]

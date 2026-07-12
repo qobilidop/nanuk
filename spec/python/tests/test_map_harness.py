@@ -6,7 +6,6 @@ from nanuk_spec import map_encoding as me
 from nanuk_spec.harness import ParseResult, VERDICT_ACCEPT
 from nanuk_spec.map_harness import (
     MAP_ERR_NONE,
-    VERDICT_SENT,
     Table,
     run_map,
     run_pipeline,

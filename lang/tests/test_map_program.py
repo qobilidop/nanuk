@@ -3,7 +3,7 @@ byte-alignment guards, terminator discipline, table/header binding."""
 
 import pytest
 
-from nanuk_lang import CompileError, Header, MapProgram, MD_FLOOD
+from nanuk_lang import CompileError, MapProgram, MD_FLOOD
 from nanuk_lang.programs.l2l3l4 import eth, ipv4
 
 from nanuk_ir.lower_map import to_map_asm

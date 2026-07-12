@@ -150,7 +150,6 @@ def test_random_program_differential():
     """Random-but-valid MAP IR programs over random packets/tables."""
     rng = random.Random(0x4D4150)  # "MAP"
     for trial in range(20):
-        vid = iter(range(1, 100)).__next__
         ops = [
             ir.MapOp(load=ir.MapLoad(value_id=1, hdr_id=15,
                                      byte_offset=rng.randrange(0, 8), nbytes=6)),

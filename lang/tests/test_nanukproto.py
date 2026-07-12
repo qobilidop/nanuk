@@ -4,7 +4,6 @@ magic/version drop, and untunneled traffic is untouched."""
 import importlib.util
 import os
 import struct
-import sys
 from pathlib import Path
 
 import pytest

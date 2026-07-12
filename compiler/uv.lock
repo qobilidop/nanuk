@@ -143,7 +143,10 @@ dependencies = [
 requires-dist = [{ name = "scapy", specifier = ">=2.5" }]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=8" }]
+dev = [
+    { name = "pytest", specifier = ">=8" },
+    { name = "ruff", specifier = ">=0.15.21" },
+]
 
 [[package]]
 name = "packaging"

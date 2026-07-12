@@ -1,0 +1,14 @@
+# Lint-only (no formatting): pyflakes catches unused/undefined names — the
+# class of wart the 2026-07-11 self-review found by hand. Run from any
+# package env: uv run ruff check <repo root>.
+target-version = "py312"
+
+extend-exclude = [
+    "**/.venv",
+    "compiler/nanuk_ir/nanuk_ir_pb2.py",  # protoc-generated
+    ".agent_scratch",
+    "web/node_modules",
+]
+
+[lint]
+select = ["F"]
