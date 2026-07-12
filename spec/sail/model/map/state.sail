@@ -30,8 +30,10 @@ register window : vector(288, bits8)
 // Inbound contract from the PP (set by the harness before a run).
 register hdr_present_in : vector(16, bool)
 register hdr_offset_in : vector(16, bits16)
-register smd_in : vector(8, bits16)
-register ingress : bits8
+
+// The metadata window: harness-initialized (pass-through default), LDMD-read,
+// STMD-written, delivered as output whatever the verdict.
+register md : vector(8, bits16)
 
 // Exact-match tables (control-plane state, set via the emu_map_table_* API).
 register tbl_keywidth : vector(4, bits8)
@@ -49,7 +51,6 @@ register halted : bool
 register verdict : bits8
 register err : bits8
 register steps : int
-register egress : bits8
 register send_delta : int
 
 // Convert a (bounds-checked) int to bits16.
@@ -193,8 +194,7 @@ function reset_map_state() = {
     window = init_vec_bits8_288();
     hdr_present_in = init_vec_bool_16();
     hdr_offset_in = init_vec_bits16_16();
-    smd_in = init_vec_bits16_8();
-    ingress = 0x00;
+    md = init_vec_bits16_8();
     tbl_keywidth = init_vec_bits8_4();
     tbl_actwidth = init_vec_bits8_4();
     tbl_nentries = init_vec_bits8_4();
@@ -206,6 +206,5 @@ function reset_map_state() = {
     verdict = verdict_sent;
     err = err_none;
     steps = 0;
-    egress = 0x00;
     send_delta = 0
 }

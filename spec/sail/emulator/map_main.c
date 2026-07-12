@@ -5,8 +5,7 @@
 // prog.bin:   big-endian 32-bit instruction words, loaded at word 0
 // packet.bin: raw frame bytes (as the PP saw them)
 // ctx.txt:    inbound contract + tables, one record per line:
-//               ingress <port>
-//               smd <slot> <value>
+//               md <slot> <value>
 //               hdr <id> <present> <offset>
 //               table <id> <key_width> <action_width>
 //               entry <table_id> <key> <action>
@@ -34,8 +33,8 @@ extern sail_unit zemu_map_reset(sail_unit);
 extern sail_unit zemu_map_poke_imem(uint64_t idx, uint64_t word);
 extern sail_unit zemu_map_poke_pkt(uint64_t idx, uint64_t byte);
 extern sail_unit zemu_map_set_plen(uint64_t len);
-extern sail_unit zemu_map_set_ingress(uint64_t port);
-extern sail_unit zemu_map_set_smd(uint64_t slot, uint64_t value);
+extern sail_unit zemu_map_set_md(uint64_t slot, uint64_t value);
+extern uint64_t zemu_map_get_md(uint64_t slot);
 extern sail_unit zemu_map_set_hdr(uint64_t h, uint64_t present, uint64_t off);
 extern sail_unit zemu_map_table_config(uint64_t t, uint64_t kw, uint64_t aw);
 extern sail_unit zemu_map_table_add(uint64_t t, uint64_t key, uint64_t action);
@@ -97,12 +96,10 @@ static void load_ctx(const char *path) {
         if (hash) *hash = '\0';
         char *kw = strtok(line, " \t\r\n");
         if (!kw) continue;
-        if (strcmp(kw, "ingress") == 0) {
-            zemu_map_set_ingress(parse_u64(strtok(NULL, " \t\r\n"), "port", lineno));
-        } else if (strcmp(kw, "smd") == 0) {
+        if (strcmp(kw, "md") == 0) {
             uint64_t slot = parse_u64(strtok(NULL, " \t\r\n"), "slot", lineno);
             uint64_t val = parse_u64(strtok(NULL, " \t\r\n"), "value", lineno);
-            zemu_map_set_smd(slot, val);
+            zemu_map_set_md(slot, val);
         } else if (strcmp(kw, "hdr") == 0) {
             uint64_t id = parse_u64(strtok(NULL, " \t\r\n"), "id", lineno);
             uint64_t present = parse_u64(strtok(NULL, " \t\r\n"), "present", lineno);
@@ -168,10 +165,13 @@ int main(int argc, char **argv) {
     uint64_t verdict = zemu_map_get_verdict(SAIL_UNIT);
     int64_t delta = (int16_t)zemu_map_get_delta(SAIL_UNIT);
 
-    printf("{\"verdict\": %llu, \"error\": %llu, \"egress\": %llu, \"delta\": %lld, \"steps\": %llu",
+    printf("{\"verdict\": %llu, \"error\": %llu, \"md\": [",
            (unsigned long long)verdict,
-           (unsigned long long)zemu_map_get_error(SAIL_UNIT),
-           (unsigned long long)zemu_map_get_egress(SAIL_UNIT),
+           (unsigned long long)zemu_map_get_error(SAIL_UNIT));
+    for (int s = 0; s < 8; s++) {
+        printf("%s%llu", s ? ", " : "", (unsigned long long)zemu_map_get_md((uint64_t)s));
+    }
+    printf("], \"delta\": %lld, \"steps\": %llu",
            (long long)delta,
            (unsigned long long)zemu_map_get_steps(SAIL_UNIT));
     if (verdict == 0) {

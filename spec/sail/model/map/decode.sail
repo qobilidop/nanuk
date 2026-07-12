@@ -2,7 +2,7 @@
 // Opcode at [31:26]; fields packed MSB-first; reserved bits are zero and
 // enforced (nonzero reserved bits do not match -> ILLEGAL). The all-zeros
 // word has opcode 0x00, which is unassigned -> ILLEGAL by design.
-// `off` (LD/ST/CSUMUPD) and `delta` (SEND) fields are 10-bit two's
+// `off` (LD/ST/CSUM) and `delta` (SEND) fields are 10-bit two's
 // complement; sign-extension happens at execute.
 
 // Register index <-> 3 bits. Codes 0b101-0b111 have no mapping -> ILLEGAL.
@@ -53,17 +53,29 @@ mapping clause encdec = JMP(tgt)
 mapping clause encdec = LOOKUP(rd, t, rs, tgt)
     <-> 0b001001 @ encdec_reg(rd) @ t @ encdec_reg(rs) @ tgt
 
-// Opcode 0x0A: CSUMUPD hdr(4), off(10)
-mapping clause encdec = CSUMUPD(h, off)
-    <-> 0b001010 @ h @ off @ 0b000000000000 : bits(12)
+// Opcode 0x0A: CSUM rd, hdr(4), off(10), rl
+mapping clause encdec = CSUM(rd, h, off, rl)
+    <-> 0b001010 @ encdec_reg(rd) @ h @ off @ encdec_reg(rl) @ 0b000000 : bits(6)
 
-// Opcode 0x0B: SEND rs, delta(10)
-mapping clause encdec = SEND(rs, delta)
-    <-> 0b001011 @ encdec_reg(rs) @ delta @ 0b0000000000000 : bits(13)
+// Opcode 0x0B: SEND delta(10)
+mapping clause encdec = SEND(delta)
+    <-> 0b001011 @ 0b000 : bits(3) @ delta @ 0b0000000000000 : bits(13)
 
 // Opcode 0x0C: DROP
 mapping clause encdec = DROP()
     <-> 0b001100 @ 0b00000000000000000000000000 : bits(26)
+
+// Opcode 0x0D: STMD rs, nunits-1(2), slot(4)
+mapping clause encdec = STMD(rs, nm1, slot)
+    <-> 0b001101 @ encdec_reg(rs) @ nm1 @ slot @ 0b00000000000000000 : bits(17)
+
+// Opcode 0x0E: ANDI rd, rs, imm16 (imm zero-extended at execute)
+mapping clause encdec = ANDI(rd, rs, imm)
+    <-> 0b001110 @ encdec_reg(rd) @ encdec_reg(rs) @ 0b0000 : bits(4) @ imm
+
+// Opcode 0x0F: SHLI rd, rs, shamt(6)
+mapping clause encdec = SHLI(rd, rs, sh)
+    <-> 0b001111 @ encdec_reg(rd) @ encdec_reg(rs) @ sh @ 0b00000000000000 : bits(14)
 
 end encdec
 

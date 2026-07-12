@@ -15,15 +15,18 @@ function eq_regidx(a, b) = match (a, b) {
 
 overload operator == = {eq_regidx}
 
-// The strict v0 core: 12 instructions + ILLEGAL.
-// Field conventions follow the M1 plan's encoding table:
+// The strict v0 core: 15 instructions + ILLEGAL.
+// Field conventions (see the core-interface redesign spec):
 //   LD/ST    reg, hdr base id (4b; 15 = h_frame), byte offset (10b two's
 //            complement), size-1 (3b -> 1..8 bytes)
-//   LDMD     rd, inbound-SMD field id (4b)
+//   LDMD     rd, md slot id (4b; slots >= md_slots are illegal at execute)
+//   STMD     rs, nunits-1 (2b), md slot (4b) — 16-bit units, MSB-first
 //   ADDI     immediate is sign-extended
+//   ANDI     immediate is zero-extended
+//   SHLI     shift amount (6b), 64-bit truncating
 //   LOOKUP   rd, table id (4b), key rs, miss target (absolute word address)
-//   CSUMUPD  hdr base id, byte offset (10b two's complement)
-//   SEND     port bitmap rs, head delta (10b two's complement)
+//   CSUM     rd, hdr base id, byte offset (10b two's complement), length reg
+//   SEND     head delta (10b two's complement) — egress meaning lives in md
 union instr = {
     LD      : (regidx, bits4, bits10, bits3),
     ST      : (regidx, bits4, bits10, bits3),
@@ -34,8 +37,11 @@ union instr = {
     BNE     : (regidx, regidx, bits16),
     JMP     : bits16,
     LOOKUP  : (regidx, bits4, regidx, bits16),
-    CSUMUPD : (bits4, bits10),
-    SEND    : (regidx, bits10),
+    CSUM    : (regidx, bits4, bits10, regidx),
+    SEND    : bits10,
     DROP    : unit,
+    STMD    : (regidx, bits2, bits4),
+    ANDI    : (regidx, regidx, bits16),
+    SHLI    : (regidx, regidx, bits6),
     ILLEGAL : unit,
 }
