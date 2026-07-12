@@ -1,10 +1,10 @@
 """L2 forward, nanuk-lang edition (the hand-written ISA copy is fwd.asm).
 
 Table id follows the examples' control-plane layout: t0 is the L2 FDB.
-Header ids follow l2l3l4/parse.asm: h_eth=0.
+Header ids follow ../l2l3l4/parse.asm: h_eth=0.
 """
 
-from nanuk.examples.l2l3l4.parse import eth
+from nanuk.lang.headers import eth
 from nanuk.lang import MD_FLOOD, MapProgram
 
 H_ETH = 0

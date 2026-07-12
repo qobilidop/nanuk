@@ -20,11 +20,11 @@ from nanuk.isa.asm import assemble_with_lines
 from nanuk.isa.iss import run_iss
 from nanuk.isa.iss_map import run_map_iss
 from nanuk.isa.map_asm import assemble_with_lines as map_assemble_with_lines
-from nanuk.examples.nanukproto import parse as nanukproto_parse
-from nanuk.examples.l2l3l4.parse import build_ir as l2l3l4_ir
-from nanuk.examples.map_l2fwd.fwd import make_l2fwd
-from nanuk.examples.map_ttl.fwd import make_ttl
-from nanuk.examples.nanukproto.tunnel import make_tunnel_pop, make_tunnel_push
+from examples.nanukproto import parse as nanukproto_parse
+from examples.l2l3l4.parse import build_ir as l2l3l4_ir
+from examples.map_l2fwd.fwd import make_l2fwd
+from examples.map_ttl.fwd import make_ttl
+from examples.nanukproto.tunnel import make_tunnel_pop, make_tunnel_push
 from tests.support.testkit import (
     NO_TABLE,
     demo_l2_table,

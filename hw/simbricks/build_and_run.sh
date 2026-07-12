@@ -21,7 +21,7 @@ STAGE="$REPO/hw/simbricks/stage"
 PROG="${1:-}"
 if [ -z "$PROG" ]; then
   echo "==> assembling demo parser program"
-  ./dev.sh bash -lc 'cd python && uv sync --quiet && uv run nanuk-asm nanuk/examples/l2l3l4/parse.asm -o ../hw/simbricks/prog.bin'
+  ./dev.sh bash -lc 'cd python && uv sync --quiet && uv run nanuk-asm ../examples/l2l3l4/parse.asm -o ../hw/simbricks/prog.bin'
 else
   cp "$PROG" hw/simbricks/prog.bin
 fi

@@ -24,10 +24,10 @@ OUT="$SB/out"
 echo "==> assembling programs (encap + decap pairs)"
 ./dev.sh bash -lc '
     cd python && uv sync --quiet &&
-    uv run nanuk-asm nanuk/examples/l2l3l4/parse.asm -o ../hw/simbricks/out/encap-prog.bin &&
-    uv run nanuk-map-asm nanuk/examples/nanukproto/tunnel_push.asm -o ../hw/simbricks/out/encap-map.bin &&
-    uv run nanuk-asm nanuk/examples/nanukproto/parse_tunnel.asm -o ../hw/simbricks/out/decap-prog.bin &&
-    uv run nanuk-map-asm nanuk/examples/nanukproto/tunnel_pop.asm -o ../hw/simbricks/out/decap-map.bin
+    uv run nanuk-asm ../examples/l2l3l4/parse.asm -o ../hw/simbricks/out/encap-prog.bin &&
+    uv run nanuk-map-asm ../examples/nanukproto/tunnel_push.asm -o ../hw/simbricks/out/encap-map.bin &&
+    uv run nanuk-asm ../examples/nanukproto/parse_tunnel.asm -o ../hw/simbricks/out/decap-prog.bin &&
+    uv run nanuk-map-asm ../examples/nanukproto/tunnel_pop.asm -o ../hw/simbricks/out/decap-map.bin
 '
 
 run_phase() {  # $1 = phase; encap-tables.txt optionally staged in $OUT

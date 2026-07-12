@@ -486,15 +486,65 @@ def _default_tables(program: ir.MapProgram) -> list:
     return tables
 
 
+def _make_pp_parser():
+    """The baked composed-run parser: eth -> 802.1Q (incl. QinQ) -> IPv4
+    (with options) -> UDP. A copy of examples/l2l3l4/parse.py (the bridge is
+    playground toolchain and must not import example content); the composed
+    bridge tests pin its behavior against the example's corpus."""
+    from nanuk.lang import Parser
+    from nanuk.lang.headers import ETY_IPV4, ETY_VLAN, PROTO_UDP, eth, ipv4, udp, vlan
+
+    p = Parser()
+
+    @p.state(start=True)
+    def start(s):
+        s.mark(eth, hdr_id=0)
+        s.smd(s.extract(eth.dst), slot=0)
+        ety = s.extract(eth.ethertype)
+        s.advance(eth.byte_len)
+        s.dispatch(ety, {ETY_VLAN: vlan_tag, ETY_IPV4: ipv4_check},
+                   default=s.accept)
+
+    @p.state()
+    def vlan_tag(s):
+        s.mark(vlan, hdr_id=1)
+        s.smd(s.extract(vlan.tci), slot=3)
+        ety = s.extract(vlan.ethertype)
+        s.advance(vlan.byte_len)
+        s.dispatch(ety, {ETY_VLAN: vlan_tag, ETY_IPV4: ipv4_check},
+                   default=s.accept)
+
+    @p.state()
+    def ipv4_check(s):
+        s.mark(ipv4, hdr_id=2)
+        version = s.extract(ipv4.version)
+        s.dispatch(version, {4: ipv4_body}, default=s.drop)
+
+    @p.state()
+    def ipv4_body(s):
+        s.mark(ipv4)
+        ihl = s.extract(ipv4.ihl)
+        proto = s.extract(ipv4.proto)
+        s.advance(ihl << 2)
+        s.dispatch(proto, {PROTO_UDP: udp_hdr}, default=s.accept)
+
+    @p.state()
+    def udp_hdr(s):
+        s.mark(udp, hdr_id=3)
+        s.smd(s.extract(udp.dport), slot=4)
+        s.advance(udp.byte_len)
+        s.accept()
+
+    return p
+
+
 def _pp_rig():
     """The baked l2l3l4 parser, assembled and provenance-rendered once
     (composed MAP runs trace the PP phase too; its panes aren't shown, so
     provenance is built against an empty source)."""
     global _PP_RIG
     if _PP_RIG is None:
-        from nanuk.examples.l2l3l4.parse import make_parser
-
-        program = make_parser().build_ir()
+        program = _make_pp_parser().build_ir()
         asm_text, bindings = to_asm_annotated(program, check=False)
         prog_bytes, line_map = assemble_with_lines(asm_text)
         states = _provenance(render_ir(program), "", asm_text, program)

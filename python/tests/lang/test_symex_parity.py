@@ -12,7 +12,7 @@ import pytest
 
 from nanuk.ir.interp import interp
 from nanuk.ir.symex import reachable_states, symex
-from nanuk.examples.l2l3l4.parse import make_parser
+from examples.l2l3l4.parse import make_parser
 from nanuk.isa.asm import assemble
 from tests.support.harness import run_program
 
@@ -44,7 +44,7 @@ def test_witnesses_reproduce_on_golden_model():
 def test_symex_invents_a_valid_tunnel_packet():
     """From constraints alone, symex produces a packet the golden model
     recognizes as a well-formed nanukproto tunnel frame."""
-    from nanuk.examples.nanukproto.parse import H_NK, make_parser as make_nk_parser
+    from examples.nanukproto.parse import H_NK, make_parser as make_nk_parser
 
     parser = make_nk_parser()
     prog = parser.build_ir()

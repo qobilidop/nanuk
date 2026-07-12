@@ -2,7 +2,7 @@
 
 import json
 
-from nanuk.examples.l2l3l4 import parse as l2l3l4  # noqa: F401  (env sanity)
+from examples.l2l3l4 import parse as l2l3l4  # noqa: F401  (env sanity)
 
 import bridge
 
@@ -111,3 +111,12 @@ def test_run_returns_full_parse_result():
     assert r["payload_offset"] == 14
     assert r["smd"][:3] == [0xAABB, 0xCCDD, 0xEE01]
     assert len(r["hdr_present"]) == 16 and len(r["smd"]) == 8
+
+
+def test_pp_rig_mirrors_l2l3l4_example():
+    """Tripwire: the bridge's inlined composed-run parser is a copy of
+    examples/l2l3l4/parse.py (the bridge must not import example content);
+    hold the two identical at the assembly level."""
+    from examples.l2l3l4.parse import build
+
+    assert bridge._make_pp_parser().compile() == build()

@@ -34,7 +34,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-EXAMPLES = REPO_ROOT / "python" / "nanuk" / "examples"
+EXAMPLES = REPO_ROOT / "examples"
 
 L2_TABLE = demo_l2_table()
 TUN_TABLE = demo_tun_table()
