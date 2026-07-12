@@ -1,6 +1,6 @@
 """M1 demo 1: L2 forwarding through the composed PP -> MAP golden models.
 
-PP = examples/l2l3l4/parse.asm, MAP = examples/map_l2fwd/fwd.asm, over the
+PP = nanuk/examples/l2l3l4/parse.asm, MAP = nanuk/examples/map_l2fwd/fwd.asm, over the
 stage-1 corpus shapes: known DMACs egress exactly their configured port with
 the frame unmodified; unknown DMACs flood everything but the ingress port;
 PP-dropped packets short-circuit before the MAP."""
@@ -18,8 +18,8 @@ from tests.support.map_harness import run_pipeline
 from tests.support.testkit import DMAC, DMAC2, demo_l2_table
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-PP_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"
-MAP_ASM = REPO_ROOT / "examples" / "map_l2fwd" / "fwd.asm"
+PP_ASM = REPO_ROOT / "python" / "nanuk" / "examples" / "l2l3l4" / "parse.asm"
+MAP_ASM = REPO_ROOT / "python" / "nanuk" / "examples" / "map_l2fwd" / "fwd.asm"
 
 DMAC_PORT2 = DMAC   # -> port 2
 DMAC_PORT3 = DMAC2  # -> port 3

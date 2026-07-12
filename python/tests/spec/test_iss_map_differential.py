@@ -18,17 +18,17 @@ from tests.support.map_harness import Table, run_map
 from tests.support.testkit import demo_l2_table, demo_tun_table, map_packets
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-PP_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"
+PP_ASM = REPO_ROOT / "python" / "nanuk" / "examples" / "l2l3l4" / "parse.asm"
 
 DEMOS = {
-    "map_l2fwd": (REPO_ROOT / "examples" / "map_l2fwd" / "fwd.asm", [demo_l2_table(both=True)]),
-    "map_ttl": (REPO_ROOT / "examples" / "map_ttl" / "fwd.asm", [demo_l2_table()]),
+    "map_l2fwd": (REPO_ROOT / "python" / "nanuk" / "examples" / "map_l2fwd" / "fwd.asm", [demo_l2_table(both=True)]),
+    "map_ttl": (REPO_ROOT / "python" / "nanuk" / "examples" / "map_ttl" / "fwd.asm", [demo_l2_table()]),
     "tunnel_push": (
-        REPO_ROOT / "examples" / "nanukproto" / "tunnel_push.asm",
+        REPO_ROOT / "python" / "nanuk" / "examples" / "nanukproto" / "tunnel_push.asm",
         [demo_l2_table(), demo_tun_table()],
     ),
     "tunnel_pop": (
-        REPO_ROOT / "examples" / "nanukproto" / "tunnel_pop.asm",
+        REPO_ROOT / "python" / "nanuk" / "examples" / "nanukproto" / "tunnel_pop.asm",
         [demo_l2_table(both=True)],
     ),
 }

@@ -111,7 +111,7 @@ def test_fuzz_raw_words(seed):
 # --- MAP leg: random packets/tables through the M1 demo programs, plus raw
 # random MAP programs — nanuk-map-emu vs MapCore, full contract. ---
 
-_EXAMPLES = Path(__file__).resolve().parents[3] / "examples"
+_EXAMPLES = Path(__file__).resolve().parents[3] / "python" / "nanuk" / "examples"
 
 
 class _StubPP:

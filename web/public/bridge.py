@@ -492,7 +492,7 @@ def _pp_rig():
     provenance is built against an empty source)."""
     global _PP_RIG
     if _PP_RIG is None:
-        from nanuk.lang.programs.l2l3l4 import make_parser
+        from nanuk.examples.l2l3l4.parse import make_parser
 
         program = make_parser().build_ir()
         asm_text, bindings = to_asm_annotated(program, check=False)

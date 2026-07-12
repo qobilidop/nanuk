@@ -30,10 +30,10 @@ spec/     Sail ISA specs (the source of truth: parser-model/ + map-model/) and e
 python/   The nanuk package, four descending abstraction levels: nanuk.lang
           (eDSL) -> nanuk.ir (protobuf IR, lowerings, interpreters, symex)
           -> nanuk.isa (assemblers, encodings, ISS) -> nanuk.rtl (Amaranth
-          cores). Plus the whole Python test suite (tests/, incl. the
-          golden-model pcap rig in tests/support).
+          cores). Demo programs (hand-written asm and eDSL pairs) ship in
+          the wheel as nanuk/examples/. Plus the whole Python test suite
+          (tests/, incl. the golden-model pcap rig in tests/support).
 hw/       Hardware workbench: Verilog export, SimBricks demos, RTL build outputs
-examples/ Parser + match-action programs (hand-written asm and eDSL pairs)
 guide/    Lab notes and decision records
 docs/     Design docs and plans
 ```
@@ -43,7 +43,7 @@ docs/     Design docs and plans
 `hw/simbricks/build_and_run.sh` runs the end-to-end demo: two QEMU Linux
 hosts exchange real traffic through the Verilator'd nanuk parser core
 inside SimBricks — `ping` works because the loaded parser program accepts
-the frames. Load `examples/drop_all/parse.asm` instead and the network
+the frames. Load `python/nanuk/examples/drop_all/parse.asm` instead and the network
 goes dark: the parser program is the switch's forwarding policy.
 
 ## Quickstart
@@ -67,7 +67,7 @@ devcontainer up --workspace-folder .
 ./dev.sh bash -lc 'cd python && uv sync --extra rtl && NANUK_COSIM=1 uv run pytest tests ../web/py/tests'
 ```
 
-The first thing nanuk ever parsed: `examples/l2l3l4/parse.asm` — Ethernet,
+The first thing nanuk ever parsed: `python/nanuk/examples/l2l3l4/parse.asm` — Ethernet,
 802.1Q (incl. QinQ), IPv4 (incl. options), and UDP parsed by an
 11-instruction ISA, verified against a scapy-generated pcap corpus on the
 Sail golden model.

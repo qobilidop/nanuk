@@ -3,7 +3,7 @@ invented tunnel protocol (see README.md). Demonstrates that adding a
 protocol to the switch is one header declaration and three states."""
 
 from nanuk.lang import Header, Parser
-from nanuk.lang.programs.l2l3l4 import eth, ipv4, udp, vlan
+from nanuk.examples.l2l3l4.parse import eth, ipv4, udp, vlan
 
 nk = Header(
     "nanukproto",

@@ -1,5 +1,5 @@
 """Stage-2 done criterion: the eDSL demo is behaviorally identical to the
-hand-written examples/l2l3l4/parse.asm over the full test_demo.py corpus.
+hand-written nanuk/examples/l2l3l4/parse.asm over the full test_demo.py corpus.
 
 Gated behind NANUK_COSIM=1 because it needs the built nanuk-emu golden
 model; everything here imports cleanly without the emulator binary.
@@ -13,7 +13,7 @@ from scapy.layers.inet import IP, TCP, UDP
 from scapy.layers.l2 import ARP, Dot1Q, Ether
 from scapy.packet import Raw
 
-from nanuk.lang.programs.l2l3l4 import build
+from nanuk.examples.l2l3l4.parse import build
 from nanuk.isa.asm import assemble
 from tests.support.harness import run_program
 
@@ -23,7 +23,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-HAND_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"
+HAND_ASM = REPO_ROOT / "python" / "nanuk" / "examples" / "l2l3l4" / "parse.asm"
 
 DMAC = "aa:bb:cc:dd:ee:01"
 
