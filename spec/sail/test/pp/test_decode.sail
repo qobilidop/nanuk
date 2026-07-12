@@ -31,16 +31,20 @@ function test_golden_encodings() = {
     check_roundtrip(SETHDR(0x3), 0x24000003, "SETHDR 3");
     check_roundtrip(STMD(R0, 0b10, 0b0000), 0x28400000, "STMD 0, r0, 3");
     check_roundtrip(HALT(false), 0x2C000000, "HALT accept");
-    check_roundtrip(HALT(true), 0x2C000001, "HALT drop")
+    check_roundtrip(HALT(true), 0x2C000001, "HALT drop");
+    check_roundtrip(LDMD(R1, 0x3), 0x30980000, "LDMD r1, slot 3");
+    check_roundtrip(LDMD(R2, 0x9), 0x31480000, "LDMD r2, 9 (decodes; slot >= 8 is illegal at execute)")
 }
 
 val test_illegal_words : unit -> unit
 function test_illegal_words() = {
     // The all-zeros word (opcode 0x00) is illegal by design.
     assert(is_illegal(decode(0x00000000)), "all-zeros word is ILLEGAL");
-    // Unassigned opcode above HALT.
-    assert(is_illegal(decode(0x30000000)), "opcode 0x0C is ILLEGAL");
+    // Unassigned opcode above LDMD.
+    assert(is_illegal(decode(0x34000000)), "opcode 0x0D is ILLEGAL");
     assert(is_illegal(decode(0xFFFFFFFF)), "all-ones word is ILLEGAL");
+    // LDMD with nonzero reserved bits.
+    assert(is_illegal(decode(0x30980001)), "LDMD with reserved bit set is ILLEGAL");
     // HALT with nonzero reserved bits.
     assert(is_illegal(decode(0x2C000002)), "HALT with reserved bit set is ILLEGAL");
     // ADVI with nonzero reserved bits [25:16].

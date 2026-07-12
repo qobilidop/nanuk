@@ -42,9 +42,16 @@ function emu_get_hdr_offset(h) = {
     hdr_offset[i]
 }
 
-val emu_get_smd : bits8 -> bits16
-function emu_get_smd(s) = {
+val emu_get_md : bits8 -> bits16
+function emu_get_md(s) = {
     let i = unsigned(s);
-    assert(0 <= i & i < 8, "SMD slot index out of bounds");
-    smd[i]
+    assert(0 <= i & i < 8, "md slot index out of bounds");
+    md[i]
+}
+
+val emu_set_md : (bits8, bits16) -> unit
+function emu_set_md(s, v) = {
+    let i = unsigned(s);
+    assert(0 <= i & i < 8, "md slot index out of bounds");
+    md[i] = v
 }

@@ -61,7 +61,8 @@ add_custom_command(
         --c-preserve emu_get_steps
         --c-preserve emu_get_hdr_present
         --c-preserve emu_get_hdr_offset
-        --c-preserve emu_get_smd
+        --c-preserve emu_get_md
+        --c-preserve emu_set_md
         ${MODEL_MAIN}
         ${CMAKE_SOURCE_DIR}/emulator/entry.sail -o ${EMU_STEM}
     DEPENDS ${MODEL_SAIL_FILES} ${CMAKE_SOURCE_DIR}/emulator/entry.sail

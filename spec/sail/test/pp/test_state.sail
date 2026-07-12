@@ -9,14 +9,14 @@ function test_reset_zeroes_state() = {
     emu_set_plen(0x0040);
     write_reg(R1, 0x00000000_000000FF);
     set_hdr(5);
-    write_smd_slot(2, 0x1234);
+    write_md_slot(2, 0x1234);
     emu_reset();
     assert(read_reg(R1) == sail_zeros(64), "reset clears registers");
     assert(read_pkt_byte(3) == 0x00, "reset clears packet buffer");
     assert(read_imem(2) == 0x00000000, "reset clears imem");
     assert(unsigned(plen) == 0, "reset clears plen");
     assert(emu_get_hdr_present(0x05) == 0x00, "reset clears hdr_present");
-    assert(emu_get_smd(0x02) == 0x0000, "reset clears smd");
+    assert(emu_get_md(0x02) == 0x0000, "reset clears md");
     assert(emu_get_verdict() == verdict_accept, "reset clears verdict");
     assert(emu_get_error() == err_none, "reset clears error")
 }
