@@ -4,8 +4,8 @@ the L2-forward demo against hand-encoded words."""
 
 import pytest
 
-from nanuk_spec import map_encoding as e
-from nanuk_spec.map_asm import AsmError, assemble
+from nanuk_isa import map_encoding as e
+from nanuk_isa.map_asm import AsmError, assemble
 
 
 def words(binary: bytes) -> list[int]:

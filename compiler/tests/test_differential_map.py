@@ -13,7 +13,7 @@ import pytest
 from nanuk_ir import nanuk_ir_pb2 as ir
 from nanuk_ir.interp_map import interp_map
 from nanuk_ir.lower_map import to_map_asm
-from nanuk_spec.map_asm import assemble
+from nanuk_isa.map_asm import assemble
 from nanuk_spec.map_harness import Table, run_map
 
 from tests.irbuild import l2fwd_program, load, send

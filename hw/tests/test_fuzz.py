@@ -17,8 +17,8 @@ import pytest
 
 from nanuk_hw.map_sim_util import run_map_one
 from nanuk_hw.sim_util import run_one
-from nanuk_spec import encoding as enc
-from nanuk_spec.map_asm import assemble as map_assemble
+from nanuk_isa import encoding as enc
+from nanuk_isa.map_asm import assemble as map_assemble
 from nanuk_spec.map_harness import Table, run_map
 
 pytestmark = pytest.mark.skipif(
@@ -152,7 +152,7 @@ def _random_table(rng, packet: bytes) -> Table:
 @pytest.mark.parametrize("seed", range(15))
 def test_fuzz_map_l2fwd(seed):
     from nanuk_spec.harness import run_program
-    from nanuk_spec.asm import assemble as pp_assemble
+    from nanuk_isa.asm import assemble as pp_assemble
 
     rng = random.Random(3000 + seed)
     pp_prog = pp_assemble((_EXAMPLES / "l2l3l4" / "parse.asm").read_text())

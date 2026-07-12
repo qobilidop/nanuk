@@ -243,7 +243,7 @@ def test_remark_after_dynamic_advance_reanchors():
 
 
 def test_demo_program_compiles_and_assembles():
-    from nanuk_spec.asm import assemble
+    from nanuk_isa.asm import assemble
 
     from nanuk_lang.programs.l2l3l4 import build
 

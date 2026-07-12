@@ -54,7 +54,7 @@ def hand_built_program() -> ir.Program:
 
 
 def test_hand_built_ir_validates_and_assembles():
-    from nanuk_spec.asm import assemble
+    from nanuk_isa.asm import assemble
 
     program = hand_built_program()
     validate(program)
@@ -68,7 +68,7 @@ def test_hand_built_ir_validates_and_assembles():
 )
 class TestOnEmulator:
     def test_accept_path(self):
-        from nanuk_spec.asm import assemble
+        from nanuk_isa.asm import assemble
         from nanuk_spec.harness import VERDICT_ACCEPT, run_program
 
         prog = assemble(to_asm(hand_built_program()))
@@ -82,7 +82,7 @@ class TestOnEmulator:
         assert r.smd[0] == 0xBEEF
 
     def test_drop_path(self):
-        from nanuk_spec.asm import assemble
+        from nanuk_isa.asm import assemble
         from nanuk_spec.harness import VERDICT_DROP, run_program
 
         prog = assemble(to_asm(hand_built_program()))

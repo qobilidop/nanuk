@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from nanuk_spec.asm import assemble
+from nanuk_isa.asm import assemble
 from nanuk_spec.harness import run_program
 from nanuk_spec.testkit import l2l3l4_packets
 

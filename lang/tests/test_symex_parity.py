@@ -14,7 +14,7 @@ import pytest
 from nanuk_ir.interp import interp
 from nanuk_ir.symex import reachable_states, symex
 from nanuk_lang.programs.l2l3l4 import make_parser
-from nanuk_spec.asm import assemble
+from nanuk_isa.asm import assemble
 from nanuk_spec.harness import run_program
 
 pytestmark = pytest.mark.skipif(

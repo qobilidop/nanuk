@@ -6,7 +6,7 @@ import pytest
 from nanuk_ir import nanuk_ir_pb2 as ir
 from nanuk_ir.lower import LowerError
 from nanuk_ir.lower_map import to_map_asm
-from nanuk_spec.map_asm import assemble
+from nanuk_isa.map_asm import assemble
 
 from tests.irbuild import l2fwd_program, load
 

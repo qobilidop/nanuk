@@ -1,7 +1,7 @@
 import pytest
 
-from nanuk_spec import encoding
-from nanuk_spec.asm import AsmError, assemble
+from nanuk_isa import encoding
+from nanuk_isa.asm import AsmError, assemble
 
 
 def words(binary: bytes) -> list[int]:

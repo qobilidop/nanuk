@@ -27,7 +27,7 @@ def nk_hdr(magic=0x4E4B, version=1, flags=0, tenant=0x0ABCDE, inner=0x0800):
 
 
 def test_program_compiles_and_assembles():
-    from nanuk_spec.asm import assemble
+    from nanuk_isa.asm import assemble
 
     binary = assemble(build())
     assert len(binary) % 4 == 0 and len(binary) > 0
@@ -43,7 +43,7 @@ class TestOnGoldenModel:
     @pytest.fixture(scope="class")
     @staticmethod
     def prog():
-        from nanuk_spec.asm import assemble
+        from nanuk_isa.asm import assemble
 
         return assemble(build())
 

@@ -3,7 +3,7 @@ spec/parser-test/test_decode.sail — the two encoders must never drift."""
 
 import pytest
 
-from nanuk_spec import encoding
+from nanuk_isa import encoding
 
 
 def test_golden_words_match_sail():

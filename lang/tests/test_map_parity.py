@@ -19,9 +19,9 @@ from nanuk_lang.programs.map_demos import (
     make_tunnel_pop,
     make_tunnel_push,
 )
-from nanuk_spec.asm import assemble as pp_assemble
+from nanuk_isa.asm import assemble as pp_assemble
 from nanuk_spec.harness import VERDICT_ACCEPT, run_program
-from nanuk_spec.map_asm import assemble as map_assemble
+from nanuk_isa.map_asm import assemble as map_assemble
 from nanuk_spec.map_harness import run_map
 from nanuk_spec.testkit import (
     DMAC,

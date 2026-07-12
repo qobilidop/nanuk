@@ -16,7 +16,7 @@ from scapy.layers.inet import IP, UDP
 from nanuk_ir.interp import interp
 from nanuk_ir.lower import to_asm
 from nanuk_lang.programs.l2l3l4 import build_ir as l2l3l4_ir
-from nanuk_spec.asm import assemble
+from nanuk_isa.asm import assemble
 from nanuk_spec.harness import run_program
 
 from test_parity import CORPUS

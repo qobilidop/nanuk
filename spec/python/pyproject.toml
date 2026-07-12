@@ -4,17 +4,18 @@ version = "0.1.0"
 description = "nanuk parser ISA v0: assembler and golden-model pcap harness"
 requires-python = ">=3.12"
 dependencies = [
+    "nanuk-isa",
     "scapy>=2.5",
 ]
-
-[project.scripts]
-nanuk-asm = "nanuk_spec.asm:main"
 
 [dependency-groups]
 dev = [
     "pytest>=8",
     "ruff>=0.15.21",
 ]
+
+[tool.uv.sources]
+nanuk-isa = { path = "../isa", editable = true }
 
 [build-system]
 requires = ["hatchling"]

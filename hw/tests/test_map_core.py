@@ -20,7 +20,7 @@ from nanuk_hw.map_core import (
 )
 from nanuk_hw.map_sim_util import run_map_one
 
-from nanuk_spec import map_encoding as e
+from nanuk_isa import map_encoding as e
 
 
 @dataclass(frozen=True)

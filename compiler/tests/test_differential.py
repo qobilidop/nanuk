@@ -13,7 +13,7 @@ import pytest
 from nanuk_ir import nanuk_ir_pb2 as ir
 from nanuk_ir.interp import interp
 from nanuk_ir.lower import to_asm
-from nanuk_spec.asm import assemble
+from nanuk_isa.asm import assemble
 from nanuk_spec.harness import run_program
 
 from test_roundtrip import rich_program

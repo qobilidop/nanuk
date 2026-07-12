@@ -1,8 +1,8 @@
 """MAP harness tests: the smoke program through run_map, and a trivial
 PP-accept-all + MAP-flood program through run_pipeline for every ingress."""
 
-from nanuk_spec import encoding as pe
-from nanuk_spec import map_encoding as me
+from nanuk_isa import encoding as pe
+from nanuk_isa import map_encoding as me
 from nanuk_spec.harness import ParseResult, VERDICT_ACCEPT
 from nanuk_spec.map_harness import (
     MAP_ERR_NONE,

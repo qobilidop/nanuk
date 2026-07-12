@@ -7,7 +7,7 @@ tests is the Sail<->Python drift tripwire.
 
 import pytest
 
-from nanuk_spec import map_encoding as e
+from nanuk_isa import map_encoding as e
 
 
 def test_golden_words():

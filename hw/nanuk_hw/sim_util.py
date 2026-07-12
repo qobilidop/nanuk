@@ -34,7 +34,7 @@ class CoreResult:
 
 def _to_words(prog) -> list[int]:
     """Program as a list of 32-bit words, from bytes (big-endian, as emitted
-    by nanuk_spec.asm) or an iterable of ints."""
+    by nanuk_isa.asm) or an iterable of ints."""
     if isinstance(prog, (bytes, bytearray)):
         if len(prog) % 4:
             raise ValueError("program byte length must be a multiple of 4")

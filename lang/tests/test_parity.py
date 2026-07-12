@@ -14,7 +14,7 @@ from scapy.layers.l2 import ARP, Dot1Q, Ether
 from scapy.packet import Raw
 
 from nanuk_lang.programs.l2l3l4 import build
-from nanuk_spec.asm import assemble
+from nanuk_isa.asm import assemble
 from nanuk_spec.harness import run_program
 
 pytestmark = pytest.mark.skipif(
