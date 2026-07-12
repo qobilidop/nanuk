@@ -5,6 +5,7 @@ description = "Python side of the nanuk playground: compile/run/provenance insid
 requires-python = ">=3.12"
 dependencies = [
     "nanuk-ir",
+    "nanuk-isa",
     "nanuk-lang",
 ]
 
@@ -15,6 +16,7 @@ dev = [
 
 [tool.uv.sources]
 nanuk-ir = { path = "../../compiler", editable = true }
+nanuk-isa = { path = "../../spec/isa", editable = true }
 nanuk-lang = { path = "../../lang", editable = true }
 
 [build-system]

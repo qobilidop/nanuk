@@ -40,6 +40,19 @@ dev = [
 ]
 
 [[package]]
+name = "nanuk-isa"
+version = "0.1.0"
+source = { editable = "../../spec/isa" }
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8" },
+    { name = "ruff", specifier = ">=0.15.21" },
+]
+
+[[package]]
 name = "nanuk-lang"
 version = "0.1.0"
 source = { editable = "../../lang" }
@@ -52,6 +65,7 @@ requires-dist = [{ name = "nanuk-ir", editable = "../../compiler" }]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "nanuk-isa", editable = "../../spec/isa" },
     { name = "nanuk-spec", editable = "../../spec/python" },
     { name = "pytest", specifier = ">=8" },
     { name = "scapy", specifier = ">=2.5" },
@@ -64,6 +78,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "nanuk-ir" },
+    { name = "nanuk-isa" },
     { name = "nanuk-lang" },
 ]
 
@@ -75,6 +90,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "nanuk-ir", editable = "../../compiler" },
+    { name = "nanuk-isa", editable = "../../spec/isa" },
     { name = "nanuk-lang", editable = "../../lang" },
 ]
 

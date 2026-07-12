@@ -147,11 +147,19 @@ import json
 import traceback
 
 from nanuk_ir.interp import interp
-from nanuk_ir.lower import LowerError, to_asm
+from nanuk_ir.lower import LowerError, to_asm, to_asm_annotated
 from nanuk_ir.validate import ValidationError, validate
+from nanuk_isa.asm import assemble_with_lines
+from nanuk_isa.iss import run_iss
+from nanuk_isa.iss_map import run_map_iss
+from nanuk_isa.map_asm import assemble_with_lines as map_assemble_with_lines
 
 _EDSL_FILENAME = "<edsl>"
 _LAST_PROGRAM = None
+_LAST_ASM = None     # {"prog", "line_map", "bindings"} for the parser program
+_LAST_STATES = None  # provenance dicts for the compiled program (either kind)
+_LAST_MAP_ASM = None
+_PP_RIG = None       # baked l2l3l4 rig for composed runs (built lazily)
 
 
 def _err(kind: str, message: str, line: int | None = None) -> str:
@@ -253,7 +261,7 @@ def compile_source(source: str) -> str:
     try:
         program = build_ir()
         validate(program)
-        asm_text = to_asm(program, check=False)
+        asm_text, bindings = to_asm_annotated(program, check=False)
     except (ValidationError, LowerError) as e:
         return _err("compile", str(e), _edsl_line(e))
     except Exception as e:
@@ -262,7 +270,12 @@ def compile_source(source: str) -> str:
 
     rendered = render_ir(program)
     states = _provenance(rendered, source, asm_text, program)
+    prog_bytes, line_map = assemble_with_lines(asm_text)
     _LAST_PROGRAM = program
+    globals()["_LAST_ASM"] = {
+        "prog": prog_bytes, "line_map": line_map, "bindings": bindings,
+    }
+    globals()["_LAST_STATES"] = states
     globals()["_LAST_MAP_PROGRAM"] = None
     return json.dumps({
         "ok": True,
@@ -285,7 +298,23 @@ def run_packet(packet_hex: str) -> str:
 
     if _LAST_PROGRAM is None:
         return _err("no_program", "compile a program first")
-    result = interp(_LAST_PROGRAM, packet, check=False)
+    events: list = []
+    result = interp(_LAST_PROGRAM, packet, check=False, trace=events)
+    iss_res = run_iss(
+        _LAST_ASM["prog"], packet, line_map=_LAST_ASM["line_map"]
+    )
+    trace = _build_trace(
+        "parser", _LAST_PROGRAM, _LAST_STATES, events, iss_res,
+        _LAST_ASM["bindings"],
+    )
+    _stamp_result_match(
+        trace,
+        (result.verdict, result.error, result.payload_offset, result.steps,
+         result.hdr_present, result.hdr_offset, result.smd),
+        (iss_res.verdict, iss_res.error, iss_res.payload_offset, iss_res.steps,
+         iss_res.hdr_present, iss_res.hdr_offset, iss_res.smd),
+        iss_res.steps,
+    )
     return json.dumps({
         "ok": True,
         "kind": "parser",
@@ -298,13 +327,14 @@ def run_packet(packet_hex: str) -> str:
             "hdr_offset": result.hdr_offset,
             "smd": result.smd,
         },
+        "trace": trace,
     })
 
 
 # --- MAP programs (M3): render, compile, composed run ------------------------
 
 from nanuk_ir.interp_map import interp_map
-from nanuk_ir.lower_map import to_map_asm
+from nanuk_ir.lower_map import to_map_asm_annotated
 from nanuk_ir.validate_map import validate_map
 
 
@@ -444,7 +474,6 @@ class _Table:
 # demo MACs (matches the docs' examples); other widths start empty.
 _DEMO_ENTRIES = {0xAABBCCDDEE01: 0x4, 0xAABBCCDDEE02: 0x8}
 _LAST_MAP_PROGRAM = None
-_PP_IR = None  # lazily built l2l3l4 parser IR for the composed MAP run
 
 
 def _default_tables(program: ir.MapProgram) -> list:
@@ -457,13 +486,27 @@ def _default_tables(program: ir.MapProgram) -> list:
     return tables
 
 
-def _pp_context(packet: bytes):
-    global _PP_IR
-    if _PP_IR is None:
+def _pp_rig():
+    """The baked l2l3l4 parser, assembled and provenance-rendered once
+    (composed MAP runs trace the PP phase too; its panes aren't shown, so
+    provenance is built against an empty source)."""
+    global _PP_RIG
+    if _PP_RIG is None:
         from nanuk_lang.programs.l2l3l4 import make_parser
 
-        _PP_IR = make_parser().build_ir()
-    return interp(_PP_IR, packet, check=False)
+        program = make_parser().build_ir()
+        asm_text, bindings = to_asm_annotated(program, check=False)
+        prog_bytes, line_map = assemble_with_lines(asm_text)
+        states = _provenance(render_ir(program), "", asm_text, program)
+        _PP_RIG = {
+            "ir": program, "prog": prog_bytes, "line_map": line_map,
+            "bindings": bindings, "states": states,
+        }
+    return _PP_RIG
+
+
+def _pp_context(packet: bytes):
+    return interp(_pp_rig()["ir"], packet, check=False)
 
 
 def _compile_map(source: str, build_map_ir) -> str:
@@ -471,7 +514,7 @@ def _compile_map(source: str, build_map_ir) -> str:
     try:
         program = build_map_ir()
         validate_map(program)
-        asm_text = to_map_asm(program, check=False)
+        asm_text, bindings = to_map_asm_annotated(program, check=False)
     except (ValidationError, LowerError) as e:
         return _err("compile", str(e), _edsl_line(e))
     except Exception as e:
@@ -480,8 +523,13 @@ def _compile_map(source: str, build_map_ir) -> str:
 
     rendered = render_map_ir(program)
     states = _provenance(rendered, source, asm_text, program)
+    prog_bytes, line_map = map_assemble_with_lines(asm_text)
     _LAST_MAP_PROGRAM = program
     _LAST_PROGRAM = None
+    globals()["_LAST_MAP_ASM"] = {
+        "prog": prog_bytes, "line_map": line_map, "bindings": bindings,
+    }
+    globals()["_LAST_STATES"] = states
     return json.dumps({
         "ok": True,
         "kind": "map",
@@ -493,9 +541,24 @@ def _compile_map(source: str, build_map_ir) -> str:
 
 def _run_map_packet(packet: bytes) -> str:
     """Composed run: the baked l2l3l4 parser gates, then the MAP executes
-    with the playground's demo table entries (ingress fixed at 0)."""
+    with the playground's demo table entries (ingress fixed at 0). Both
+    phases are traced (the PP phase against the baked rig's provenance)."""
     program = globals()["_LAST_MAP_PROGRAM"]
-    pp = _pp_context(packet)
+    rig = _pp_rig()
+    pp_events: list = []
+    pp = interp(rig["ir"], packet, check=False, trace=pp_events)
+    pp_iss = run_iss(rig["prog"], packet, line_map=rig["line_map"])
+    pp_trace = _build_trace(
+        "parser", rig["ir"], rig["states"], pp_events, pp_iss, rig["bindings"]
+    )
+    _stamp_result_match(
+        pp_trace,
+        (pp.verdict, pp.error, pp.payload_offset, pp.steps,
+         pp.hdr_present, pp.hdr_offset, pp.smd),
+        (pp_iss.verdict, pp_iss.error, pp_iss.payload_offset, pp_iss.steps,
+         pp_iss.hdr_present, pp_iss.hdr_offset, pp_iss.smd),
+        pp_iss.steps,
+    )
     if pp.verdict != 0:
         return json.dumps({
             "ok": True,
@@ -505,8 +568,25 @@ def _run_map_packet(packet: bytes) -> str:
                 "pp_verdict": pp.verdict,
                 "pp_error": pp.error,
             },
+            "trace": {"pp": pp_trace, "map": None},
         })
-    r = interp_map(program, packet, pp, _default_tables(program), 0, check=False)
+    tables = _default_tables(program)
+    events: list = []
+    r = interp_map(program, packet, pp, tables, 0, check=False, trace=events)
+    map_asm = globals()["_LAST_MAP_ASM"]
+    iss_res = run_map_iss(
+        map_asm["prog"], packet, pp, tables, 0, line_map=map_asm["line_map"]
+    )
+    map_trace = _build_trace(
+        "map", program, _LAST_STATES, events, iss_res, map_asm["bindings"]
+    )
+    _stamp_result_match(
+        map_trace,
+        (r.verdict, r.error, r.egress, r.delta, r.steps, r.frame),
+        (iss_res.verdict, iss_res.error, iss_res.egress, iss_res.delta,
+         iss_res.steps, iss_res.frame),
+        iss_res.steps,
+    )
     return json.dumps({
         "ok": True,
         "kind": "map",
@@ -519,4 +599,123 @@ def _run_map_packet(packet: bytes) -> str:
             "steps": r.steps,
             "frame": r.frame.hex() if r.frame is not None else None,
         },
+        "trace": {"pp": pp_trace, "map": map_trace},
     })
+
+
+# --- Two-level trace assembly (v2 debugger) ----------------------------------
+
+
+def _hex(v: int) -> str:
+    return f"{v:#x}"
+
+
+def _walk_index(state_msg, ev) -> int:
+    """Map an interp TraceEvent to its rendered-op index within the state.
+
+    The rendered walk is: one op per state op (including zero-emission
+    re-anchor marks), then for a dispatch: header, one per case, default;
+    for halt/goto/send/drop: a single terminator op."""
+    n = len(state_msg.ops)
+    if ev.kind == "op":
+        return ev.index
+    term = state_msg.terminator
+    if term.WhichOneof("kind") == "dispatch":
+        if ev.kind == "term_case":
+            return n + 1 + ev.index
+        return n + 1 + len(term.dispatch.cases)  # term_default
+    return n  # bare term on halt/goto/send/drop
+
+
+def _build_trace(kind, program, prov_states, events, iss_res, bindings) -> dict:
+    """Per-machine-step records joining the ISS trace with the covering
+    interp event (the step counter is the shared clock), plus the
+    architectural divergence verdict."""
+    prov_by_name = {s["name"]: s for s in prov_states}
+    states_by_name = {st.name: st for st in program.states}
+    trace = iss_res.trace
+    records: list[dict] = []
+    divergence = None
+
+    def step_record(s: int, info: dict) -> dict:
+        rec = trace[s]
+        out = {
+            "step": s,
+            "pc": rec.pc,
+            "asm_line": rec.line,
+            "regs": [_hex(v) for v in rec.regs],
+            "reg_names": bindings[rec.pc] if rec.pc < len(bindings) else {},
+            "state": info["state"],
+            "ir_line": info["ir_line"],
+            "op_label": info["op_label"],
+            "values": info["values"],
+            "cursor": rec.cursor if kind == "parser" else None,
+        }
+        if kind == "map":
+            out["writes"] = [[addr, data.hex()] for addr, data in rec.writes]
+            out["lookup"] = (
+                None if rec.lookup is None
+                else [rec.lookup[0], _hex(rec.lookup[1]), rec.lookup[2],
+                      _hex(rec.lookup[3])]
+            )
+        return out
+
+    info = {
+        "state": program.states[0].name, "ir_line": None,
+        "op_label": "", "values": {},
+    }
+    prev = 0
+    for ev in events:
+        pstate = prov_by_name.get(ev.state)
+        ridx = _walk_index(states_by_name[ev.state], ev)
+        rop = (
+            pstate["ops"][ridx]
+            if pstate is not None and ridx < len(pstate["ops"])
+            else None
+        )
+        label = rop["label"] if rop else ""
+        values = {}
+        if ev.values:
+            values[label or "value"] = _hex(next(iter(ev.values.values())))
+        info = {
+            "state": ev.state,
+            "ir_line": rop["ir_line"] if rop else None,
+            "op_label": label,
+            "values": values,
+        }
+        upto = min(ev.steps_after, len(trace))
+        for s in range(prev, upto):
+            records.append(step_record(s, info))
+        if divergence is None and 0 < ev.steps_after <= len(trace):
+            divergence = _diverged(kind, ev, trace, prev, ev.steps_after)
+        prev = upto
+    for s in range(prev, len(trace)):  # error tails past the last event
+        records.append(step_record(s, info))
+    return {"steps": iss_res.steps, "records": records, "divergence": divergence}
+
+
+def _diverged(kind, ev, trace, lo, hi):
+    """Architectural comparison at an event boundary; None when agreeing."""
+    if kind == "parser":
+        rec = trace[hi - 1]
+        for what, a, b in (
+            ("cursor", ev.cursor, rec.cursor),
+            ("hdr_present", ev.hdr_present, rec.hdr_present),
+            ("hdr_offset", ev.hdr_offset, rec.hdr_offset),
+            ("smd", ev.smd, rec.smd),
+        ):
+            if a != b:
+                return {"step": hi - 1, "what": what}
+        return None
+    got_writes = tuple(w for r in trace[lo:hi] for w in r.writes)
+    if got_writes != (ev.writes or ()):
+        return {"step": hi - 1, "what": "window writes"}
+    if ev.lookup is not None and not any(r.lookup == ev.lookup for r in trace[lo:hi]):
+        return {"step": hi - 1, "what": "lookup"}
+    return None
+
+
+def _stamp_result_match(trace: dict, interp_fields, iss_fields, last_step: int) -> None:
+    trace["result_match"] = interp_fields == iss_fields
+    if trace["divergence"] is None and not trace["result_match"]:
+        trace["divergence"] = {"step": max(0, last_step - 1), "what": "final result"}
