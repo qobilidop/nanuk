@@ -29,7 +29,7 @@ demo programs are assembled from the repo-root `examples/`.
   headers), verilator/make/g++, QEMU, the guest disk image
   (`images/output-base/base`), and the installed `simbricks.*` Python
   packages. No top-level Makefile in the image ⇒ we invoke verilator/g++
-  directly (commands mirror `rules.mk`).
+  directly (see `build_component.sh`).
 - **Experiment template**: `experiments/minimal_net.py` is exactly the demo
   topology (2 × QEMU host + i40e NIC + EthSwitch + PingClient).
 - macOS: image is amd64-only; runs under Rosetta. QEMU guests run TCG —
@@ -37,10 +37,9 @@ demo programs are assembled from the repo-root `examples/`.
 
 ## Files
 
-- `nanuk_hw.cc` — the component (ports + clocked Verilator loop + parser-gated
-  flood controller)
-- `rules.mk` — in-tree build rules (for a full SimBricks checkout;
-  `build_and_run.sh` compiles directly instead)
+- `nanuk_hw.cc` — the component (ports + clocked Verilator loop driving both
+  cores: PP verdict gates, MAP verdict + tables forward, head-delta applied
+  at readback)
 - `nanuk_demo.py` / `nanuk_demo_tunnel.py` — the experiments (stock classes
   only; single switch / two switches with a nanukproto tunnel between them)
 - `nanuk_run.sh` — executable wrapper selecting per-switch prog/map/tables
