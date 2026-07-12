@@ -31,7 +31,7 @@ from nanuk.testkit.testkit import (
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("NANUK_COSIM") != "1",
-    reason="needs nanuk-emu + nanuk-map-emu (linux container)",
+    reason="needs nanuk-pp-emu + nanuk-map-emu (linux container)",
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[4]

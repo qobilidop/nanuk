@@ -26,7 +26,7 @@ Run a single SW layer with `uv run pytest tests/isa` (or `tests/ir`,
 `tests/lang`, `tests/golden`) from `sw/python/`; the RTL suite runs
 from `hw/amaranth/`.
 
-`NANUK_COSIM=1` enables the suites that need the built `nanuk-emu` /
+`NANUK_COSIM=1` enables the suites that need the built `nanuk-pp-emu` /
 `nanuk-map-emu` golden models.
 
 ## Conventions

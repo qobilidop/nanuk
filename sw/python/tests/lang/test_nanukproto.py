@@ -30,7 +30,7 @@ def test_program_compiles_and_assembles():
 
 
 needs_emu = pytest.mark.skipif(
-    os.environ.get("NANUK_COSIM") != "1", reason="needs nanuk-emu (devcontainer)"
+    os.environ.get("NANUK_COSIM") != "1", reason="needs nanuk-pp-emu (devcontainer)"
 )
 
 

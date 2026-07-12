@@ -1,6 +1,6 @@
-// nanuk-emu: CLI driver for the Sail-generated golden model.
+// nanuk-pp-emu: CLI driver for the Sail-generated golden model.
 //
-//   nanuk-emu <prog.bin> <packet.bin>
+//   nanuk-pp-emu <prog.bin> <packet.bin>
 //
 // prog.bin:   big-endian 32-bit instruction words, loaded at word 0
 // packet.bin: raw packet bytes
@@ -41,19 +41,19 @@ extern uint64_t zemu_get_smd(uint64_t s);
 static unsigned char *read_file(const char *path, size_t *size_out) {
     FILE *f = fopen(path, "rb");
     if (!f) {
-        fprintf(stderr, "nanuk-emu: cannot open %s\n", path);
+        fprintf(stderr, "nanuk-pp-emu: cannot open %s\n", path);
         exit(2);
     }
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
     fseek(f, 0, SEEK_SET);
     if (size < 0) {
-        fprintf(stderr, "nanuk-emu: cannot stat %s\n", path);
+        fprintf(stderr, "nanuk-pp-emu: cannot stat %s\n", path);
         exit(2);
     }
     unsigned char *buf = malloc(size > 0 ? (size_t)size : 1);
     if (size > 0 && fread(buf, 1, (size_t)size, f) != (size_t)size) {
-        fprintf(stderr, "nanuk-emu: short read on %s\n", path);
+        fprintf(stderr, "nanuk-pp-emu: short read on %s\n", path);
         exit(2);
     }
     fclose(f);
@@ -63,7 +63,7 @@ static unsigned char *read_file(const char *path, size_t *size_out) {
 
 int main(int argc, char **argv) {
     if (argc != 3) {
-        fprintf(stderr, "usage: nanuk-emu <prog.bin> <packet.bin>\n");
+        fprintf(stderr, "usage: nanuk-pp-emu <prog.bin> <packet.bin>\n");
         return 2;
     }
 
@@ -72,11 +72,11 @@ int main(int argc, char **argv) {
     unsigned char *pkt = read_file(argv[2], &pkt_size);
 
     if (prog_size % 4 != 0) {
-        fprintf(stderr, "nanuk-emu: program size %zu is not a multiple of 4\n", prog_size);
+        fprintf(stderr, "nanuk-pp-emu: program size %zu is not a multiple of 4\n", prog_size);
         return 2;
     }
     if (prog_size / 4 > IMEM_WORDS) {
-        fprintf(stderr, "nanuk-emu: program exceeds %d words\n", IMEM_WORDS);
+        fprintf(stderr, "nanuk-pp-emu: program exceeds %d words\n", IMEM_WORDS);
         return 2;
     }
 

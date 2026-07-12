@@ -24,7 +24,7 @@ OUT="$SB/out"
 echo "==> assembling programs"
 ./dev.sh bash -lc '
     cd sw/python && uv sync --quiet &&
-    uv run nanuk-asm ../../examples/l2l3l4/parse.asm -o ../../demo/out/prog.bin &&
+    uv run nanuk-pp-asm ../../examples/l2l3l4/parse.asm -o ../../demo/out/prog.bin &&
     uv run nanuk-map-asm ../../examples/map_l2fwd/fwd.asm -o ../../demo/out/map.bin
 '
 

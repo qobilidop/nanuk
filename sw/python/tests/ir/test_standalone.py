@@ -64,7 +64,7 @@ def test_hand_built_ir_validates_and_assembles():
 
 @pytest.mark.skipif(
     os.environ.get("NANUK_COSIM") != "1",
-    reason="cosim needs NANUK_COSIM=1 and a built nanuk-emu",
+    reason="cosim needs NANUK_COSIM=1 and a built nanuk-pp-emu",
 )
 class TestOnEmulator:
     def test_accept_path(self):

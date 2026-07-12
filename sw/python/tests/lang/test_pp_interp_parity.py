@@ -3,7 +3,7 @@ l2l3l4 and nanukproto build_ir() over the full demo corpus (and a couple
 of tunnel packets nanukproto alone can reach). Together with test_parity
 (eDSL == hand asm) this closes the triangle: pp_interp == emu == hand.
 
-Gated behind NANUK_COSIM=1 (needs the built nanuk-emu golden model)."""
+Gated behind NANUK_COSIM=1 (needs the built nanuk-pp-emu golden model)."""
 
 import os
 import struct
@@ -24,7 +24,7 @@ from test_pp_parity import CORPUS
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("NANUK_COSIM") != "1",
-    reason="pp_interp parity needs NANUK_COSIM=1 and a built nanuk-emu",
+    reason="pp_interp parity needs NANUK_COSIM=1 and a built nanuk-pp-emu",
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[4]

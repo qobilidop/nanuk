@@ -3,7 +3,7 @@ emulate(lower(IR)) must agree on EVERY ParserResult field — including
 `steps` and budget exhaustion, since the interpreter's cost accounting
 mirrors the v0 lowering instruction-for-instruction.
 
-Gated behind NANUK_COSIM=1 (needs the built nanuk-emu golden model)."""
+Gated behind NANUK_COSIM=1 (needs the built nanuk-pp-emu golden model)."""
 
 import os
 import random
@@ -20,7 +20,7 @@ from test_roundtrip import rich_program
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("NANUK_COSIM") != "1",
-    reason="differential rig needs NANUK_COSIM=1 and a built nanuk-emu",
+    reason="differential rig needs NANUK_COSIM=1 and a built nanuk-pp-emu",
 )
 
 FIELDS = ("verdict", "error", "payload_offset", "steps",

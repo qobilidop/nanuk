@@ -111,7 +111,7 @@ def _assemble_words(text: str):
 
 
 def main(argv: list[str] | None = None) -> int:
-    return run_cli("nanuk-asm", __doc__.splitlines()[0], assemble, argv)
+    return run_cli("nanuk-pp-asm", __doc__.splitlines()[0], assemble, argv)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 """Stage-2 done criterion: the eDSL demo is behaviorally identical to the
 hand-written examples/l2l3l4/parse.asm over the full test_demo.py corpus.
 
-Gated behind NANUK_COSIM=1 because it needs the built nanuk-emu golden
+Gated behind NANUK_COSIM=1 because it needs the built nanuk-pp-emu golden
 model; everything here imports cleanly without the emulator binary.
 """
 
@@ -20,7 +20,7 @@ from nanuk.testkit.pp_harness import run_program
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("NANUK_COSIM") != "1",
-    reason="cosim parity needs NANUK_COSIM=1 and a built nanuk-emu",
+    reason="cosim parity needs NANUK_COSIM=1 and a built nanuk-pp-emu",
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[4]

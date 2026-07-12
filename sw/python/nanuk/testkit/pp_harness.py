@@ -1,4 +1,4 @@
-"""Packet I/O harness around the nanuk-emu golden model.
+"""Packet I/O harness around the nanuk-pp-emu golden model.
 
 Feeds a program binary and raw packet bytes through the emulator CLI and
 parses its JSON output contract into a ParserResult. run_pcap drives a whole
@@ -27,7 +27,7 @@ ERR_ILLEGAL = 3
 ERR_PC_RANGE = 4
 ERR_SMD_RANGE = 5
 
-_DEFAULT_EMU = Path(__file__).resolve().parents[4] / "spec" / "sail" / "build" / "nanuk-emu"
+_DEFAULT_EMU = Path(__file__).resolve().parents[4] / "spec" / "sail" / "build" / "nanuk-pp-emu"
 
 
 @dataclass(frozen=True)
@@ -50,8 +50,8 @@ class ParserResult:
 
 
 def emulator_path() -> Path:
-    """Path to nanuk-emu: $NANUK_EMU overrides the default build location."""
-    return Path(os.environ.get("NANUK_EMU", _DEFAULT_EMU))
+    """Path to nanuk-pp-emu: $NANUK_PP_EMU overrides the default build location."""
+    return Path(os.environ.get("NANUK_PP_EMU", _DEFAULT_EMU))
 
 
 def run_program(prog: bytes, packet: bytes, emu: Path | None = None) -> ParserResult:

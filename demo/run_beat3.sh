@@ -24,9 +24,9 @@ OUT="$SB/out"
 echo "==> assembling programs (encap + decap pairs)"
 ./dev.sh bash -lc '
     cd sw/python && uv sync --quiet &&
-    uv run nanuk-asm ../../examples/l2l3l4/parse.asm -o ../../demo/out/encap-prog.bin &&
+    uv run nanuk-pp-asm ../../examples/l2l3l4/parse.asm -o ../../demo/out/encap-prog.bin &&
     uv run nanuk-map-asm ../../examples/nanukproto/tunnel_push.asm -o ../../demo/out/encap-map.bin &&
-    uv run nanuk-asm ../../examples/nanukproto/parse_tunnel.asm -o ../../demo/out/decap-prog.bin &&
+    uv run nanuk-pp-asm ../../examples/nanukproto/parse_tunnel.asm -o ../../demo/out/decap-prog.bin &&
     uv run nanuk-map-asm ../../examples/nanukproto/tunnel_pop.asm -o ../../demo/out/decap-map.bin
 '
 

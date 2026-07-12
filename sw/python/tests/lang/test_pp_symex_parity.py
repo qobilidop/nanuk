@@ -3,7 +3,7 @@ programs: every witness reproduces its exact prediction on pp_interp AND the
 golden emulator, all states are reachable, and — the headline payoff —
 symex INVENTS a valid nanukproto tunnel packet from constraints alone.
 
-Gated on NANUK_COSIM=1 (needs nanuk-emu)."""
+Gated on NANUK_COSIM=1 (needs nanuk-pp-emu)."""
 
 import os
 from pathlib import Path
@@ -19,7 +19,7 @@ from nanuk.testkit.pp_harness import run_program
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("NANUK_COSIM") != "1",
-    reason="needs nanuk-emu (linux container)",
+    reason="needs nanuk-pp-emu (linux container)",
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[4]

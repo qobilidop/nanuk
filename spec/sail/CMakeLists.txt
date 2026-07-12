@@ -68,22 +68,22 @@ add_custom_command(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMENT "Compiling Sail model to C (emulator core)..."
 )
-add_executable(nanuk-emu
-    emulator/main.c
+add_executable(nanuk-pp-emu
+    emulator/pp_main.c
     ${EMU_STEM}.c
     ${SAIL_DIR}/lib/sail.c
     ${SAIL_DIR}/lib/rts.c
     ${SAIL_DIR}/lib/elf.c
     ${SAIL_DIR}/lib/sail_failure.c
 )
-target_include_directories(nanuk-emu PRIVATE ${SAIL_DIR}/lib)
-target_link_libraries(nanuk-emu PRIVATE gmp z)
-target_compile_options(nanuk-emu PRIVATE -O2)
+target_include_directories(nanuk-pp-emu PRIVATE ${SAIL_DIR}/lib)
+target_link_libraries(nanuk-pp-emu PRIVATE gmp z)
+target_compile_options(nanuk-pp-emu PRIVATE -O2)
 
-add_test(NAME emu_smoke
-    COMMAND bash ${CMAKE_SOURCE_DIR}/emulator/smoke_test.sh $<TARGET_FILE:nanuk-emu>)
+add_test(NAME pp_emu_smoke
+    COMMAND bash ${CMAKE_SOURCE_DIR}/emulator/pp_smoke_test.sh $<TARGET_FILE:nanuk-pp-emu>)
 
-# The MAP emulator CLI: same shape as nanuk-emu, second Sail model.
+# The MAP emulator CLI: same shape as nanuk-pp-emu, second Sail model.
 set(MAP_EMU_STEM "${CMAKE_BINARY_DIR}/nanuk_map_model")
 add_custom_command(
     OUTPUT ${MAP_EMU_STEM}.c

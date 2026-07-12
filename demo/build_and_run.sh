@@ -28,7 +28,7 @@ echo "==> assembling programs"
 if [ -z "$PROG" ]; then
   ./dev.sh bash -lc '
       cd sw/python &&
-      uv run nanuk-asm ../../examples/l2l3l4/parse.asm -o ../../demo/out/prog.bin
+      uv run nanuk-pp-asm ../../examples/l2l3l4/parse.asm -o ../../demo/out/prog.bin
   '
 else
   cp "$PROG" "$OUT/prog.bin"
