@@ -1,6 +1,6 @@
 """MapCore: Amaranth RTL for the nanuk MAP ISA v0.
 
-The Sail model (spec/map-model/*.sail) is the single source of truth; this
+The Sail model (spec/sail/model/map/*.sail) is the single source of truth; this
 core reproduces its semantics bit-for-bit:
 
 - fetch order per exec.sail step(): step budget first, then pc range, then
@@ -24,7 +24,7 @@ from amaranth import Array, C, Cat, Module, Mux, Signal, signed
 from amaranth.lib import memory, wiring
 from amaranth.lib.wiring import In, Out
 
-# Implementation parameters (mirror spec/map-model/params.sail).
+# Implementation parameters (mirror spec/sail/model/map/params.sail).
 HEADROOM_BYTES = 32
 BUF_BYTES = 256
 WIN_BYTES = 288
@@ -36,12 +36,12 @@ SMD_IN_SLOTS = 8
 NHDR = 16
 STEP_BUDGET = 256
 
-# Verdicts (mirror spec/map-model/state.sail).
+# Verdicts (mirror spec/sail/model/map/state.sail).
 VERDICT_SENT = 0x00
 VERDICT_DROP = 0x01
 VERDICT_ERROR = 0x02
 
-# Error codes (mirror spec/map-model/state.sail).
+# Error codes (mirror spec/sail/model/map/state.sail).
 ERR_NONE = 0x00
 ERR_WINDOW_VIOLATION = 0x01
 ERR_STEP_BUDGET = 0x02
@@ -50,7 +50,7 @@ ERR_PC_RANGE = 0x04
 ERR_HDR_ABSENT = 0x05
 ERR_SEND_RANGE = 0x06
 
-# Opcodes (mirror spec/map-model/decode.sail).
+# Opcodes (mirror spec/sail/model/map/decode.sail).
 OP_LD = 0x01
 OP_ST = 0x02
 OP_LDMD = 0x03
@@ -237,7 +237,7 @@ class MapCore(wiring.Component):
         m.d.comb += [irp.addr.eq(pc), irp.en.eq(1)]
         word = irp.data
 
-        # --- Decode fields (positions per spec/map-model/decode.sail) -------
+        # --- Decode fields (positions per spec/sail/model/map/decode.sail) -------
         opcode = word[26:32]
         f_ra = word[23:26]        # rd/rs at [25:23]
         f_rb = word[20:23]        # rs/rt at [22:20] (ADDI/BEQ/BNE)

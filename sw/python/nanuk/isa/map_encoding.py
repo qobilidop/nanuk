@@ -1,6 +1,6 @@
 """Instruction encodings for the nanuk MAP ISA v0.
 
-This mirrors the encdec mapping in spec/map-model/decode.sail — the Sail spec
+This mirrors the encdec mapping in spec/sail/model/map/decode.sail — the Sail spec
 owns the encoding truth; test_map_encoding.py pins both to the same golden
 words (the drift tripwire shared with spec/map-test/test_map_decode.sail).
 

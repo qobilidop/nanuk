@@ -8,9 +8,9 @@ set -euo pipefail
 #
 # Examples:
 #   ./dev.sh sail --version
-#   ./dev.sh cmake -S sail -B sail/build
-#   ./dev.sh cmake --build sail/build
-#   ./dev.sh ctest --test-dir sail/build
+#   ./dev.sh cmake -S spec/sail -B spec/sail/build
+#   ./dev.sh cmake --build spec/sail/build
+#   ./dev.sh ctest --test-dir spec/sail/build
 #   ./dev.sh bash              # interactive shell
 
 devcontainer exec --workspace-folder . "$@"

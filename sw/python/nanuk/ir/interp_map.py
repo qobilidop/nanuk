@@ -19,7 +19,7 @@ from . import nanuk_ir_pb2 as ir
 from .interp import TraceEvent
 from .validate_map import validate_map
 
-# Mirror of spec/map-model/params.sail (see also nanuk.testkit.map_harness).
+# Mirror of spec/sail/model/map/params.sail (see also nanuk.testkit.map_harness).
 HEADROOM_BYTES = 32
 BUF_BYTES = 256
 WIN_BYTES = 288
@@ -101,7 +101,7 @@ class _Machine:
 
     def tick(self) -> None:
         # Budget checked before the instruction runs, counted once fetched
-        # (mirrors spec/map-model/exec.sail step()).
+        # (mirrors spec/sail/model/map/exec.sail step()).
         if self.steps >= STEP_BUDGET:
             raise _Halted(VERDICT_ERROR, ERR_STEP_BUDGET)
         self.steps += 1

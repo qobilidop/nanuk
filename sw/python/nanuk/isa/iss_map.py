@@ -2,7 +2,7 @@
 
 Executes assembled 32-bit words against the window (32-byte headroom +
 frame), the inbound PP contract, and exact-match tables. Semantics
-mirror spec/map-model ({exec,insts,decode,state}.sail): same error
+mirror spec/sail/model/map ({exec,insts,decode,state}.sail): same error
 codes, same step accounting, reserved bits enforced. Table entries are
 masked to the declared widths, matching the emulator's load behavior
 and interp_map. Records a full per-step trace including window-write
@@ -11,7 +11,7 @@ and lookup events.
 
 from dataclasses import dataclass
 
-# Mirror of spec/map-model/params.sail
+# Mirror of spec/sail/model/map/params.sail
 HEADROOM_BYTES = 32
 BUF_BYTES = 256
 WIN_BYTES = 288
@@ -20,7 +20,7 @@ N_TABLES = 4
 IMEM_WORDS = 1024
 STEP_BUDGET = 256
 
-# Mirror of spec/map-model/state.sail
+# Mirror of spec/sail/model/map/state.sail
 VERDICT_SENT = 0
 VERDICT_DROP = 1
 VERDICT_ERROR = 2
@@ -80,7 +80,7 @@ def _mask(value: int, width: int) -> int:
 
 def _decode(w: int):
     """Word -> ("mnemonic", fields...) or None for ILLEGAL. Layouts and
-    reserved-bit masks mirror spec/map-model/decode.sail."""
+    reserved-bit masks mirror spec/sail/model/map/decode.sail."""
     op = w >> 26
     r1 = (w >> 23) & 7
     r2 = (w >> 20) & 7
@@ -198,7 +198,7 @@ class _Machine:
         return addr
 
     def step(self) -> None:
-        # Mirrors step() in spec/map-model/exec.sail.
+        # Mirrors step() in spec/sail/model/map/exec.sail.
         if self.steps >= STEP_BUDGET:
             self.raise_err(ERR_STEP_BUDGET)
             return
@@ -284,7 +284,7 @@ class _Machine:
                 self.halted = True
 
     def _ld_field(self, f: int) -> int:
-        # Mirrors ld_field in spec/map-model/insts.sail.
+        # Mirrors ld_field in spec/sail/model/map/insts.sail.
         if f < 8:
             return self.pp.smd[f]
         if f == 8:

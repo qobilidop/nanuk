@@ -2,7 +2,7 @@
 
 Executes assembled 32-bit words — the same artifact the generated C
 emulator and the RTL core consume — and records a full per-step trace.
-Semantics mirror spec/parser-model ({exec,insts,decode,state}.sail)
+Semantics mirror spec/sail/model/parser ({exec,insts,decode,state}.sail)
 exactly: same error codes, same step accounting (budget checked before
 execute, counted at fetch), reserved encoding bits enforced (nonzero →
 ILLEGAL). Constants are deliberate local mirrors of params.sail
@@ -12,14 +12,14 @@ this file to the golden model at run time.
 
 from dataclasses import dataclass
 
-# Mirror of spec/parser-model/params.sail
+# Mirror of spec/sail/model/parser/params.sail
 BUF_BYTES = 256
 IMEM_WORDS = 1024
 NHDR = 16
 SMD_SLOTS = 8
 STEP_BUDGET = 256
 
-# Mirror of spec/parser-model/state.sail
+# Mirror of spec/sail/model/parser/state.sail
 VERDICT_ACCEPT = 0
 VERDICT_DROP = 1
 VERDICT_ERROR = 2
@@ -66,7 +66,7 @@ class IssResult:
 def _decode(w: int):
     """Word -> ("mnemonic", fields...) or None for ILLEGAL.
 
-    Field layouts and reserved-bit masks mirror spec/parser-model/decode.sail;
+    Field layouts and reserved-bit masks mirror spec/sail/model/parser/decode.sail;
     any nonzero reserved bit or register code > 4 fails to decode.
     """
     op = w >> 26
@@ -148,7 +148,7 @@ class _Machine:
         self.halted = True
 
     def step(self) -> None:
-        # Mirrors step() in spec/parser-model/exec.sail: budget, then pc
+        # Mirrors step() in spec/sail/model/parser/exec.sail: budget, then pc
         # range, then decode/execute; the executed instruction is counted
         # at fetch, so an error-halting instruction has already ticked.
         if self.steps >= STEP_BUDGET:

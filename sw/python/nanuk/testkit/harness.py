@@ -14,12 +14,12 @@ from pathlib import Path
 
 from scapy.utils import rdpcap
 
-# Verdicts (mirror spec/parser-model/state.sail)
+# Verdicts (mirror spec/sail/model/parser/state.sail)
 VERDICT_ACCEPT = 0
 VERDICT_DROP = 1
 VERDICT_ERROR = 2
 
-# Error codes (mirror spec/parser-model/state.sail)
+# Error codes (mirror spec/sail/model/parser/state.sail)
 ERR_NONE = 0
 ERR_HDR_VIOLATION = 1
 ERR_STEP_BUDGET = 2
@@ -27,7 +27,7 @@ ERR_ILLEGAL = 3
 ERR_PC_RANGE = 4
 ERR_SMD_RANGE = 5
 
-_DEFAULT_EMU = Path(__file__).resolve().parents[4] / "sail" / "build" / "nanuk-emu"
+_DEFAULT_EMU = Path(__file__).resolve().parents[4] / "spec" / "sail" / "build" / "nanuk-emu"
 
 
 @dataclass(frozen=True)
@@ -59,7 +59,7 @@ def run_program(prog: bytes, packet: bytes, emu: Path | None = None) -> ParseRes
     emu = emu or emulator_path()
     if not emu.exists():
         raise FileNotFoundError(
-            f"emulator not found at {emu}; build it with: cmake --build sail/build"
+            f"emulator not found at {emu}; build it with: cmake --build spec/sail/build"
         )
     with tempfile.TemporaryDirectory() as tmp:
         prog_path = Path(tmp) / "prog.bin"

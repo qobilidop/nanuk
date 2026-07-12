@@ -26,7 +26,7 @@ the full design.
 ## Layout
 
 ```
-sail/        Sail ISA models (the source of truth: model/{parser,map}) and the
+spec/sail/   Sail ISA models (the source of truth: model/{parser,map}) and the
              generated golden-model emulators
 sw/python/   The nanuk package, three descending abstraction levels: nanuk.lang
              (eDSL) -> nanuk.ir (protobuf IR, lowerings, interpreters, symex)
@@ -59,11 +59,11 @@ devcontainer build --workspace-folder .
 devcontainer up --workspace-folder .
 
 # Build the Sail model, emulator, and tests
-./dev.sh cmake -S sail -B sail/build
-./dev.sh cmake --build sail/build
+./dev.sh cmake -S spec/sail -B spec/sail/build
+./dev.sh cmake --build spec/sail/build
 
 # Sail model tests + emulator smoke test
-./dev.sh ctest --test-dir sail/build --output-on-failure
+./dev.sh ctest --test-dir spec/sail/build --output-on-failure
 
 # The SW suite: ISA, IR, eDSL, golden-model pcap rig, and playground bridge
 ./dev.sh bash -lc 'cd sw/python && uv sync && NANUK_COSIM=1 uv run pytest tests ../../web/py/tests'

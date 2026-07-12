@@ -2,7 +2,7 @@
 .agent_scratch/
 third_party/
 
-# Build outputs, per-subsystem (matches at any level: sail/build,
+# Build outputs, per-subsystem (matches at any level: spec/sail/build,
 # sw/python/build, hw/amaranth/build, demo/build; sail_smt_cache
 # follows the Sail cwd)
 build/

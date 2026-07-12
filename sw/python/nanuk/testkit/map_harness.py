@@ -18,12 +18,12 @@ from pathlib import Path
 
 from .harness import VERDICT_ACCEPT, ParseResult, run_program
 
-# Verdicts (mirror spec/map-model/state.sail)
+# Verdicts (mirror spec/sail/model/map/state.sail)
 VERDICT_SENT = 0
 VERDICT_DROP = 1
 VERDICT_ERROR = 2
 
-# Error codes (mirror spec/map-model/state.sail)
+# Error codes (mirror spec/sail/model/map/state.sail)
 MAP_ERR_NONE = 0
 MAP_ERR_WINDOW_VIOLATION = 1
 MAP_ERR_STEP_BUDGET = 2
@@ -32,10 +32,10 @@ MAP_ERR_PC_RANGE = 4
 MAP_ERR_HDR_ABSENT = 5
 MAP_ERR_SEND_RANGE = 6
 
-# Window geometry (mirror spec/map-model/params.sail)
+# Window geometry (mirror spec/sail/model/map/params.sail)
 BUF_BYTES = 256
 
-_DEFAULT_MAP_EMU = Path(__file__).resolve().parents[4] / "sail" / "build" / "nanuk-map-emu"
+_DEFAULT_MAP_EMU = Path(__file__).resolve().parents[4] / "spec" / "sail" / "build" / "nanuk-map-emu"
 
 
 @dataclass(frozen=True)
@@ -93,7 +93,7 @@ def run_map(
     emu = emu or map_emulator_path()
     if not emu.exists():
         raise FileNotFoundError(
-            f"MAP emulator not found at {emu}; build it with: cmake --build sail/build"
+            f"MAP emulator not found at {emu}; build it with: cmake --build spec/sail/build"
         )
     with tempfile.TemporaryDirectory() as tmp:
         prog_path = Path(tmp) / "prog.bin"

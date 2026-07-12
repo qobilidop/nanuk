@@ -1,6 +1,6 @@
 """NanukCore: Amaranth RTL for the nanuk parser ISA v0.
 
-The Sail model (spec/parser-model/*.sail) is the single source of truth; this core
+The Sail model (spec/sail/model/parser/*.sail) is the single source of truth; this core
 reproduces its semantics bit-for-bit:
 
 - fetch order per exec.sail step(): step budget first, then pc range, then
@@ -21,19 +21,19 @@ from amaranth import Array, C, Cat, Module, Mux, Signal
 from amaranth.lib import memory, wiring
 from amaranth.lib.wiring import In, Out
 
-# Implementation parameters (mirror spec/parser-model/params.sail).
+# Implementation parameters (mirror spec/sail/model/parser/params.sail).
 BUF_BYTES = 256
 IMEM_WORDS = 1024
 NHDR = 16
 SMD_SLOTS = 8
 STEP_BUDGET = 256
 
-# Verdicts (mirror spec/parser-model/state.sail).
+# Verdicts (mirror spec/sail/model/parser/state.sail).
 VERDICT_ACCEPT = 0x00
 VERDICT_DROP = 0x01
 VERDICT_ERROR = 0x02
 
-# Error codes (mirror spec/parser-model/state.sail).
+# Error codes (mirror spec/sail/model/parser/state.sail).
 ERR_NONE = 0x00
 ERR_HDR_VIOLATION = 0x01
 ERR_STEP_BUDGET = 0x02
@@ -41,7 +41,7 @@ ERR_ILLEGAL = 0x03
 ERR_PC_RANGE = 0x04
 ERR_SMD_RANGE = 0x05
 
-# Opcodes (mirror spec/parser-model/decode.sail).
+# Opcodes (mirror spec/sail/model/parser/decode.sail).
 OP_EXT = 0x01
 OP_ADVI = 0x02
 OP_ADVR = 0x03
@@ -175,7 +175,7 @@ class NanukCore(wiring.Component):
         m.d.comb += [rp.addr.eq(pc), rp.en.eq(1)]
         word = rp.data
 
-        # --- Decode fields (positions per spec/parser-model/decode.sail) ----------
+        # --- Decode fields (positions per spec/sail/model/parser/decode.sail) ----------
         opcode = word[26:32]
         f_ra = word[23:26]      # rd/rs at [25:23] (EXT/ADVR/MOVI/SHL/B*/STMD)
         f_rb = word[20:23]      # rs/rt at [22:20] (SHL/BEQ/BNE)
