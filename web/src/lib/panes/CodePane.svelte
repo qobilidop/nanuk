@@ -6,15 +6,18 @@
   import { python } from '@codemirror/lang-python';
   import { hoveredState, setHovered } from '../stores';
   import {
-    highlightField, lineRangesToRegions, setHighlightRegion, stateAtLine,
+    execLineField, highlightField, lineRangesToRegions, setExecLine,
+    setHighlightRegion, stateAtLine,
     type NamedRange,
   } from './highlight';
 
   let {
     title, paneKey, doc, editable, python: isPython, ranges, onEdit,
+    execLine = null,
   }: {
     title: string; paneKey: string; doc: string; editable: boolean;
     python: boolean; ranges: NamedRange[]; onEdit?: (doc: string) => void;
+    execLine?: number | null;
   } = $props();
 
   let host: HTMLDivElement;
@@ -31,6 +34,7 @@
           ...(isPython ? [python()] : []),
           ...(editable ? [] : [EditorState.readOnly.of(true)]),
           highlightField,
+          execLineField,
           EditorView.updateListener.of((u) => {
             if (u.docChanged && onEdit) onEdit(u.state.doc.toString());
           }),
@@ -54,6 +58,21 @@
     if (view && !editable && view.state.doc.toString() !== doc) {
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc } });
     }
+  });
+
+  // Executing-line highlight from the scrubber; scrolling every pane is
+  // correct here — the debugger strip is the interaction origin.
+  $effect(() => {
+    if (!view) return;
+    const effects: import('@codemirror/state').StateEffect<unknown>[] = [
+      setExecLine.of(execLine),
+    ];
+    if (execLine != null && execLine >= 1 && execLine <= view.state.doc.lines) {
+      effects.push(
+        EditorView.scrollIntoView(view.state.doc.line(execLine).from, { y: 'center' }),
+      );
+    }
+    view.dispatch({ effects });
   });
 
   // Apply the shared hover highlight to this pane's matching region, and
@@ -91,4 +110,8 @@
   .editor { flex: 1; overflow: auto; }
   .editor :global(.cm-editor) { height: 100%; font-size: 0.85rem; }
   .editor :global(.cm-state-hl) { background: var(--hl); }
+  .editor :global(.cm-exec-hl) {
+    background: var(--exec-hl);
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
 </style>

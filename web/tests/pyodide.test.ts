@@ -15,7 +15,7 @@ describe.skipIf(process.env.NANUK_SKIP_PYODIDE === '1')('pyodide integration', (
     const py = await loadPyodide();
     py.FS.mkdir('/wheels');
     const names = readdirSync(WHEELS).filter((f) => f.endsWith('.whl')).sort();
-    expect(names.length).toBe(2);
+    expect(names.length).toBe(3); // nanuk-ir, nanuk-isa, nanuk-lang
     for (const name of names) {
       py.FS.writeFile(`/wheels/${name}`, readFileSync(join(WHEELS, name)));
     }
@@ -39,6 +39,11 @@ describe.skipIf(process.env.NANUK_SKIP_PYODIDE === '1')('pyodide integration', (
       if (run.kind === 'parser') {
         expect(run.result.verdict).toBe(0);
         expect(run.result.smd.slice(0, 3)).toEqual([0xaabb, 0xccdd, 0xee01]);
+        // v2 debugger trace: aligned, complete, and agreeing.
+        expect(run.trace.steps).toBe(run.result.steps);
+        expect(run.trace.records.length).toBe(run.trace.steps);
+        expect(run.trace.divergence).toBeNull();
+        expect(run.trace.result_match).toBe(true);
       }
     }
 
@@ -53,6 +58,10 @@ describe.skipIf(process.env.NANUK_SKIP_PYODIDE === '1')('pyodide integration', (
       expect(mapRun.result.verdict).toBe(0);
       expect(mapRun.result.egress).toBe(0x4); // demo FDB: ...ee:01 -> port 2
       expect(mapRun.result.frame).toBe(plain.hex);
+      expect(mapRun.trace.map).not.toBeNull();
+      expect(mapRun.trace.map!.records.length).toBe(mapRun.trace.map!.steps);
+      expect(mapRun.trace.pp.divergence).toBeNull();
+      expect(mapRun.trace.map!.divergence).toBeNull();
     } else {
       throw new Error('MAP run was gated or failed');
     }

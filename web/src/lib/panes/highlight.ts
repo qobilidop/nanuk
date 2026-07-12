@@ -40,6 +40,31 @@ export function stateAtLine(ranges: NamedRange[], line: number): string | null {
 
 export const setHighlightRegion = StateEffect.define<Region | null>();
 
+/** Executing-line highlight (the debugger scrubber), independent of the
+ * hover field so scrubbing and hovering never fight. */
+export const setExecLine = StateEffect.define<number | null>();
+
+const execLineDeco = Decoration.line({ class: 'cm-exec-hl' });
+
+export const execLineField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(deco, tr) {
+    deco = deco.map(tr.changes);
+    for (const e of tr.effects) {
+      if (e.is(setExecLine)) {
+        if (e.value == null || e.value < 1 || tr.state.doc.lines === 0) {
+          deco = Decoration.none;
+        } else {
+          const line = Math.min(e.value, tr.state.doc.lines);
+          deco = Decoration.set([execLineDeco.range(tr.state.doc.line(line).from)]);
+        }
+      }
+    }
+    return deco;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
 const stateHighlight = Decoration.mark({ class: 'cm-state-hl' });
 
 export const highlightField = StateField.define<DecorationSet>({

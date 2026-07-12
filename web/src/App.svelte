@@ -1,11 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import CodePane from './lib/panes/CodePane.svelte';
+  import DebuggerPanel from './lib/DebuggerPanel.svelte';
   import PacketPanel from './lib/PacketPanel.svelte';
   import { initBrowserRuntime } from './lib/runtime-browser';
   import type { NanukRuntime } from './lib/py';
-  import type { CompileOk, BridgeError } from './lib/types';
+  import type { CompileOk, BridgeError, RunOk, RunResult } from './lib/types';
   import type { NamedRange } from './lib/panes/highlight';
+  import { activeAt, type Phase } from './lib/trace';
   import { parseParams } from './lib/params';
   import l2l3l4Src from './programs/l2l3l4.py?raw';
   import nanukprotoSrc from './programs/nanukproto.py?raw';
@@ -29,6 +31,9 @@
   }
   let compiled: CompileOk | null = $state(null);
   let compileError: BridgeError | null = $state(null);
+  let runOut: RunOk | null = $state(null);
+  let runError: BridgeError | null = $state(null);
+  let currentStep = $state(0);
 
   function recompile(src: string) {
     if (!runtime) return;
@@ -36,9 +41,23 @@
     if (result.ok) {
       compiled = result;
       compileError = null;
+      // The program changed: any recorded trace points at stale lines.
+      runOut = null;
+      runError = null;
     } else {
       compileError = result.error;
     }
+  }
+
+  function onRun(out: RunResult) {
+    if (out.ok) {
+      runOut = out;
+      runError = null;
+    } else {
+      runError = out.error;
+      runOut = null;
+    }
+    currentStep = 0;
   }
 
   let timer: ReturnType<typeof setTimeout>;
@@ -69,6 +88,36 @@
   const asmRanges: NamedRange[] = $derived.by(() =>
     compiled ? compiled.states.map((s) => ({ name: s.name, range: s.asm })) : [],
   );
+
+  // --- Debugger (v2): phases, the active record, pane highlighting -------
+  const phases: Phase[] = $derived.by(() => {
+    if (!runOut) return [];
+    if (runOut.kind === 'parser') {
+      return [{ label: programName, kind: 'parser', inPanes: true, trace: runOut.trace }];
+    }
+    const t = runOut.trace;
+    const out: Phase[] = [
+      { label: 'baked l2l3l4 parser', kind: 'parser', inPanes: false, trace: t.pp },
+    ];
+    if (t.map) out.push({ label: 'map', kind: 'map', inPanes: true, trace: t.map });
+    return out;
+  });
+  const active = $derived(phases.length ? activeAt(phases, currentStep) : null);
+  const execIr = $derived(active?.phase.inPanes ? active.record.ir_line : null);
+  const execAsm = $derived(active?.phase.inPanes ? active.record.asm_line : null);
+  const execEdsl = $derived.by(() => {
+    if (!active?.phase.inPanes || !compiled) return null;
+    const st = compiled.states.find((s) => s.name === active.record.state);
+    return st?.edsl ? st.edsl[0] : null;
+  });
+  const cursorByte = $derived(
+    active?.phase.kind === 'parser' ? active.record.cursor : null,
+  );
+  const gatedNote = $derived.by(() => {
+    const out = runOut;
+    if (!out || out.kind !== 'map' || !out.result.gated) return null;
+    return 'the parser refused this packet — the MAP phase never ran';
+  });
 </script>
 
 <div class="app">
@@ -84,27 +133,34 @@
     <span class="status" class:ready={status === 'ready'}>{status}</span>
   </header>
   <main>
-    <div class="panes">
-      <div class="edsl-col">
-        <CodePane title="nanuk lang" paneKey="lang" doc={source} editable python
-          ranges={edslRanges} {onEdit} />
-        {#if compileError}
-          <div class="banner" role="alert">
-            <strong>{compileError.kind}</strong>
-            {#if compileError.line}(line {compileError.line}){/if}:
-            {compileError.message}
-          </div>
-        {/if}
+    <div class="work">
+      <div class="panes">
+        <div class="edsl-col">
+          <CodePane title="nanuk lang" paneKey="lang" doc={source} editable python
+            ranges={edslRanges} {onEdit} execLine={execEdsl} />
+          {#if compileError}
+            <div class="banner" role="alert">
+              <strong>{compileError.kind}</strong>
+              {#if compileError.line}(line {compileError.line}){/if}:
+              {compileError.message}
+            </div>
+          {/if}
+        </div>
+        <CodePane title="nanuk IR" paneKey="ir" doc={compiled?.ir_text ?? ''}
+          editable={false} python={false} ranges={irRanges} execLine={execIr} />
+        <CodePane title="nanuk asm" paneKey="asm" doc={compiled?.asm_text ?? ''}
+          editable={false} python={false} ranges={asmRanges} execLine={execAsm} />
       </div>
-      <CodePane title="nanuk IR" paneKey="ir" doc={compiled?.ir_text ?? ''}
-        editable={false} python={false} ranges={irRanges} />
-      <CodePane title="nanuk asm" paneKey="asm" doc={compiled?.asm_text ?? ''}
-        editable={false} python={false} ranges={asmRanges} />
+      <aside>
+        <PacketPanel {runtime} ready={compiled !== null}
+          initialPacket={params.packet} initialPreset={params.preset}
+          {onRun} {runOut} {runError} {cursorByte} />
+      </aside>
     </div>
-    <aside>
-      <PacketPanel {runtime} ready={compiled !== null}
-        initialPacket={params.packet} initialPreset={params.preset} />
-    </aside>
+    {#if phases.length}
+      <DebuggerPanel {phases} step={currentStep}
+        onStep={(n) => (currentStep = n)} {gatedNote} />
+    {/if}
   </main>
 </div>
 
@@ -121,7 +177,8 @@
   }
   .status { margin-left: auto; font-size: 0.8rem; color: var(--fg-muted); }
   .status.ready { color: var(--ok); }
-  main { flex: 1; display: flex; min-height: 0; }
+  main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .work { flex: 1; display: flex; min-height: 0; }
   .panes {
     flex: 1; display: grid; grid-template-columns: 1.2fr 1fr 1fr;
     /* Pin the single row to the container height — an auto row sizes to
