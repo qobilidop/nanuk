@@ -1,4 +1,4 @@
-# The nanuk demo parser: Ethernet -> 802.1Q (incl. QinQ) -> IPv4 (with
+# The Nanuk demo parser: Ethernet -> 802.1Q (incl. QinQ) -> IPv4 (with
 # options) -> UDP. Edit me and watch the IR and assembly panes follow.
 #
 # Header ids: eth=0 vlan=1 ipv4=2 udp=3

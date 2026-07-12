@@ -5,7 +5,7 @@
 
 ## Problem
 
-The Python side of nanuk is six separate uv projects — `nanuk-isa`,
+The Python side of Nanuk is six separate uv projects — `nanuk-isa`,
 `nanuk-spec`, `nanuk-ir`, `nanuk-lang`, `nanuk-hw`,
 `nanuk-playground-bridge` — each with its own `pyproject.toml` and
 `uv.lock`, cross-wired with editable `tool.uv.sources` path deps. Nothing

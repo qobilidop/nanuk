@@ -1,4 +1,4 @@
-"""MatchActionProcessor: Amaranth RTL for the nanuk MAP ISA v0.
+"""MatchActionProcessor: Amaranth RTL for the Nanuk MAP ISA v0.
 
 The Sail model (spec/sail/model/map/*.sail) is the single source of truth; this
 core reproduces its semantics bit-for-bit:
@@ -80,7 +80,7 @@ _ST_CSUM_WB1 = 11
 
 
 class MatchActionProcessor(wiring.Component):
-    """nanuk match-action core.
+    """Nanuk match-action core.
 
     Load the program via the imem write port, the window via the window
     write port (window index 0..287 — headroom included), tables via the

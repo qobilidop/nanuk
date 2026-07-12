@@ -1,4 +1,4 @@
-"""Two-pass assembler for the nanuk MAP ISA v0.
+"""Two-pass assembler for the Nanuk MAP ISA v0.
 
 Syntax:
     ; comment

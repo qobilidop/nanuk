@@ -1,7 +1,7 @@
 """State-level IR building: value handles and cursor tracking.
 
 Each parse-state function runs once against a StateCompiler, which builds
-nanuk IR ops (protos from nanuk-ir). Instruction selection, register
+Nanuk IR ops (protos from nanuk-ir). Instruction selection, register
 allocation, and label emission live downstream in nanuk.ir.pp_lower — this
 module owns only the *frontend* concerns:
 

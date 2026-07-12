@@ -1,7 +1,7 @@
 [project]
 name = "nanuk-amaranth"
 version = "0.1.0"
-description = "The nanuk core in Amaranth: PP and MAP, the two processors below the nanuk ISAs"
+description = "The Nanuk core in Amaranth: PP and MAP, the two processors below the Nanuk ISAs"
 requires-python = ">=3.12"
 dependencies = [
     "amaranth[builtin-yosys]>=0.5",

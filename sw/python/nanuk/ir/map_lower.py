@@ -1,4 +1,4 @@
-"""MatchActionProgram IR -> nanuk MAP assembly lowering. Sibling of lower.py.
+"""MatchActionProgram IR -> Nanuk MAP assembly lowering. Sibling of lower.py.
 
 Register discipline
     r0..r2 hold IR values, allocated per state in op order; unlike the

@@ -29,7 +29,7 @@ remembering as evidence the layering was honest:
 - `nanuk/rtl` imported *nothing* from `nanuk.{isa,ir,lang}` — all coupling
   lived in the cosim tests. That's the correct place: cosimulation is the
   conformance boundary, not a library dependency. So `hw/amaranth` is its
-  own uv project whose *design* depends only on amaranth; the nanuk package
+  own uv project whose *design* depends only on amaranth; the Nanuk package
   (ISS oracle) arrives as an editable dev dependency for its tests.
 - `tests/support` was promoted to `nanuk.testkit` so sibling projects can
   import the same oracle machinery. Excluded from wheels (hatch `exclude`),
@@ -66,14 +66,14 @@ verified beforehand that the check actually fires on a field renumber.
 
 ## Naming: four levels, two tiers
 
-The trigger: "nanuk core" was claimed by the *parser* RTL class (`NanukCore`
+The trigger: "Nanuk core" was claimed by the *parser* RTL class (`NanukCore`
 predated the second processor), while the design docs had already defined
 "PP — parser processor" and "MAP — match-action processor". The doctrine
 (full write-up: `docs/superpowers/specs/2026-07-12-naming-doctrine.md`):
 
-- **nanuk** = family name only → packaged roles are qualified
+- **Nanuk** = family name only → packaged roles are qualified
   (`nanuk_switch` — né `nanuk_hw` — and someday `nanuk_nic`).
-- **the nanuk core** = the composed PP→MAP datapath, the reusable IP.
+- **the Nanuk core** = the composed PP→MAP datapath, the reusable IP.
 - **PP / MAP** = the processors ("engines" in prose).
 - **unit** = reserved for future sub-processor blocks (lookup unit,
   checksum unit).

@@ -1,4 +1,4 @@
-; nanuk MAP ISA v0 demo 3a: nanukproto tunnel push (encap).
+; Nanuk MAP ISA v0 demo 3a: nanukproto tunnel push (encap).
 ;
 ; DMACs found in the tunnel table get the full L2-in-L2 encap: a 22-byte
 ; outer header (outer Ethernet + nanukproto) written into headroom, sent

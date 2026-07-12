@@ -21,7 +21,7 @@ export async function initRuntime(opts: InitOpts): Promise<NanukRuntime> {
   const status = opts.onStatus ?? (() => {});
   status('loading Python runtime…');
   const py = await opts.loadPyodide({ indexURL: opts.indexURL });
-  status('installing nanuk packages…');
+  status('installing Nanuk packages…');
   await py.loadPackage('micropip');
   const micropip = py.pyimport('micropip');
   for (const url of opts.wheelUrls) {

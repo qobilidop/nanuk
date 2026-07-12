@@ -1,4 +1,4 @@
-# nanuk — Naming Doctrine
+# Nanuk — Naming Doctrine
 
 **Date:** 2026-07-12
 **Status:** Adopted and fully applied (commits `9feef29`..`5e447d3`). Governs
@@ -12,11 +12,11 @@ subsystem naming.
 Four levels, one word each. Most naming confusion is one level's word used at
 another level.
 
-| Level | Word | nanuk name | What it is |
+| Level | Word | Nanuk name | What it is |
 |---|---|---|---|
-| Family | — | **nanuk** | The project/family name only — never a device |
+| Family | — | **Nanuk** | The project/family name only — never a device |
 | Packaged device | role-qualified | **nanuk_switch**, future **nanuk_nic** | The core + role periphery (ports/forwarder for a switch; host interface/DMA for a NIC) |
-| Composed datapath | **core** | **the nanuk core** | PP → MAP composed: the reusable IP ("switch core" in ASIC vocabulary; the future Tiny Tapeout tile) |
+| Composed datapath | **core** | **the Nanuk core** | PP → MAP composed: the reusable IP ("switch core" in ASIC vocabulary; the future Tiny Tapeout tile) |
 | ISA-running block | **processor** | **PP**, **MAP** | Own ISA, PC, registers, fetch–decode–execute, assembler, ISS, Sail spec |
 | Sub-processor block | **unit** (reserved) | future: lookup unit, checksum unit | Functional blocks inside a processor — no ISA, no PC (CPU "functional unit" sense) |
 
@@ -56,13 +56,39 @@ Refinements learned while applying it:
   spelled names would collide with testkit's `ParserResult` in every cosim
   test's imports. Symmetry is the hard rule; the tier is a guideline.
 
+## Family-name casing (adopted 2026-07-12)
+
+The family name follows the same two tiers as everything else:
+
+- **Nanuk** is the spelled form — prose, headings, UI copy, docstring
+  sentences, the paper/book. The Sail/`sail`, Amaranth/`amaranth`,
+  Linux/`linux` convention.
+- **nanuk** is the token form — repo, PyPI package, paths, and every
+  derived identifier (`nanuk_switch`, `nanuk-pp-asm`, `NANUK_PP_EMU`,
+  `project(nanuk)`, `nanuk.ir.v0`).
+
+Boundary cases, decided:
+
+- **Module-path headlines stay tokens.** A docstring that opens with the
+  module's own dotted/underscored path (`nanuk.ir: ...`,
+  `nanuk_amaranth: ...`) names the token and keeps its case; a headline
+  that opens with the bare brand (`Nanuk: three descending abstraction
+  levels...`) is prose and capitalizes — the NumPy-docstring convention.
+- **Dependency references are tokens** (`"nanuk"` in a deps list,
+  `nanuk = { path = ... }`, pdoc/import arguments).
+- **The Czech common noun** *nanuk* (popsicle) is not the brand and
+  stays lowercase when cited.
+- An all-lowercase wordmark (the systemd/npm pattern) was considered and
+  rejected: it fights sentence casing forever, third parties capitalize
+  it anyway, and the name is a borrowed proper noun (Inuktitut *nanuq*).
+
 ## Rejected names, and why (keep for the book)
 
 - **MAU** — the strongest prior art (Tofino/RMT's official term) and
   precisely why it's wrong here: Tofino's Match-Action Unit is a
   reconfigurable match *stage* (TCAM/SRAM crossbars + VLIW action engines),
   not an instruction-fetching processor. The name would tell P4-literate
-  readers exactly the wrong story against nanuk's central "ISA-based, not
+  readers exactly the wrong story against Nanuk's central "ISA-based, not
   PISA-based" claim.
 - **PPP** — Point-to-Point Protocol to every networking reader.
 - **PU / PaP** — no meaningful precedent.
@@ -72,6 +98,6 @@ Refinements learned while applying it:
 - **PP ≈ pre-processor** was weighed and dismissed: that reading lives in
   C-toolchain contexts; here PP never appears without `nanuk_`/`map` nearby,
   and every definition site expands it.
-- **"nanuk" as a device name** — rejected to keep the family/role split:
+- **"Nanuk" as a device name** — rejected to keep the family/role split:
   the same core will embed in differently-packaged roles (`nanuk_switch`
   today, `nanuk_nic` someday), the ARM-Cortex/Corundum shape.

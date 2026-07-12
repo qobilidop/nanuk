@@ -80,7 +80,7 @@ def build_ir():
 
 
 def build() -> str:
-    """Compile the demo parser; returns nanuk assembly text."""
+    """Compile the demo parser; returns Nanuk assembly text."""
     return make_parser().compile()
 
 

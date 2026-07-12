@@ -1,4 +1,4 @@
-"""Emit Verilog for the nanuk core's processors.
+"""Emit Verilog for the Nanuk core's processors.
 
 Usage:
     uv run nanuk-export ../../demo/build/nanuk_pp.v

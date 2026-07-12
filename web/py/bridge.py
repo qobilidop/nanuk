@@ -1,4 +1,4 @@
-"""nanuk playground bridge: runs inside Pyodide (and under pytest).
+"""Nanuk playground bridge: runs inside Pyodide (and under pytest).
 
 Renders the IR pane text deterministically (so per-state line ranges are
 known exactly), tracks per-op asm emission counts mirroring the v0

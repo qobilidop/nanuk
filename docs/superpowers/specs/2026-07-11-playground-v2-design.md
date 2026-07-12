@@ -26,7 +26,7 @@ composed PP→MAP pipeline run the playground already performs.
 
 ## Why an ISS (and why at the encoding level)
 
-The ISS is the **fourth implementation** of nanuk semantics (Sail/C
+The ISS is the **fourth implementation** of Nanuk semantics (Sail/C
 emulator, Amaranth RTL, IR interp, ISS) and slots into the existing
 mirror-with-tripwire methodology:
 
@@ -128,7 +128,7 @@ a trace:
   button (~5 steps/s), ←/→ keys when focused.
 - **Agreement badge**: green "levels agree" / red "diverged at step N"
   with jump-to-step; diverged fields highlighted in the state cards.
-  (In a healthy build this is always green; red means "file a nanuk
+  (In a healthy build this is always green; red means "file a Nanuk
   bug" and the UI says so.)
 - Two state cards: **IR** (current state fn, current op label, named
   values) and **ASM** (pc, current line, r0–r3 annotated with the

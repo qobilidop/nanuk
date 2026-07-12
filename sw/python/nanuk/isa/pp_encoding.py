@@ -1,4 +1,4 @@
-"""Instruction encodings for the nanuk parser ISA v0.
+"""Instruction encodings for the Nanuk parser ISA v0.
 
 This mirrors the encdec mapping in spec/sail/model/pp/decode.sail — the Sail spec
 owns the encoding truth; test_encoding.py pins both to the same golden words,

@@ -1,4 +1,4 @@
-"""Two-pass assembler for the nanuk parser ISA v0.
+"""Two-pass assembler for the Nanuk parser ISA v0.
 
 Syntax:
     ; comment

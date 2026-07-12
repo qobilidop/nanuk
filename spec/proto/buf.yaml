@@ -13,7 +13,7 @@ lint:
   use:
     - STANDARD
   except:
-    # nanuk speaks v0 (ISA v0, IR v0); buf insists versions start at v1.
+    # Nanuk speaks v0 (ISA v0, IR v0); buf insists versions start at v1.
     - PACKAGE_VERSION_SUFFIX
 breaking:
   use:

@@ -12,7 +12,7 @@ programs are editor seed text, never imported by the runtime**; anything
 programs need at runtime ships separately as a toolchain asset (CE
 libraries, rust-playground's baked crates, P4's p4include).
 
-nanuk violated this in one spot: the playground imported the l2l3l4
+Nanuk violated this in one spot: the playground imported the l2l3l4
 example inside Pyodide (bridge's composed-run rig; nanukproto's header
 imports). The fix is to move what was actually toolchain into the
 library, at which point examples become pure content and live at the

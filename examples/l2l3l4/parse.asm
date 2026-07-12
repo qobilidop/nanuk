@@ -1,4 +1,4 @@
-; nanuk parser ISA v0 demo program:
+; Nanuk parser ISA v0 demo program:
 ;   Ethernet -> 802.1Q (incl. QinQ via backward branch) -> IPv4 (with
 ;   options) -> UDP, feeding the SMD with DMAC, VLAN TCI, and UDP dst port.
 ;

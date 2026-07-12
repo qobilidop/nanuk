@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# End-to-end smoke for the nanuk SimBricks demo, run from the repo root on
-# the host (macOS or Linux; needs Docker + the nanuk devcontainer):
+# End-to-end smoke for the Nanuk SimBricks demo, run from the repo root on
+# the host (macOS or Linux; needs Docker + the Nanuk devcontainer):
 #
 #   demo/build_and_run.sh [path/to/prog.bin]
 #
@@ -50,7 +50,7 @@ docker run --rm --platform linux/amd64 \
 
 echo "==> checking ping result"
 if grep -E "[0-9]+ bytes from 10\.0\.0\.2|, 0% packet loss" "$OUT/run.log" > /dev/null; then
-  echo "E2E DEMO PASSED: ping through nanuk RTL succeeded"
+  echo "E2E DEMO PASSED: ping through Nanuk RTL succeeded"
 else
   echo "E2E DEMO FAILED: no successful ping found in $OUT/run.log"
   exit 1

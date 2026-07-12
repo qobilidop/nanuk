@@ -1,4 +1,4 @@
-"""IR -> nanuk assembly lowering (moved here from nanuk/lang/compile.py).
+"""IR -> Nanuk assembly lowering (moved here from nanuk/lang/compile.py).
 
 This is where parser-level IR meets the ISA: register allocation, MOVI
 materialization of compare constants, and label emission.

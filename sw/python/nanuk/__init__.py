@@ -1,4 +1,4 @@
-"""nanuk: three descending abstraction levels of one parser project.
+"""Nanuk: three descending abstraction levels of one parser project.
 
 nanuk.lang -- protocol-level eDSL (what you write)
 nanuk.ir   -- portable parser-level IR (what tools exchange)

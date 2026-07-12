@@ -1,7 +1,7 @@
-# nanuk × SimBricks integration
+# Nanuk × SimBricks integration
 
 The e2e demo: two QEMU Linux hosts with i40e NICs exchange traffic through
-the Verilator'd nanuk core (PP→MAP), wrapped as a SimBricks network
+the Verilator'd Nanuk core (PP→MAP), wrapped as a SimBricks network
 component. The parser program gates what enters (verdict ≠ accept ⇒ drop),
 the MAP program + tables decide forwarding (lookup hit ⇒ egress bitmap,
 miss ⇒ program's choice, e.g. flood). The loaded programs and tables ARE

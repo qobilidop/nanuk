@@ -1,6 +1,6 @@
-"""nanuk.ir: the nanuk IR (protobuf, package nanuk.ir.v0; schema at
+"""nanuk.ir: the Nanuk IR (protobuf, package nanuk.ir.v0; schema at
 spec/proto/, gencode vendored here via scripts/gen.py), its validation
-pass, the IR -> assembly lowering (stage 3 of the nanuk project), and the
+pass, the IR -> assembly lowering (stage 3 of the Nanuk project), and the
 IR-level interpreter (differential chassis for the satellites).
 
 The symbolic executor (`nanuk.ir.pp_symex`) is deliberately not imported

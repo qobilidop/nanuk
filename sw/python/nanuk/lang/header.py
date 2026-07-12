@@ -1,4 +1,4 @@
-"""Protocol header layouts for the nanuk eDSL.
+"""Protocol header layouts for the Nanuk eDSL.
 
 A Header declares an ordered sequence of named bit fields. Bit offsets are
 computed from the declaration order; the total must be a whole number of

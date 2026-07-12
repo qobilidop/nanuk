@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run a command inside the nanuk dev container.
+# Run a command inside the Nanuk dev container.
 #
 # Usage:
 #   ./dev.sh <command> [args...]

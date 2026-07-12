@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# M2 beat 3: ping through two nanuk switches doing nanukproto tunnel
+# M2 beat 3: ping through two Nanuk switches doing nanukproto tunnel
 # encap/decap on the wire between them.
 #
 #   Phase A (flood): no tunnel table -> push misses everything -> plain

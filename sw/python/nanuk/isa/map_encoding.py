@@ -1,4 +1,4 @@
-"""Instruction encodings for the nanuk MAP ISA v0.
+"""Instruction encodings for the Nanuk MAP ISA v0.
 
 This mirrors the encdec mapping in spec/sail/model/map/decode.sail — the Sail spec
 owns the encoding truth; test_map_encoding.py pins both to the same golden

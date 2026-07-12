@@ -1,4 +1,4 @@
-# nanuk
+# Nanuk
 
 Building a programmable packet processor from chip to programming language. 🐻‍❄️
 
@@ -8,7 +8,7 @@ and assembly, live in your browser, with a step-scrubber debugger that
 walks each packet through the IR interpreter and an instruction-set
 simulator in lockstep.
 
-nanuk is an educational project: a programmable packet-processing
+Nanuk is an educational project: a programmable packet-processing
 pipeline of two sibling ISAs (inspired by
 [xISA](https://xsightlabs.com/wp-content/uploads/2025/03/XISA_Public-.pdf))
 — a **parser** engine that classifies packets and a **match-action**
@@ -30,12 +30,12 @@ spec/sail/   Sail ISA models (the source of truth: model/{pp,map}) and the
              generated golden-model emulators
 spec/proto/  The protobuf IR schema (nanuk.ir.v0) — the language-neutral
              interchange contract; each implementation vendors its gencode
-sw/python/   The nanuk package, three descending abstraction levels: nanuk.lang
+sw/python/   The Nanuk package, three descending abstraction levels: nanuk.lang
              (eDSL) -> nanuk.ir (protobuf IR, lowerings, interpreters, symex)
              -> nanuk.isa (assemblers, encodings, ISS). Plus its test suite
              (tests/; the golden-model pcap rig = tests/golden) and
              nanuk.testkit, the conformance machinery every suite shares.
-hw/amaranth/ The nanuk core in Amaranth: PP (parser processor) + MAP
+hw/amaranth/ The Nanuk core in Amaranth: PP (parser processor) + MAP
              (match-action processor), with cosim tests judging them against
              the ISS oracle and the Sail golden models.
 examples/    Example programs: hand-written asm paired with its eDSL twin
@@ -46,7 +46,7 @@ docs/        Design docs, plans, and lab notes
 ## The demo
 
 `demo/build_and_run.sh` runs the end-to-end demo: two QEMU Linux
-hosts exchange real traffic through the Verilator'd nanuk PP
+hosts exchange real traffic through the Verilator'd Nanuk PP
 inside SimBricks — `ping` works because the loaded parser program accepts
 the frames. Load `examples/drop_all/parse.asm` instead and the network
 goes dark: the parser program is the switch's forwarding policy.
@@ -74,7 +74,7 @@ devcontainer up --workspace-folder .
 ./dev.sh bash -lc 'cd hw/amaranth && uv sync && NANUK_COSIM=1 uv run pytest tests'
 ```
 
-The first thing nanuk ever parsed: `examples/l2l3l4/parse.asm` — Ethernet,
+The first thing Nanuk ever parsed: `examples/l2l3l4/parse.asm` — Ethernet,
 802.1Q (incl. QinQ), IPv4 (incl. options), and UDP parsed by an
 11-instruction ISA, verified against a scapy-generated pcap corpus on the
 Sail golden model.

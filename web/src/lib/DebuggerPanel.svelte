@@ -73,7 +73,7 @@
     {#if divergence}
       <button class="badge diverged" onclick={() => go(divergence.step)}
         title="jump to the diverging step">
-        levels diverged at step {divergence.step + 1} ({divergence.what}) — this is a nanuk bug
+        levels diverged at step {divergence.step + 1} ({divergence.what}) — this is a Nanuk bug
       </button>
     {:else}
       <span class="badge agree" title="IR interpreter and ISS agree at every step">

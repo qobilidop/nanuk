@@ -122,7 +122,7 @@
 
 <div class="app">
   <header class="top">
-    <a class="brand" href="/nanuk/">nanuk</a>
+    <a class="brand" href="/nanuk/">Nanuk</a>
     <span class="title">playground</span>
     <select class="program" value={programName}
       onchange={(e) => selectProgram(e.currentTarget.value)}>
@@ -136,7 +136,7 @@
     <div class="work">
       <div class="panes">
         <div class="edsl-col">
-          <CodePane title="nanuk lang" paneKey="lang" doc={source} editable python
+          <CodePane title="Nanuk lang" paneKey="lang" doc={source} editable python
             ranges={edslRanges} {onEdit} execLine={execEdsl} />
           {#if compileError}
             <div class="banner" role="alert">
@@ -146,9 +146,9 @@
             </div>
           {/if}
         </div>
-        <CodePane title="nanuk IR" paneKey="ir" doc={compiled?.ir_text ?? ''}
+        <CodePane title="Nanuk IR" paneKey="ir" doc={compiled?.ir_text ?? ''}
           editable={false} python={false} ranges={irRanges} execLine={execIr} />
-        <CodePane title="nanuk asm" paneKey="asm" doc={compiled?.asm_text ?? ''}
+        <CodePane title="Nanuk asm" paneKey="asm" doc={compiled?.asm_text ?? ''}
           editable={false} python={false} ranges={asmRanges} execLine={execAsm} />
       </div>
       <aside>

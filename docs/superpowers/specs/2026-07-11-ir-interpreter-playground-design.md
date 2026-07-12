@@ -8,7 +8,7 @@
 
 Since stage 3 there is nothing else to interpret: the eDSL's state functions
 execute once at `build_ir()` time and their entire product **is** the IR —
-the IR is the first materialized representation of any nanuk program.
+the IR is the first materialized representation of any Nanuk program.
 Interpreting at IR level is also right strategically:
 
 - serves every frontend (the future P4 subset included), matching the
@@ -29,7 +29,7 @@ violations, step/dispatch budgets, all defined.
 
 Prior art: **Compiler Explorer (godbolt.org)**. Its key trick is not
 displaying assembly but the **hover provenance mapping** — point at a source
-line, the assembly it produced lights up. nanuk is unusually well prepared:
+line, the assembly it produced lights up. Nanuk is unusually well prepared:
 IR ops already carry `debug_name` and the lowering already emits provenance
 comments (`; eth.dst`); extending IR ops with a source span completes the
 chain.

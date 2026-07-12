@@ -1,4 +1,4 @@
-"""Shared two-pass assembler machinery for the two nanuk ISAs.
+"""Shared two-pass assembler machinery for the two Nanuk ISAs.
 
 asm.py (parser) and map_asm.py (MAP) own their mnemonic tables and CLIs;
 this module owns everything ISA-independent: comment/label/.equ parsing,

@@ -60,7 +60,7 @@ Two contracts make the paths composable without a shared framework:
 
 ## Layout and deploy
 
-- `web/` directory in the nanuk monorepo (lockstep with the code it
+- `web/` directory in the Nanuk monorepo (lockstep with the code it
   executes — single-source-of-truth extends to the website).
 - GitHub Pages at `qobilidop.github.io/nanuk` via an Actions workflow:
   build wheels → `npm ci` + `vite build` (base `/nanuk/play/`) → compose

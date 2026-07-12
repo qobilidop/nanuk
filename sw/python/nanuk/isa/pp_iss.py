@@ -1,4 +1,4 @@
-"""Instruction-set simulator for the nanuk parser ISA v0.
+"""Instruction-set simulator for the Nanuk parser ISA v0.
 
 Executes assembled 32-bit words — the same artifact the generated C
 emulator and the RTL core consume — and records a full per-step trace.

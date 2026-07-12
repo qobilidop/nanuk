@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** The nanuk playground at `qobilidop.github.io/nanuk/play/` — three synchronized panes (eDSL | IR | asm) with state-level hover provenance, a packet panel running `interp()` in-browser via Pyodide on CI-built wheels of the real packages — plus a hand-written landing page at `/` and the composed GitHub Pages deploy.
+**Goal:** The Nanuk playground at `qobilidop.github.io/nanuk/play/` — three synchronized panes (eDSL | IR | asm) with state-level hover provenance, a packet panel running `interp()` in-browser via Pyodide on CI-built wheels of the real packages — plus a hand-written landing page at `/` and the composed GitHub Pages deploy.
 
 **Architecture:** Vite + Svelte 5 + TypeScript SPA in `web/` (base `/nanuk/play/`); CodeMirror 6 panes with a Decoration-based highlight layer; a Python bridge (`web/py/bridge.py`) loaded into Pyodide that compiles eDSL source → IR → asm and builds the provenance map; wheels of `nanuk-ir` + `nanuk-lang` built by `uv build` into static assets; deploy workflow composes landing + SPA into one Pages artifact. Spec: `docs/superpowers/specs/2026-07-11-playground-v1-design.md`.
 

@@ -1,4 +1,4 @@
-# nanuk MAP ISA v0 — Design
+# Nanuk MAP ISA v0 — Design
 
 **Date:** 2026-07-11
 **Status:** Approved design sketch. Exact encodings, assembly syntax, and MAP-SMD layout are finalized during M1 (Sail spec).
@@ -9,7 +9,7 @@
 
 A fresh, original ISA informed by xISA's MAP ISA — not a subset, not compatible. Each xISA MAP concept auditions:
 
-| xISA concept | nanuk MAP v0 decision |
+| xISA concept | Nanuk MAP v0 decision |
 |---|---|
 | Separate MAP ISA beside the Parser ISA | **Adopted** — sibling ISAs, clean boundary |
 | Header-relative memory operands (HeaderOffsetID + offset) | **Adopted** — PP hdr_offsets consumed by the addressing mode |

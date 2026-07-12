@@ -1,4 +1,4 @@
-"""Instruction-set simulator for the nanuk MAP ISA v0. Sibling of iss.py.
+"""Instruction-set simulator for the Nanuk MAP ISA v0. Sibling of iss.py.
 
 Executes assembled 32-bit words against the window (32-byte headroom +
 frame), the inbound PP contract, and exact-match tables. Semantics

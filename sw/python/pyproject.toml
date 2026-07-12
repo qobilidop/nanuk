@@ -1,7 +1,7 @@
 [project]
 name = "nanuk"
 version = "0.1.0"
-description = "nanuk: protocol-level parser descriptions compiled through IR and ISA down to RTL"
+description = "Nanuk: protocol-level parser descriptions compiled through IR and ISA down to RTL"
 requires-python = ">=3.12"
 dependencies = [
     # Must stay >= the gencode version of the checked-in nanuk_ir_pb2.py

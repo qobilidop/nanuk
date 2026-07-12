@@ -1,5 +1,5 @@
 /*
- * nanuk_switch: SimBricks network component wrapping the Verilator'd nanuk
+ * nanuk_switch: SimBricks network component wrapping the Verilator'd Nanuk
  * parser + match-action cores (composed PP->MAP pipeline).
  *
  * Structure follows SimBricks' sims/net/switch/net_switch.cc (ports, argv,

@@ -1,6 +1,6 @@
-// nanuk IR v0: parser-level semantics above instruction selection and
+// Nanuk IR v0: parser-level semantics above instruction selection and
 // register allocation — extract/advance/mark/emit-SMD/dispatch over
-// SSA-ish values. The hub format of the nanuk satellite architecture.
+// SSA-ish values. The hub format of the Nanuk satellite architecture.
 //
 // Conventions:
 //   - states[0] is the start state (entry at word 0 after lowering).

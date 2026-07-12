@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** `ping` between two simulated Linux hosts through the nanuk parser RTL: Amaranth parser core (cosimulated against the Sail golden model), a parser-gated store-and-forward flood switch, and a SimBricks network component wrapping the Verilator'd switch.
+**Goal:** `ping` between two simulated Linux hosts through the Nanuk parser RTL: Amaranth parser core (cosimulated against the Sail golden model), a parser-gated store-and-forward flood switch, and a SimBricks network component wrapping the Verilator'd switch.
 
 **Sequencing note (deviation from the project design's stage order):** stages 2 (eDSL) and 3 (protobuf IR) are deferred — neither is on the demo's critical path. Demo programs use stage-1 assembly. The eDSL/IR stages slot back in after the demo.
 
@@ -66,4 +66,4 @@ C++ binary modeled on SimBricks `sims/net/net_switch` (their simple switch): one
 5. **`nanuk_net` component**: C++ glue per recon; build in container; unit-smoke with SimBricks' channel tools if available.
 6. **E2E experiment**: SimBricks orchestration config — 2 QEMU hosts (their base image) + 2 NIC sims + `nanuk_net` with the l2l3l4 program; assert ping success from the experiment output. Stretch (beat 2): rerun with an eth-only program and show VLAN-tagged traffic dropping while plain traffic flows.
 
-Done criterion: the experiment run completes with successful pings through the Verilator'd nanuk switch, reproducibly, documented in `hw/simbricks/README.md`.
+Done criterion: the experiment run completes with successful pings through the Verilator'd Nanuk switch, reproducibly, documented in `hw/simbricks/README.md`.

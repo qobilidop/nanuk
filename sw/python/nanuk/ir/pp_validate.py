@@ -22,7 +22,7 @@ IR_VERSION = 1
 
 
 class ValidationError(Exception):
-    """Raised when a Program violates the nanuk IR invariants."""
+    """Raised when a Program violates the Nanuk IR invariants."""
 
 
 def pp_validate(program: ir.ParserProgram) -> None:

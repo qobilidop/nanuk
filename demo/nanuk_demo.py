@@ -1,5 +1,5 @@
-"""nanuk e2e demo experiment: two QEMU Linux hosts with i40e NICs connected
-through the Verilator'd nanuk parser switch (parser-gated flood forwarding).
+"""Nanuk e2e demo experiment: two QEMU Linux hosts with i40e NICs connected
+through the Verilator'd Nanuk parser switch (parser-gated flood forwarding).
 
 Based on SimBricks' experiments/minimal_net.py, with the switch simulator's
 executable pointed at a wrapper script that launches nanuk_switch with the demo
@@ -54,7 +54,7 @@ simulation = sim_helpers.simple_simulation(
     },
 )
 
-# Point the switch simulator at the nanuk component (wrapper script bakes in
+# Point the switch simulator at the Nanuk component (wrapper script bakes in
 # the parser program path). Executable is serialized in toJSON, so this
 # survives the local runtime's JSON round-trip.
 for s in simulation.all_simulators():

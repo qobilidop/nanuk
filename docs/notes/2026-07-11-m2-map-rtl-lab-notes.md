@@ -64,7 +64,7 @@ Gotchas that cost a run each:
    `sent=24 flooded=1` (only the ARP broadcast); then host1's MAC mapped
    to the wrong port → 100% loss. Same silicon, same PP program, same MAP
    program — only table state changed. This is the M2 thesis demonstrated.
-3. **Tunnel (beat 3):** host0 – sw_encap – sw_decap – host1, two nanuk
+3. **Tunnel (beat 3):** host0 – sw_encap – sw_decap – host1, two Nanuk
    switches with a direct SimBricks net-to-net link. Encap pushes the 22B
    nanukproto outer header on host1-bound frames, decap strips it:
    `delta_pos=11` / `delta_neg=11`, ping 10/10, outer MAC visible only on

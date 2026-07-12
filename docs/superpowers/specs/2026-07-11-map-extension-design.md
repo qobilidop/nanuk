@@ -1,11 +1,11 @@
-# nanuk — Match-Action Extension Design
+# Nanuk — Match-Action Extension Design
 
 **Date:** 2026-07-11
 **Status:** COMPLETE (2026-07-11) — M1 (spec/emulator/assembler/rig), M2 (RTL cosim + SimBricks table-is-the-policy beats), and M3 (eDSL/IR/interp/playground) all landed green. The MAT arc is done; deferrals live in the parked table below. The detailed MAP ISA v0 (mnemonics, encodings, table sizing) is a follow-up design doc, as [Parser ISA v0](2026-07-11-parser-isa-v0-design.md) was for the parser.
 
 ## Decision
 
-Extend nanuk from a programmable parser to a parser + match-action pipeline, as a **full vertical** (spec → golden model → RTL → system demo → language), run **before** any satellite work. Motivations, all live: story completeness (a parser alone isn't a packet processor), demo realism (programmable forwarding instead of parser-gated flooding), design appetite (MAT is the next real ISA-design problem), and external strength (a full pipeline makes the eventual paper/book better).
+Extend Nanuk from a programmable parser to a parser + match-action pipeline, as a **full vertical** (spec → golden model → RTL → system demo → language), run **before** any satellite work. Motivations, all live: story completeness (a parser alone isn't a packet processor), demo realism (programmable forwarding instead of parser-gated flooding), design appetite (MAT is the next real ISA-design problem), and external strength (a full pipeline makes the eventual paper/book better).
 
 This consciously lifts the scope freeze for one named item. Everything else stays parked. MLIR simultaneously drops from "queued learning goal" to "parked, unconvinced it belongs in the repo" — see the satellite table in the [project design doc](2026-07-11-nanuk-project-design.md).
 
@@ -24,7 +24,7 @@ A clean boundary between two engines, each with its own minimal ISA — the xISA
 3. **Verification scales with ISA surface per model.** Two small total-semantics Sail models beat one union model where parser-only instructions need defined (or gated) behavior in MAP context.
 4. **Pedagogy.** The project's thesis is "shape an ISA to a job." Doing it twice, for two genuinely different jobs, is the curriculum.
 
-Honest counterexample: Intel IXP / Netronome NFP — one microengine ISA, a pooled sea of identical cores. That design trades stage fit for pooling flexibility and is notoriously hard to program; nanuk is a staged pipeline with distinct roles, not a pooled many-core.
+Honest counterexample: Intel IXP / Netronome NFP — one microengine ISA, a pooled sea of identical cores. That design trades stage fit for pooling flexibility and is notoriously hard to program; Nanuk is a staged pipeline with distinct roles, not a pooled many-core.
 
 *2026-07-12 addendum:* this call was stress-tested from the opposite extreme after the MAT arc completed; sharper arguments (state-model conflict, mode-bit decay, the diamond problem, "two is the minimum") recorded in the [single-ISA doctrine](2026-07-12-single-isa-doctrine.md).
 
@@ -32,11 +32,11 @@ What the siblings **share** is the design language and infrastructure: encoding 
 
 ### Why no third engine (deparser / modifier)
 
-- PISA needs a deparser because its parser rips headers into a PHV; the deparser is the tax on that representation. nanuk chose zero-copy offsets+SMD — nothing is disassembled, so nothing needs reassembly. **No deparser, by construction.**
-- The EZchip-style separate modifier (TOPmodify) is a throughput/pipelining decision, not a semantic one. At nanuk's scale (1 PP + 1 MAP, run-to-completion, educational), modification folds into the MAP — which is exactly what xISA does ("flexible editing of packet headers" by the MAP program; a fixed-function MAC editor applies send-time commands).
-- **Length-changing edits use the headroom trick, never a splice.** xISA evidence: `SENDOUT`/`SENDDATA` carry a signed 9-bit FrameDelta (start-of-packet = FOF − FrameDelta at transmit); `LBALLOC`/`FREBASE` prepend whole buffers in 32B-flit granularity; no "insert N bytes at offset X" instruction exists. Rationale from first principles: the payload never enters the core (only a ≤256B header window); every instruction stays O(1) — a mid-packet splice would make per-packet compute proportional to frame length; real length changes are header push/pop at the head (VLAN/MPLS/tunnel encap-decap) while mid-packet edits are same-length overwrites; physical byte movement belongs to streaming egress hardware where it is nearly free. This is the same doctrine as Linux `skb_push`/`skb_pull` and DPDK mbuf headroom, promoted into ISA semantics — and it aligns with nanuk's bounded-work-by-construction principle.
+- PISA needs a deparser because its parser rips headers into a PHV; the deparser is the tax on that representation. Nanuk chose zero-copy offsets+SMD — nothing is disassembled, so nothing needs reassembly. **No deparser, by construction.**
+- The EZchip-style separate modifier (TOPmodify) is a throughput/pipelining decision, not a semantic one. At Nanuk's scale (1 PP + 1 MAP, run-to-completion, educational), modification folds into the MAP — which is exactly what xISA does ("flexible editing of packet headers" by the MAP program; a fixed-function MAC editor applies send-time commands).
+- **Length-changing edits use the headroom trick, never a splice.** xISA evidence: `SENDOUT`/`SENDDATA` carry a signed 9-bit FrameDelta (start-of-packet = FOF − FrameDelta at transmit); `LBALLOC`/`FREBASE` prepend whole buffers in 32B-flit granularity; no "insert N bytes at offset X" instruction exists. Rationale from first principles: the payload never enters the core (only a ≤256B header window); every instruction stays O(1) — a mid-packet splice would make per-packet compute proportional to frame length; real length changes are header push/pop at the head (VLAN/MPLS/tunnel encap-decap) while mid-packet edits are same-length overwrites; physical byte movement belongs to streaming egress hardware where it is nearly free. This is the same doctrine as Linux `skb_push`/`skb_pull` and DPDK mbuf headroom, promoted into ISA semantics — and it aligns with Nanuk's bounded-work-by-construction principle.
 
-nanuk MAP v0 adopts: **in-place overwrite + signed head-delta at send**. In our single-buffer setting: a headroom region before the parsed frame, write instructions into the header window and headroom, and a `SEND` carrying a signed head delta.
+Nanuk MAP v0 adopts: **in-place overwrite + signed head-delta at send**. In our single-buffer setting: a headroom region before the parsed frame, write instructions into the header window and headroom, and a `SEND` carrying a signed head delta.
 
 ## Composition contract (first deliverable of the arc)
 

@@ -15,7 +15,7 @@ describe.skipIf(process.env.NANUK_SKIP_PYODIDE === '1')('pyodide integration', (
     const py = await loadPyodide();
     py.FS.mkdir('/wheels');
     const names = readdirSync(WHEELS).filter((f) => f.endsWith('.whl')).sort();
-    expect(names.length).toBe(1); // the single nanuk wheel (no [rtl] extra)
+    expect(names.length).toBe(1); // the single Nanuk wheel (no [rtl] extra)
     for (const name of names) {
       py.FS.writeFile(`/wheels/${name}`, readFileSync(join(WHEELS, name)));
     }

@@ -15,7 +15,7 @@ P4 relationship is (a) a concept-mapping section in the docs/paper and
 the IR without contorting nanuk.lang. The IR stays ONNX-style and the
 ISAs xISA-subset-shaped as before. The deparser question and its answer
 survive the retraction unchanged (they're about the machine, not the
-syntax): should nanuk invent a third processor type for deparsing?
+syntax): should Nanuk invent a third processor type for deparsing?
 
 ## Survey: how real targets handle the P4 deparser
 
@@ -48,7 +48,7 @@ with its own ISA. Three recurring forms:
 
 - **No third processor type.** The P4 deparser is an artifact of the
   PHV abstract machine (headers detached from bytes, validity bits,
-  emit-order reserialization). nanuk deliberately chose the zero-copy
+  emit-order reserialization). Nanuk deliberately chose the zero-copy
   machine (offsets + SMD, in-place edits, headroom + signed head-delta
   at SEND — the xISA/eBPF/VPP camp), where deparsing degenerates to
   edit ops. This confirms the MAT-arc "no deparser by construction"
@@ -74,16 +74,16 @@ match (lookup dispatch); "decide in match, act in edit"; (b) branch-free
 scripts have fixed worst-case latency at line rate; (c) no fetch/branch
 machinery. But a branch-free instruction sequence and an edit command
 vector differ only in vocabulary — RMT's own VLIW action engine has no
-PC either. Fusion is a design choice: xISA and nanuk fuse decide+act in
+PC either. Fusion is a design choice: xISA and Nanuk fuse decide+act in
 one MAP ISA.
 
 **xISA precision** (white paper, .agent_scratch/xisa.txt): fusion is at
 the *processor* level, not the instruction level — LKP (asynchronous,
 LFLAG + SYNC) and store-to-header are separate instruction classes in
-one ISA. (nanuk's LOOKUP is more fused in one respect: the miss-branch
+one ISA. (Nanuk's LOOKUP is more fused in one respect: the miss-branch
 is in the instruction.) Consequence, confirmed: **a MAP program's role
 is program-defined** — only LKP + branches = pure lookup engine; only
-stores + csum + send-delta = pure editor. nanuk's demo corpus already
+stores + csum + send-delta = pure editor. Nanuk's demo corpus already
 spans the spectrum: map_l2fwd = pure lookup engine, tunnel_pop = pure
 editor (no table access), ttl / tunnel_push = fused. "MAP acting as a
 pure edit engine" is a demo (run tunnel_pop), not a hardware project.
@@ -100,8 +100,8 @@ doctrine invariant:
   validity window.** The two coherent doctrines are
   structure-authoritative (PISA: the PHV *is* the packet, edits can't
   stale it, the deparser is the tax for re-materializing bytes) and
-  bytes-authoritative (nanuk, xISA, eBPF, skb: views expire; the
-  recompute primitive is *reparse*). nanuk chose bytes-authoritative
+  bytes-authoritative (Nanuk, xISA, eBPF, skb: views expire; the
+  recompute primitive is *reparse*). Nanuk chose bytes-authoritative
   when it chose zero-copy.
 - **In v0 the staleness has no observer, by construction.** During the
   MAP program the structure never goes stale — headroom+delta means
@@ -137,7 +137,7 @@ A real third block — MAP reduced to match/compute, plus an EDIT engine
 consuming a descriptor (WRITE(off,len,val) / CSUM_UPDATE / head-delta /
 emit command vector) — has genuine industry precedent (NPL Editor, RWE,
 Avago patent) and would be the honest hardware target for P4 deparser
-blocks. It costs the full nanuk vertical ×1.5 plus a new frozen
+blocks. It costs the full Nanuk vertical ×1.5 plus a new frozen
 interface contract (the descriptor format — the expensive part), and it
 deviates from the xISA-subset goal, which fuses. Parked with triggers:
 

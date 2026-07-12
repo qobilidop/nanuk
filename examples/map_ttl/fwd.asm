@@ -1,4 +1,4 @@
-; nanuk MAP ISA v0 demo 2: IPv4 TTL decrement + checksum fix, then L2 forward.
+; Nanuk MAP ISA v0 demo 2: IPv4 TTL decrement + checksum fix, then L2 forward.
 ;
 ; Router rule: drop when TTL <= 1 (a decrement would forward TTL 0), else
 ; decrement in place and let the CSUMUPD accelerator repair the header

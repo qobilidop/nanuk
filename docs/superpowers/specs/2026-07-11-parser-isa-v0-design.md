@@ -1,4 +1,4 @@
-# nanuk Parser ISA v0 — Design
+# Nanuk Parser ISA v0 — Design
 
 **Date:** 2026-07-11
 **Status:** Approved design sketch. Exact encodings, assembly syntax, and SMD layout are finalized during stage 1 (Sail spec).
@@ -8,7 +8,7 @@
 
 A **fresh, original ISA informed by xISA** (Xsight Labs' X-Switch parser ISA, [public spec rev 1.00](https://xsightlabs.com/wp-content/uploads/2025/03/XISA_Public-.pdf)) — not a subset of it and not compatible with it. Each xISA concept auditions for its place in v0 and most are deliberately deferred or re-decided:
 
-| xISA concept | nanuk v0 decision |
+| xISA concept | Nanuk v0 decision |
 |---|---|
 | Cursor over 256B header buffer | **Adopted** (parameterized) |
 | Offset-based header output (HDR.PRESENT / HDR.OFFSET) | **Adopted** (SETHDR) |
@@ -20,7 +20,7 @@ A **fresh, original ISA informed by xISA** (Xsight Labs' X-Switch parser ISA, [p
 | Z/N condition flags | **Rejected**: fused compare-and-branch, no hidden state |
 | Modifiers (.CD/.PR/...), reparse, MAP handoff | **Deferred** |
 
-The sibling repo `qobilidop/sail-xisa` is the **pattern donor** (Sail idioms, build/CI/devcontainer, Rust-vs-Sail differential testing, playground architecture) but not a code ancestor — nanuk's spec is written fresh, Apache-2.0, against this design.
+The sibling repo `qobilidop/sail-xisa` is the **pattern donor** (Sail idioms, build/CI/devcontainer, Rust-vs-Sail differential testing, playground architecture) but not a code ancestor — Nanuk's spec is written fresh, Apache-2.0, against this design.
 
 ## Machine state
 

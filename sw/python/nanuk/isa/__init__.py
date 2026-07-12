@@ -1,4 +1,4 @@
-"""Python mirror of the two nanuk ISAs: assemblers, encodings, and
+"""Python mirror of the two Nanuk ISAs: assemblers, encodings, and
 instruction-set simulators.
 
 Sail owns the truth (spec/sail/model/pp, spec/sail/model/map); this package is

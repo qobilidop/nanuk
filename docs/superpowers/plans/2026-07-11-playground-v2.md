@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Assembly-level ISS for both nanuk ISAs in a new shipped `nanuk-isa` package, plus a step-scrubber debugger in the playground that walks IR-interp and ISS traces in lockstep with live divergence detection.
+**Goal:** Assembly-level ISS for both Nanuk ISAs in a new shipped `nanuk-isa` package, plus a step-scrubber debugger in the playground that walks IR-interp and ISS traces in lockstep with live divergence detection.
 
 **Architecture:** Extract the assemblers/encodings from `nanuk-spec` into dependency-free `spec/isa/` (package `nanuk_isa`); add `iss.py`/`iss_map.py` executing assembled 32-bit words with full trace recording, mirroring `exec.sail` exactly (fourth implementation, tripwired differentially against `nanuk-emu`/`nanuk-map-emu`). The interp grows an optional trace recorder; the step counter is the shared clock (interp mirrors the lowering cost model instruction-for-instruction). The bridge assembles per-step aligned trace JSON with divergence verdicts; the UI adds a debugger strip + execution-line highlighting.
 
@@ -61,7 +61,7 @@ build-backend = "hatchling.build"
 packages = ["nanuk_isa"]
 ```
 
-`git mv` the five modules and four test files. `nanuk_isa/__init__.py`: module docstring only ("Python mirror of the two nanuk ISAs: assemblers, encodings, ISS. Sail owns the truth (spec/parser-model, spec/map-model); the spec test suites tripwire drift."). Intra-package relative imports (`from . import encoding`, `from ._asm_core import ...`) survive the move unchanged.
+`git mv` the five modules and four test files. `nanuk_isa/__init__.py`: module docstring only ("Python mirror of the two Nanuk ISAs: assemblers, encodings, ISS. Sail owns the truth (spec/parser-model, spec/map-model); the spec test suites tripwire drift."). Intra-package relative imports (`from . import encoding`, `from ._asm_core import ...`) survive the move unchanged.
 
 - [ ] **Step 2: Update nanuk-spec + dependents**
 
@@ -430,7 +430,7 @@ Walk mapping (interp event → provenance op index within its state): `"op" i �
 
 - [ ] **Step 2: DebuggerPanel** — props `{ trace: TraceJson, step: number, onStep: (n: number) => void, phase?: 'pp' | 'map' }` presentation-only component:
   - transport row: ⏮ ◀ ▶ ⏭ buttons, `<input type="range" min=0 max={trace.steps-1}>`, "step N / M", play/pause (200 ms interval), ←/→ keydown when the panel has focus.
-  - badge: green "levels agree" when `divergence === null && result_match`; else red "diverged at step N — this is a nanuk bug" + a jump button (`onStep(divergence.step)`).
+  - badge: green "levels agree" when `divergence === null && result_match`; else red "diverged at step N — this is a Nanuk bug" + a jump button (`onStep(divergence.step)`).
   - two state cards from `trace.records[step]`: IR card (state, op_label, values table name→hex); ASM card (pc, regs r0-r3 with reg_names annotations, cursor, "step N+1 / 256 budget"). The asm text itself is not echoed — the highlighted asm pane shows it.
 - [ ] **Step 3: App wiring** — `currentStep` $state, reset to 0 on each successful run; derive from the current record: `execIrLine` (record.ir_line), `execAsmLine` (record.asm_line), `execEdslRange` (state's edsl range from provenance) → pass `execLine` to IR/asm panes and a range-based variant to the eDSL pane (reuse the state hover region mechanism with a dedicated effect, not the shared hover store — hovering must not fight the scrubber; two independent decoration fields). DebuggerPanel renders below `.panes` (a new grid row: `main` becomes a column flex with the debugger strip after the panes; strip height ~11rem, `overflow-x: auto`). Run flow: PacketPanel already calls `runtime.run` — lift the RunResult into App state (move the result display data up or add a callback prop `onResult`) so App owns trace + step. Keep ResultView/MapResultView rendering the final result as today.
 

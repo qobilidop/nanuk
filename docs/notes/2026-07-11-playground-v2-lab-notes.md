@@ -9,7 +9,7 @@ Date: 2026-07-11 · Spec: `docs/superpowers/specs/2026-07-11-playground-v2-desig
   `_asm_core` extracted out of `nanuk-spec` into a dependency-free
   package (no scapy, no protobuf), plus the two new **instruction-set
   simulators** (`iss.py`, `iss_map.py`) that decode and execute the
-  assembled 32-bit words — the fourth implementation of nanuk semantics
+  assembled 32-bit words — the fourth implementation of Nanuk semantics
   after the Sail/C golden models, the RTL cores, and the IR interps.
   Reserved encoding bits are enforced (nonzero → ILLEGAL), and both ISS
   record a complete per-step trace (the step budget bounds it).
@@ -32,7 +32,7 @@ Date: 2026-07-11 · Spec: `docs/superpowers/specs/2026-07-11-playground-v2-desig
   l2l3l4 rig.
 - **Debugger strip** under the panes: transport + slider with a phase
   boundary tick, agreement badge (red = jump-to-divergence = "file a
-  nanuk bug"), IR/ASM state cards, execution-line highlighting in the
+  Nanuk bug"), IR/ASM state cards, execution-line highlighting in the
   IR/asm panes via a second CM6 decoration field (independent of hover,
   so scrubbing and hovering never fight), state-fn line in the eDSL
   pane, and the parser-cursor byte highlighted in a packet hex view.

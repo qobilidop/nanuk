@@ -202,7 +202,7 @@ cd /Users/qobilidop/i/nanuk/python && uv run ruff check ..
 ```bash
 (cd "$REPO/python" && uv build --wheel --out-dir "$OUT" --quiet)
 ```
-(header comment updated: one nanuk wheel + bridge)
+(header comment updated: one Nanuk wheel + bridge)
 
 - [x] **Step 2: `ci.yml` runCmd** — the six package blocks become:
 

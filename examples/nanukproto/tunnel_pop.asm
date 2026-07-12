@@ -1,4 +1,4 @@
-; nanuk MAP ISA v0 demo 3b: nanukproto tunnel pop (decap).
+; Nanuk MAP ISA v0 demo 3b: nanukproto tunnel pop (decap).
 ;
 ; The PP (parse_tunnel.asm) writes SMD slot 5 = nk magic when it parsed a
 ; valid tunnel header; the pop strips the 22-byte outer header with a

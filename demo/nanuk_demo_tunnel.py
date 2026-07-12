@@ -1,4 +1,4 @@
-"""nanuk M2 beat-3 experiment: two hosts, TWO nanuk switches in series —
+"""Nanuk M2 beat-3 experiment: two hosts, TWO Nanuk switches in series —
 host0 - sw_encap - sw_decap - host1. sw_encap runs the tunnel_push MAP
 program (nanukproto L2-in-L2 encap for DMACs in its tunnel table); sw_decap
 runs parse_tunnel + tunnel_pop (strip the outer header, flood). Ping
@@ -22,7 +22,7 @@ from simbricks.orchestration.system.eth import EthInterface
 
 # SwitchNet.run_cmd already emits -h for listen sockets; only the
 # supported_socket_types it inherits from NetSim forbids net-to-net links.
-# Widen it so two nanuk switches can peer (nanuk_switch implements listening
+# Widen it so two Nanuk switches can peer (nanuk_switch implements listening
 # via NetListenPort). Class-level patch: survives the local runtime's
 # in-process JSON round-trip.
 sim.SwitchNet.supported_socket_types = lambda self, interface: {

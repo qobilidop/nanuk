@@ -76,7 +76,7 @@ question* — pool-of-general-cores vs pipeline-of-specialized-stages.
 Pooling wins when the workload mix is unknown; one-ISA wins when a big
 software ecosystem amortizes it (eBPF's verifier/JIT/tooling);
 run-to-completion wins when the pipeline throughput story is already
-forfeit. None hold for nanuk: pipeline is the architecture story
+forfeit. None hold for Nanuk: pipeline is the architecture story
 (xISA / EZchip lineage), the "ecosystem" is tiny per-stage firmware.
 
 **Middle point dismissed:** a RISC-V-style shared base
@@ -91,7 +91,7 @@ purchase a versioning problem.
 
 The project optimizes for education. A unified ISA teaches
 general-purpose ISA design — RISC-V already teaches that better.
-The two-ISA design teaches nanuk's actual thesis: **an ISA is the
+The two-ISA design teaches Nanuk's actual thesis: **an ISA is the
 interface contract for a job, and different jobs get different
 contracts.** The contrast pairs are the curriculum — bit machine vs
 byte machine, cursor vs header-relative, read-only vs read-write,

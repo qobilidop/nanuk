@@ -1,4 +1,4 @@
-; nanuk MAP ISA v0 demo 1: L2 forward.
+; Nanuk MAP ISA v0 demo 1: L2 forward.
 ;
 ; Exact-match lookup on the destination MAC -> egress port bitmap; miss ->
 ; flood (all ports except ingress, hardware-computed in inbound-SMD field 9).

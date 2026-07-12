@@ -6,7 +6,7 @@ composed PP→MAP rig → three demo programs).*
 
 ## The decision: two sibling ISAs
 
-The second arc extends nanuk from a parser to a parser + match-action
+The second arc extends Nanuk from a parser to a parser + match-action
 pipeline. The architectural fork was one-ISA-two-stages vs. two sibling
 ISAs; Bili's instinct (clean boundary, composable PP ∘ MAP) matched what
 the xISA white paper actually does — a specialized Parser ISA beside a

@@ -1,6 +1,6 @@
 # Lab notes — 2026-07-11 — IR interpreter, playground v1, going public
 
-Decision records and lessons from the satellite sprint that took nanuk from
+Decision records and lessons from the satellite sprint that took Nanuk from
 "stages done" to a live site. Raw material for the guide; terse by design.
 
 ## One cost model, three jobs
@@ -30,7 +30,7 @@ unrepresentable.
 
 ## scapy stays, with one hard boundary
 
-scapy is GPL-2.0-only against nanuk's Apache-2.0 (formally incompatible),
+scapy is GPL-2.0-only against Nanuk's Apache-2.0 (formally incompatible),
 but its use here — packet building in tests, `rdpcap` in the harness,
 installed from PyPI, never vendored — triggers no distribution obligation.
 Decision: keep it, dev/test-scoped, with one rule: **scapy never enters a
@@ -113,5 +113,5 @@ list). Decision: decouple writing from venue — draft a tech report → arXiv
 when the material is strongest (MLIR and the symbolic executor both
 strengthen it), watch p4-announce and CoNEXT'26 for a real CFP. Scope fact
 for later: EuroP4's historical CFPs explicitly include alternatives to P4
-and education — nanuk qualifies without a P4 frontend; a P4-concept-mapping
+and education — Nanuk qualifies without a P4 frontend; a P4-concept-mapping
 section is cheap insurance.

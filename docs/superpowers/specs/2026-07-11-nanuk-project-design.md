@@ -1,11 +1,11 @@
-# nanuk — Project Design
+# Nanuk — Project Design
 
 **Date:** 2026-07-11
 **Status:** Approved scope for the main track; satellite tracks defined with entry criteria. Scope frozen — new ideas go to *Parked* by default. **2026-07-11:** first arc (stages 1–4) complete; second arc (match-action, M1–M3) COMPLETE — the pipeline is PP + MAP end to end, spec through playground; see [Match-Action Extension](2026-07-11-map-extension-design.md).
 
 ## Thesis
 
-nanuk is an educational project that builds a **programmable packet processor from chip to programming language** — the entire vertical stack, small enough that one person can understand every layer, real enough that the final demo is unmodified Linux hosts exchanging traffic through your own RTL.
+Nanuk is an educational project that builds a **programmable packet processor from chip to programming language** — the entire vertical stack, small enough that one person can understand every layer, real enough that the final demo is unmodified Linux hosts exchanging traffic through your own RTL.
 
 - **Parser-first.** Packet parsing is the most self-contained piece of a packet processor: crisp input (bytes), crisp output (extracted headers + a verdict), and genuinely interesting to make programmable. The full processor (match-action, deparser, traffic manager) comes later or not at all. *(2026-07-11: match-action un-parked as the second arc — two sibling ISA processors, PP + MAP; see [Match-Action Extension](2026-07-11-map-extension-design.md). Deparser stays out by construction; traffic manager stays parked.)*
 - **ISA-based, not PISA-based.** The parser is a tiny programmable processor with its own instruction set, in the spirit of Xsight Labs' open xISA — not a P4/PISA parse-graph abstraction. Rationale: (1) xISA proves real silicon works this way; (2) the ISA route unlocks mature tooling (Sail, RISC-V-style conformance methodology, Isla); (3) an ISA is the truthful layer — real chips implement parse graphs on programmable parser engines anyway; (4) PISA/P4 can sit *on top* later as a frontend, turning BMv2 into a differential-testing oracle rather than a competitor.
@@ -25,11 +25,11 @@ Each layer is a stable contract with exactly one owner of its truth:
 | Layer | Artifact | Home |
 |---|---|---|
 | Frontend | Python eDSL (reference frontend; P4 subset possible later) | `lang/` |
-| Middle | **nanuk IR** — protobuf, ONNX-style interchange, *extracted* from the working eDSL | `compiler/` |
+| Middle | **Nanuk IR** — protobuf, ONNX-style interchange, *extracted* from the working eDSL | `compiler/` |
 | ISA | Assembly text + binary encoding — **encodings defined solely by the Sail spec**; one shared assembler | `spec/` |
 | Golden model | Sail ISA spec + generated emulator — the single source of truth for semantics | `spec/` |
 | RTL | Amaranth (canonical implementation), cosimulated against Sail | `hw/` |
-| System | SimBricks: QEMU/gem5 hosts + Verilator'd nanuk switch + ns-3/OMNeT++ | `hw/`, `examples/` |
+| System | SimBricks: QEMU/gem5 hosts + Verilator'd Nanuk switch + ns-3/OMNeT++ | `hw/`, `examples/` |
 | Silicon | Tiny Tapeout capstone | `hw/` |
 
 Two portable interchange boundaries: the **IR above** (parser-level semantics: extract field, branch on EtherType, emit header vector — before instruction selection) and **assembly/binary below** (defined by Sail). The compiler lives between them. The IR is the **hub** all satellite tracks hang off.
@@ -80,12 +80,12 @@ The nano configuration through OpenLane to a Tiny Tapeout submission. Deferred b
 
 ## The final demo (stage 4)
 
-One SimBricks configuration: two+ QEMU/gem5 hosts booting unmodified Linux with existing NIC models, the nanuk switch in the middle as Verilator'd RTL — the same Verilog that goes to tape-out — in synchronized deterministic mode (bit-identical runs; honest simulated-time latency numbers regardless of wall-clock). Menshen and Corundum are the integration precedents.
+One SimBricks configuration: two+ QEMU/gem5 hosts booting unmodified Linux with existing NIC models, the Nanuk switch in the middle as Verilator'd RTL — the same Verilog that goes to tape-out — in synchronized deterministic mode (bit-identical runs; honest simulated-time latency numbers regardless of wall-clock). Menshen and Corundum are the integration precedents.
 
 Three beats:
 1. **"It's real."** Load the baseline Ethernet/IPv4 parser program (written in the eDSL). `ping`, `iperf`, `tcpdump` between real Linux hosts, through your parser.
 2. **"It's programmable."** VLAN traffic drops — show *why* via the parser's verdict. Edit ~10 lines of eDSL, recompile, reload — same silicon, zero RTL changes — VLAN flows.
-3. **"It parses protocols that don't exist."** Invent a header (toy tunnel / INT-style field), write a parser program for it, have hosts speak it via scapy, watch nanuk parse and forward a protocol no commercial switch has ever heard of.
+3. **"It parses protocols that don't exist."** Invent a header (toy tunnel / INT-style field), write a parser program for it, have hosts speak it via scapy, watch Nanuk parse and forward a protocol no commercial switch has ever heard of.
 
 Because SimBricks components are swappable, the identical scenario runs against the Sail emulator component and the RTL component; diff the outputs — ladder rungs 2 and 3 in one rig.
 
@@ -107,7 +107,7 @@ Hub-and-spoke around the protobuf IR. Every spoke terminates in the same evaluat
 | **Formal — translation validation** | Alive2-style per-run validation (Gauntlet precedent): IR→IR for the optimizer; IR→asm for both backends, with **Isla** providing symbolic semantics of the assembly side directly from the Sail spec — no second hand-written semantics. | Symbolic executor |
 | **Differential fuzzing** | Random packets (later: random IR programs) diffed across emulator / RTL / backends. ~A day of work once rigs exist; complements the symbolic executor from the opposite direction. | Stage 4 rigs |
 | **HDL ports** | Same core, other HDLs — SystemVerilog first — each validated by the unchanged conformance suite. "Same contract, different expression." | Stage 4 |
-| **P4 frontend** | P4-subset frontend emitting nanuk IR; BMv2 becomes a differential oracle (same P4 program, compare behaviors). Positions nanuk *under* the P4 ecosystem, not against it. | Stage 3 |
+| **P4 frontend** | P4-subset frontend emitting Nanuk IR; BMv2 becomes a differential oracle (same P4 program, compare behaviors). Positions Nanuk *under* the P4 ecosystem, not against it. | Stage 3 |
 | **Workshop paper** | Short paper on the novel core: an open, Sail-specified parser ISA with generated golden model, conformance methodology, and full open stack — RISC-V-style spec-first engineering for packet engines. Primary targets: EuroP4 (@CoNEXT, CFP ~late summer) or ANRW (most remote-friendly); JOSS as a cheap citable-DOI add-on for the artifact. A HotNets-style position paper or full-stack paper stays in reserve for after the stage-4 demo. Open development continues as-is (public repos are not prior publication; anonymization is a submission-time PDF concern, and venue attendance/remote-presentation policy is checked against the CFP — email chairs early if travel is constrained). | Stage 2–3, timed to a CFP deadline |
 | **IR interpreter** | Reference interpreter for the protobuf IR (`compiler/nanuk_ir/interp.py`; design: [IR interpreter + playground](2026-07-11-ir-interpreter-playground-design.md)): independent IR semantics; enables `interp(IR)` vs `emulate(lower(IR))` differential testing of the compiler (lightweight translation validation); the chassis the symbolic executor and the playground both reuse. | Now (IR stable) |
 | **Web playground** | Browser IDE, Pyodide-based so it runs the actual repo code (eDSL/IR/validator/interpreter/assembler — no rewrite): three synchronized panes eDSL \| IR \| assembly with Compiler-Explorer-style provenance highlighting; packets in, parse trace + verdict/hdr/SMD out. v1 executes the IR interpreter; v2 adds a Python assembly-level ISS (drift-tripwired in CI like the encoding mirror) and diffs both levels live — the differential methodology, interactive. Later: "SimBricks-lite" packet-lab view (two virtual hosts + parser-gated flood, animated) and possibly DigitalJS-rendered gates. Design + prior art: [IR interpreter + playground](2026-07-11-ir-interpreter-playground-design.md). | IR interpreter |
@@ -131,7 +131,7 @@ Browser-native SimBricks (QEMU full-system + multi-process SHM channels are not 
 
 ## Naming and licensing
 
-**nanuk** — Inuktitut for polar bear; hidden "nano-" prefix; polar bear mascot. Name checked free on PyPI, npm, crates.io, RubyGems, Homebrew, conda-forge, NuGet, Maven, Docker Hub (as of 2026-07). GitHub `nanuk` username taken → repo `qobilidop/nanuk`; org fallbacks `nanuk-project` / `nanuklang`. Real-world collisions (NANUK cases, Czech "nanuk" = popsicle) → always pair the name with a tagline.
+**Nanuk** — Inuktitut for polar bear; hidden "nano-" prefix; polar bear mascot. Name checked free on PyPI, npm, crates.io, RubyGems, Homebrew, conda-forge, NuGet, Maven, Docker Hub (as of 2026-07). GitHub `nanuk` username taken → repo `qobilidop/nanuk`; org fallbacks `nanuk-project` / `nanuklang`. Real-world collisions (NANUK cases, Czech "nanuk" = popsicle) → always pair the name with a tagline.
 
 **Licenses:** Apache-2.0 for code/RTL · CC-BY-4.0 for the guide.
 

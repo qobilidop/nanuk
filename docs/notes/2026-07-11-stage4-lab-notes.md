@@ -45,7 +45,7 @@ rig is what makes RTL restructuring cheap; and "matches the spec's
 ## Cross-compile split: verilate native, compile emulated
 
 Verilation is fast and version-sensitive; C++ compilation of the result is
-slow and portable. So: Verilator 5 runs natively in the nanuk devcontainer
+slow and portable. So: Verilator 5 runs natively in the Nanuk devcontainer
 (arm64), and only the generated portable C++ is compiled inside the amd64
 SimBricks container (with the Verilator include tree copied alongside).
 Deterministic, and ~10× faster than verilating under emulation.
@@ -60,7 +60,7 @@ Deterministic, and ~10× faster than verilating under emulation.
 - `sims/net/switch/net_switch.cc` has the current port/connect API;
   `sims/net/menshen/menshen_hw.cc` has the clocked-Verilator loop; the
   component argv contract is `-S <sync> -E <lat> [-u] -s <sock>...`.
-- The demo: 2 QEMU hosts + i40e NICs + nanuk switch; 10/10 pings through
+- The demo: 2 QEMU hosts + i40e NICs + Nanuk switch; 10/10 pings through
   the RTL (24 frames in, 24 forwarded); with `examples/drop_all/parse.asm`
   loaded instead, traffic stops — the parser program, not the wiring, is
   what forwards.

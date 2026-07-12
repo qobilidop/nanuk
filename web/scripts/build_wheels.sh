@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the nanuk wheel into web/public/wheels/ with a manifest, and copy
+# Build the Nanuk wheel into web/public/wheels/ with a manifest, and copy
 # the bridge next to it. Run via uv (devcontainer or any host with uv).
 # The wheel's [rtl] extra (amaranth) is not requested, so the Pyodide
 # bundle stays protobuf-only.

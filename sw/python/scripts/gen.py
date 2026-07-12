@@ -2,7 +2,7 @@
 """Regenerate nanuk/ir/nanuk_ir_pb2.py from the IR schema in spec/proto/.
 
 The schema's source of truth is spec/proto/ (language-neutral, shared by
-every implementation); this package vendors the generated code so nanuk
+every implementation); this package vendors the generated code so Nanuk
 needs no build-time protoc dependency. The include path is the schema's
 leaf directory on purpose: gencode lands flat in nanuk/ir/, keeping the
 import path (nanuk.ir.nanuk_ir_pb2) a per-language detail rather than a
