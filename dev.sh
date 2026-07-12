@@ -8,7 +8,7 @@ set -euo pipefail
 #
 # Examples:
 #   ./dev.sh sail --version
-#   ./dev.sh cmake -B build
+#   ./dev.sh cmake -S sail -B build
 #   ./dev.sh cmake --build build
 #   ./dev.sh ctest --test-dir build
 #   ./dev.sh bash              # interactive shell

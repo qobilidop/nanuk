@@ -13,7 +13,7 @@ The web playground additionally needs Node ≥ 22 on the host (`cd web`).
 
 | Suite | Command (from repo root) |
 |---|---|
-| Sail models + emulators (parser + MAP) | `./dev.sh bash -lc 'cmake -B build && cmake --build build && ctest --test-dir build'` |
+| Sail models + emulators (parser + MAP) | `./dev.sh bash -lc 'cmake -S sail -B build && cmake --build build && ctest --test-dir build'` |
 | Python (nanuk package + bridge: isa, ir, lang, rtl+cosim, pcap rig, playground) | `./dev.sh bash -lc 'cd python && uv sync --extra rtl && NANUK_COSIM=1 uv run pytest tests ../web/py/tests'` |
 | playground SPA | `cd web && npm test && npm run build` (host; `web/scripts/build_wheels.sh` first) |
 | lint (ruff, whole repo) | `./dev.sh bash -lc 'cd python && uv run ruff check ..'` |

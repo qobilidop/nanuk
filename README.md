@@ -56,7 +56,7 @@ devcontainer build --workspace-folder .
 devcontainer up --workspace-folder .
 
 # Build the Sail model, emulator, and tests
-./dev.sh cmake -B build
+./dev.sh cmake -S sail -B build
 ./dev.sh cmake --build build
 
 # Sail model tests + emulator smoke test
