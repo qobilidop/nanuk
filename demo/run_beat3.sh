@@ -38,7 +38,7 @@ run_phase() {  # $1 = phase; encap-tables.txt optionally staged in $OUT
     $IMG bash -ec '
       D=/simbricks/sims/net/nanuk
       mkdir -p $D/encap $D/decap
-      cp /out/nanuk_hw /nanuk/demo/nanuk_run.sh \
+      cp /out/nanuk_switch /nanuk/demo/nanuk_run.sh \
          /nanuk/demo/nanuk_demo_tunnel.py $D/
       cp /out/encap-prog.bin $D/encap/prog.bin
       cp /out/encap-map.bin  $D/encap/map.bin

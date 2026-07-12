@@ -1,7 +1,7 @@
 # nanuk × SimBricks integration
 
 The e2e demo: two QEMU Linux hosts with i40e NICs exchange traffic through
-the Verilator'd composed PP→MAP cores, wrapped as a SimBricks network
+the Verilator'd nanuk core (PP→MAP), wrapped as a SimBricks network
 component. The parser program gates what enters (verdict ≠ accept ⇒ drop),
 the MAP program + tables decide forwarding (lookup hit ⇒ egress bitmap,
 miss ⇒ program's choice, e.g. flood). The loaded programs and tables ARE
@@ -15,7 +15,7 @@ demo programs are assembled from the repo-root `examples/`.
   `sims/net/switch/net_switch.cc` has the current port/connection API
   (`Prepare`/`ConnectAll`/`SimBricksBaseIfEstablish`) and the argv
   conventions the orchestrator's `SwitchNet.run_cmd` emits
-  (`-S <sync> -E <lat> [-u] -s <sock>... -h <sock>...`). `nanuk_hw.cc`
+  (`-S <sync> -E <lat> [-u] -s <sock>... -h <sock>...`). `nanuk_switch.cc`
   combines both, plus `-f <prog.bin>` / `$NANUK_PROG` for the program.
 - **Local execution**: the new cloud-first flow is NOT required —
   `python -m simbricks.local <experiment.py> --repo /simbricks` runs fully
@@ -37,14 +37,14 @@ demo programs are assembled from the repo-root `examples/`.
 
 ## Files
 
-- `nanuk_hw.cc` — the component (ports + clocked Verilator loop driving both
+- `nanuk_switch.cc` — the component (ports + clocked Verilator loop driving both
   cores: PP verdict gates, MAP verdict + tables forward, head-delta applied
   at readback)
 - `nanuk_demo.py` / `nanuk_demo_tunnel.py` — the experiments (stock classes
   only; single switch / two switches with a nanukproto tunnel between them)
 - `nanuk_run.sh` — executable wrapper selecting per-switch prog/map/tables
 - `build_component.sh` — exports Verilog (nanuk-export), verilates natively,
-  compiles + links `out/nanuk_hw` in the SimBricks container
+  compiles + links `out/nanuk_switch` in the SimBricks container
 - `build_and_run.sh` — e2e smoke: build component, assemble programs from
   `examples/`, run the ping experiment, check output
 - `run_beats12.sh` / `run_beat3.sh` — the M2 demo beats (table-is-the-policy;

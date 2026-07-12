@@ -4,7 +4,7 @@
 # (sockets, sync flags). NANUK_DIR selects a per-switch directory of
 # prog.bin / map.bin / tables.txt (defaults to this script's directory);
 # NANUK_PROG / NANUK_MAP_PROG / NANUK_TABLES override individual files.
-BIN="$(dirname "$0")/nanuk_hw"
+BIN="$(dirname "$0")/nanuk_switch"
 DIR="${NANUK_DIR:-$(dirname "$0")}"
 TABLES="${NANUK_TABLES:-$DIR/tables.txt}"
 if [ -f "$TABLES" ]; then

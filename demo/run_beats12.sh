@@ -36,7 +36,7 @@ run_phase() {  # $1 = phase name; tables.txt (or absence) already staged in $OUT
     -v "$REPO:/nanuk:ro" -v "$OUT:/out" \
     $IMG bash -ec '
       mkdir -p /simbricks/sims/net/nanuk
-      cp /out/nanuk_hw /nanuk/demo/nanuk_run.sh \
+      cp /out/nanuk_switch /nanuk/demo/nanuk_run.sh \
          /nanuk/demo/nanuk_demo.py /out/prog.bin /out/map.bin \
          /simbricks/sims/net/nanuk/
       [ -f /out/tables.txt ] && cp /out/tables.txt /simbricks/sims/net/nanuk/

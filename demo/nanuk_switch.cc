@@ -1,16 +1,16 @@
 /*
- * nanuk_hw: SimBricks network component wrapping the Verilator'd nanuk
+ * nanuk_switch: SimBricks network component wrapping the Verilator'd nanuk
  * parser + match-action cores (composed PP->MAP pipeline).
  *
  * Structure follows SimBricks' sims/net/switch/net_switch.cc (ports, argv,
  * connection setup) combined with sims/net/menshen/menshen_hw.cc (clocked
  * Verilator main loop). M2 forwarding: each frame is parsed by the PP core,
- * then (on accept) processed by the MAP core — the composed PP->MAP
+ * then (on accept) processed by the MAP — the composed PP->MAP
  * pipeline. The MAP's egress bitmap and head delta decide where the
  * (possibly rewritten) frame goes; the TABLE is the forwarding policy,
  * loaded from a file and hot-reloaded on mtime change.
  *
- * Usage: nanuk_hw [-S SYNC-PERIOD] [-E ETH-LATENCY] [-u] -f PP_PROG.BIN \
+ * Usage: nanuk_switch [-S SYNC-PERIOD] [-E ETH-LATENCY] [-u] -f PP_PROG.BIN \
  *            -m MAP_PROG.BIN [-t TABLES.TXT] \
  *            -s SOCKET-A [-s SOCKET-B ...] [-h LISTEN-SOCKET ...]
  */
@@ -123,7 +123,7 @@ class NetPort {
     } else if (type == SIMBRICKS_PROTO_MSG_TYPE_SYNC) {
       return kRxPollSync;
     } else {
-      fprintf(stderr, "nanuk_hw: unsupported msg type=%u\n", type);
+      fprintf(stderr, "nanuk_switch: unsupported msg type=%u\n", type);
       abort();
     }
   }
@@ -232,7 +232,7 @@ static void sigint_handler(int dummy) {
 }
 
 static void sigusr1_handler(int dummy) {
-  fprintf(stderr, "nanuk_hw: main_time = %lu\n", cur_ts);
+  fprintf(stderr, "nanuk_switch: main_time = %lu\n", cur_ts);
 }
 
 /* ------------------ Composed PP -> MAP pipeline controller ------------------ */
@@ -263,7 +263,7 @@ static uint64_t mask_width(uint64_t v, uint64_t w) {
 static bool parse_tables(const char *path, Tables &out) {
   FILE *f = fopen(path, "r");
   if (!f) {
-    fprintf(stderr, "nanuk_hw: cannot open tables %s\n", path);
+    fprintf(stderr, "nanuk_switch: cannot open tables %s\n", path);
     return false;
   }
   out.configs.clear();
@@ -287,7 +287,7 @@ static bool parse_tables(const char *path, Tables &out) {
       e.action = strtoull(strtok(NULL, " \t\r\n") ?: "0", NULL, 0);
       out.entries.push_back(e);
     } else {
-      fprintf(stderr, "nanuk_hw: tables: unknown keyword %s\n", kw);
+      fprintf(stderr, "nanuk_switch: tables: unknown keyword %s\n", kw);
       fclose(f);
       return false;
     }
@@ -328,7 +328,7 @@ static void program_tables(Vnanuk_map &map, const Tables &t) {
   }
   map.tbl_add_we = 0;
   tick();
-  fprintf(stderr, "nanuk_hw: tables programmed (%zu configs, %zu entries)\n",
+  fprintf(stderr, "nanuk_switch: tables programmed (%zu configs, %zu entries)\n",
           t.configs.size(), t.entries.size());
 }
 
@@ -371,7 +371,7 @@ class Controller {
       dmac = (dmac << 8) | f.data[i];
     if (seen_dmacs.insert(dmac).second) {
       fprintf(stderr,
-              "nanuk_hw: port %zu dmac %02x:%02x:%02x:%02x:%02x:%02x\n",
+              "nanuk_switch: port %zu dmac %02x:%02x:%02x:%02x:%02x:%02x\n",
               f.port, f.data[0], f.data[1], f.data[2], f.data[3], f.data[4],
               f.data[5]);
     }
@@ -521,7 +521,7 @@ class Controller {
 
   void stats(const char *tag) {
     fprintf(stderr,
-            "nanuk_hw[%s]: frames in=%lu sent=%lu dropped=%lu map_err=%lu "
+            "nanuk_switch[%s]: frames in=%lu sent=%lu dropped=%lu map_err=%lu "
             "flooded=%lu delta_pos=%lu delta_neg=%lu\n",
             tag, frames_in, frames_sent, frames_drop, map_err, flooded,
             delta_pos, delta_neg);
@@ -542,7 +542,7 @@ static void poll_ports() {
         memcpy(f.data, data, len);
         rx_queue.push_back(f);
       } else {
-        fprintf(stderr, "nanuk_hw: rx queue full, dropping frame\n");
+        fprintf(stderr, "nanuk_switch: rx queue full, dropping frame\n");
       }
     }
     if (ps != NetPort::kRxPollFail)
@@ -556,7 +556,7 @@ static void poll_ports() {
 static bool load_program(Vnanuk_pp &top, const char *path) {
   FILE *f = fopen(path, "rb");
   if (!f) {
-    fprintf(stderr, "nanuk_hw: cannot open program %s\n", path);
+    fprintf(stderr, "nanuk_switch: cannot open program %s\n", path);
     return false;
   }
   uint8_t word[4];
@@ -574,14 +574,14 @@ static bool load_program(Vnanuk_pp &top, const char *path) {
   }
   top.prog_we = 0;
   fclose(f);
-  fprintf(stderr, "nanuk_hw: loaded %u PP program words from %s\n", addr, path);
+  fprintf(stderr, "nanuk_switch: loaded %u PP program words from %s\n", addr, path);
   return addr > 0;
 }
 
 static bool load_map_program(Vnanuk_map &top, const char *path) {
   FILE *f = fopen(path, "rb");
   if (!f) {
-    fprintf(stderr, "nanuk_hw: cannot open MAP program %s\n", path);
+    fprintf(stderr, "nanuk_switch: cannot open MAP program %s\n", path);
     return false;
   }
   uint8_t word[4];
@@ -599,7 +599,7 @@ static bool load_map_program(Vnanuk_map &top, const char *path) {
   }
   top.prog_we = 0;
   fclose(f);
-  fprintf(stderr, "nanuk_hw: loaded %u MAP program words from %s\n", addr,
+  fprintf(stderr, "nanuk_switch: loaded %u MAP program words from %s\n", addr,
           path);
   return addr > 0;
 }
@@ -624,11 +624,11 @@ int main(int argc, char *argv[]) {
   while ((c = getopt(argc, argv, "s:h:uS:E:f:m:t:")) != -1 && !bad_option) {
     switch (c) {
       case 's':
-        fprintf(stderr, "nanuk_hw: connecting to: %s\n", optarg);
+        fprintf(stderr, "nanuk_switch: connecting to: %s\n", optarg);
         ports.push_back(new NetPort(optarg, sync_eth));
         break;
       case 'h':
-        fprintf(stderr, "nanuk_hw: listening on: %s\n", optarg);
+        fprintf(stderr, "nanuk_switch: listening on: %s\n", optarg);
         ports.push_back(new NetListenPort(optarg, sync_eth));
         break;
       case 'u':
@@ -658,7 +658,7 @@ int main(int argc, char *argv[]) {
 
   if (ports.empty() || bad_option || !prog_path || !map_prog_path) {
     fprintf(stderr,
-            "Usage: nanuk_hw [-S SYNC-PERIOD] [-E ETH-LATENCY] [-u] "
+            "Usage: nanuk_switch [-S SYNC-PERIOD] [-E ETH-LATENCY] [-u] "
             "-f PP_PROG.BIN -m MAP_PROG.BIN [-t TABLES.TXT] "
             "-s SOCKET-A [-s SOCKET-B ...]\n");
     return EXIT_FAILURE;
@@ -673,7 +673,7 @@ int main(int argc, char *argv[]) {
   Vnanuk_pp *pp = new Vnanuk_pp;
   Vnanuk_map *map = new Vnanuk_map;
 
-  /* reset both cores */
+  /* reset both processors */
   pp->rst = 1;
   map->rst = 1;
   for (int i = 0; i < 8; i++) {
@@ -702,14 +702,14 @@ int main(int argc, char *argv[]) {
     program_tables(*map, tables);
     tables_seen = tables_mtime(tables_path);
   } else {
-    fprintf(stderr, "nanuk_hw: no tables file; all lookups miss\n");
+    fprintf(stderr, "nanuk_switch: no tables file; all lookups miss\n");
   }
 
   if (!ConnectAll(ports))
     return EXIT_FAILURE;
 
   Controller ctrl(*pp, *map);
-  fprintf(stderr, "nanuk_hw: start polling\n");
+  fprintf(stderr, "nanuk_switch: start polling\n");
 
   uint64_t iter = 0;
   while (!exiting) {
@@ -742,7 +742,7 @@ int main(int argc, char *argv[]) {
         tables_seen = mt;
         if (parse_tables(tables_path, tables)) {
           program_tables(*map, tables);
-          fprintf(stderr, "nanuk_hw: tables reloaded\n");
+          fprintf(stderr, "nanuk_switch: tables reloaded\n");
         }
       }
     }

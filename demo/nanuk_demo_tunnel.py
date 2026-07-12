@@ -22,7 +22,7 @@ from simbricks.orchestration.system.eth import EthInterface
 
 # SwitchNet.run_cmd already emits -h for listen sockets; only the
 # supported_socket_types it inherits from NetSim forbids net-to-net links.
-# Widen it so two nanuk switches can peer (nanuk_hw implements listening
+# Widen it so two nanuk switches can peer (nanuk_switch implements listening
 # via NetListenPort). Class-level patch: survives the local runtime's
 # in-process JSON round-trip.
 sim.SwitchNet.supported_socket_types = lambda self, interface: {

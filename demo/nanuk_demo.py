@@ -2,7 +2,7 @@
 through the Verilator'd nanuk parser switch (parser-gated flood forwarding).
 
 Based on SimBricks' experiments/minimal_net.py, with the switch simulator's
-executable pointed at a wrapper script that launches nanuk_hw with the demo
+executable pointed at a wrapper script that launches nanuk_switch with the demo
 parser program. Uses only stock orchestration classes so JSON round-trips
 (used by the local runtime) keep working.
 
