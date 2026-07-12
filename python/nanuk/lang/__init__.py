@@ -1,6 +1,7 @@
-"""nanuk-lang: a Python eDSL compiling protocol-level parser descriptions
+"""nanuk.lang: a Python eDSL compiling protocol-level parser descriptions
 to nanuk parser ISA v0 assembly (stage 2 of the nanuk project)."""
 
+from . import compile, programs  # noqa: F401  (public submodules)
 from .header import CompileError, Header
 from .map_program import MD_FLOOD, MD_HDRS, MD_INGRESS, MapProgram
 from .parser import Parser
@@ -13,4 +14,10 @@ __all__ = [
     "Header",
     "MapProgram",
     "Parser",
+    # public submodules (also what pdoc documents)
+    "compile",
+    "header",
+    "map_program",
+    "parser",
+    "programs",
 ]

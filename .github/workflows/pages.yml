@@ -23,6 +23,12 @@ jobs:
       - name: Build wheels + bridge assets
         run: web/scripts/build_wheels.sh
 
+      - name: Build API docs (pdoc)
+        working-directory: python
+        run: |
+          uv sync --quiet --extra rtl --group docs
+          uv run pdoc nanuk nanuk.ir.symex '!nanuk.isa._asm_core' -o ../build/api
+
       - name: Install, test, build the SPA
         working-directory: web
         run: |
@@ -36,6 +42,8 @@ jobs:
           cp web/site/* _site/
           mkdir -p _site/play
           cp -r web/dist/* _site/play/
+          mkdir -p _site/api
+          cp -r build/api/* _site/api/
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'
