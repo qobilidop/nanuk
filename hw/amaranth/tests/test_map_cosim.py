@@ -1,4 +1,4 @@
-"""Differential cosimulation: MapCore (pysim) vs the nanuk-map-emu golden
+"""Differential cosimulation: MatchActionProcessor (pysim) vs the nanuk-map-emu golden
 model, over the three M1 demo programs with their tables, driven by real PP
 golden-model output — plus the composed PP-RTL -> MAP-RTL pipeline diffed
 against run_pipeline. The ENTIRE outbound contract is compared, including

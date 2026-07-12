@@ -32,8 +32,8 @@ extern "C" {
 #include <simbricks/network/if.h>
 }
 
-#include "Vnanuk_core.h"
-#include "Vnanuk_map_core.h"
+#include "Vnanuk_pp.h"
+#include "Vnanuk_map.h"
 
 #include <sys/stat.h>
 
@@ -298,7 +298,7 @@ static bool parse_tables(const char *path, Tables &out) {
 
 /* Clocked poke of the table config into the MAP model (own clock toggles;
  * only called outside the main loop or while the controller is idle). */
-static void program_tables(Vnanuk_map_core &map, const Tables &t) {
+static void program_tables(Vnanuk_map &map, const Tables &t) {
   auto tick = [&]() {
     map.clk = 0;
     map.eval();
@@ -344,8 +344,8 @@ class Controller {
     kMapRead
   };
 
-  Vnanuk_core &pp;
-  Vnanuk_map_core &map;
+  Vnanuk_pp &pp;
+  Vnanuk_map &map;
   State state = kIdle;
   size_t load_idx = 0;
   int64_t map_delta = 0;
@@ -360,7 +360,7 @@ class Controller {
     return state == kIdle && rx_queue.empty();
   }
 
-  Controller(Vnanuk_core &pp_, Vnanuk_map_core &map_) : pp(pp_), map(map_) {
+  Controller(Vnanuk_pp &pp_, Vnanuk_map &map_) : pp(pp_), map(map_) {
   }
 
   void log_dmac(const Frame &f) {
@@ -553,7 +553,7 @@ static void poll_ports() {
 
 /* ------------------------------- main ---------------------------------- */
 
-static bool load_program(Vnanuk_core &top, const char *path) {
+static bool load_program(Vnanuk_pp &top, const char *path) {
   FILE *f = fopen(path, "rb");
   if (!f) {
     fprintf(stderr, "nanuk_hw: cannot open program %s\n", path);
@@ -578,7 +578,7 @@ static bool load_program(Vnanuk_core &top, const char *path) {
   return addr > 0;
 }
 
-static bool load_map_program(Vnanuk_map_core &top, const char *path) {
+static bool load_map_program(Vnanuk_map &top, const char *path) {
   FILE *f = fopen(path, "rb");
   if (!f) {
     fprintf(stderr, "nanuk_hw: cannot open MAP program %s\n", path);
@@ -670,8 +670,8 @@ int main(int argc, char *argv[]) {
 
   char *vargs[2] = {argv[0], NULL};
   Verilated::commandArgs(1, vargs);
-  Vnanuk_core *pp = new Vnanuk_core;
-  Vnanuk_map_core *map = new Vnanuk_map_core;
+  Vnanuk_pp *pp = new Vnanuk_pp;
+  Vnanuk_map *map = new Vnanuk_map;
 
   /* reset both cores */
   pp->rst = 1;

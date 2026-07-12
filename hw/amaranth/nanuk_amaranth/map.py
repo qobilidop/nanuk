@@ -1,4 +1,4 @@
-"""MapCore: Amaranth RTL for the nanuk MAP ISA v0.
+"""MatchActionProcessor: Amaranth RTL for the nanuk MAP ISA v0.
 
 The Sail model (spec/sail/model/map/*.sail) is the single source of truth; this
 core reproduces its semantics bit-for-bit:
@@ -11,7 +11,7 @@ core reproduces its semantics bit-for-bit:
 - steps counts *executed* instructions and equals the budget (256) on
   watchdog exhaustion.
 
-Sibling of NanukCore (core.py) — same FETCH/EXEC FSM shape, and the same
+Sibling of ParserProcessor (core.py) — same FETCH/EXEC FSM shape, and the same
 EXT lesson applied throughout: every window/table access is a sequential
 loop over a memory port, never a wide combinational datapath.
 
@@ -79,7 +79,7 @@ _ST_CSUM_WB0 = 10
 _ST_CSUM_WB1 = 11
 
 
-class MapCore(wiring.Component):
+class MatchActionProcessor(wiring.Component):
     """nanuk match-action core.
 
     Load the program via the imem write port, the window via the window

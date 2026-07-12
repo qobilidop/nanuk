@@ -1,4 +1,4 @@
-"""pysim unit tests for NanukCore.
+"""pysim unit tests for ParserProcessor.
 
 These mirror the Sail test suites (spec/parser-test/test_state.sail,
 test_decode.sail, test_exec_linear.sail, test_exec_control.sail): same
@@ -12,7 +12,7 @@ encoder, itself pinned to the Sail encdec golden words).
 
 from nanuk.isa import encoding as enc
 
-from nanuk_amaranth.core import (
+from nanuk_amaranth.pp import (
     ERR_HDR_VIOLATION,
     ERR_ILLEGAL,
     ERR_PC_RANGE,
@@ -24,7 +24,7 @@ from nanuk_amaranth.core import (
     VERDICT_DROP,
     VERDICT_ERROR,
 )
-from nanuk_amaranth.sim_util import run_core, run_one
+from nanuk_amaranth.pp_sim_util import run_pp, run_pp_one
 
 # Ethernet-ish prefix used by the Sail exec tests (test_exec_linear.sail):
 # 0x45 = IPv4 version 4, IHL 5; plen 4.
@@ -37,13 +37,13 @@ HALT_DROP = enc.encode_halt(True)
 # --- EXT (mirrors test_exec_linear.sail + test_read_pkt_bits) --------------
 
 def test_ext_basic():
-    r = run_one([enc.encode_ext("r0", 16, 16), HALT_ACCEPT], TEST_PKT)
+    r = run_pp_one([enc.encode_ext("r0", 16, 16), HALT_ACCEPT], TEST_PKT)
     assert r.regs[0] == 0x0000_0000_0000_ABCD  # 16 bits at bit 16
     assert r.verdict == VERDICT_ACCEPT  # EXT in range does not error-halt
 
 
 def test_ext_subbyte():
-    r = run_one(
+    r = run_pp_one(
         [
             enc.encode_ext("r1", 0, 4),  # IPv4 version nibble
             enc.encode_ext("r2", 4, 4),  # IHL nibble
@@ -56,7 +56,7 @@ def test_ext_subbyte():
 
 
 def test_ext_respects_cursor():
-    r = run_one(
+    r = run_pp_one(
         [
             enc.encode_advi(2),
             enc.encode_ext("r0", 0, 8),  # 8 bits at cursor 2
@@ -69,7 +69,7 @@ def test_ext_respects_cursor():
 
 def test_ext_violation():
     # plen = 4: bits 29..32 cross plen*8 = 32.
-    r = run_one([enc.encode_ext("r0", 29, 4), HALT_ACCEPT], TEST_PKT)
+    r = run_pp_one([enc.encode_ext("r0", 29, 4), HALT_ACCEPT], TEST_PKT)
     assert r.verdict == VERDICT_ERROR
     assert r.error == ERR_HDR_VIOLATION
     assert r.steps == 1  # the faulting instruction is counted
@@ -77,7 +77,7 @@ def test_ext_violation():
 
 def test_ext_boundary_is_legal():
     # pos + sz exactly == hdr_limit * 8 is LEGAL: bits 28..31 with plen 4.
-    r = run_one([enc.encode_ext("r0", 28, 4), HALT_ACCEPT], TEST_PKT)
+    r = run_pp_one([enc.encode_ext("r0", 28, 4), HALT_ACCEPT], TEST_PKT)
     assert r.verdict == VERDICT_ACCEPT
     assert r.regs[0] == 0xD  # low nibble of 0xCD
 
@@ -85,7 +85,7 @@ def test_ext_boundary_is_legal():
 def test_ext_bit_ordering():
     # Pins the bit 0 = MSB mapping (mirrors test_read_pkt_bits): AB CD EF.
     pkt = bytes.fromhex("ABCDEF")
-    r = run_one(
+    r = run_pp_one(
         [
             enc.encode_ext("r0", 0, 8),
             enc.encode_ext("r1", 0, 16),
@@ -99,7 +99,7 @@ def test_ext_bit_ordering():
     assert r.regs[1] == 0xABCD
     assert r.regs[2] == 0xA  # high nibble of byte 0 (bit 0 = MSB)
     assert r.regs[3] == 0xB  # low nibble of byte 0
-    r = run_one(
+    r = run_pp_one(
         [
             enc.encode_ext("r0", 4, 8),  # byte-boundary crossing
             enc.encode_ext("r1", 0, 24),
@@ -115,7 +115,7 @@ def test_ext_bit_ordering():
 
 def test_advi_ok_then_violation_boundary():
     # Mirrors test_advi: 3 -> ok, +1 to exactly hdr_limit -> legal, +1 -> err.
-    r = run_one(
+    r = run_pp_one(
         [
             enc.encode_advi(3),
             enc.encode_advi(1),  # cursor == plen == 4: legal
@@ -131,7 +131,7 @@ def test_advi_ok_then_violation_boundary():
 
 
 def test_advi_to_exact_limit_is_legal():
-    r = run_one([enc.encode_advi(4), HALT_ACCEPT], TEST_PKT)
+    r = run_pp_one([enc.encode_advi(4), HALT_ACCEPT], TEST_PKT)
     assert r.verdict == VERDICT_ACCEPT
     assert r.payload_offset == 4
 
@@ -139,7 +139,7 @@ def test_advi_to_exact_limit_is_legal():
 def test_advr_uses_low16():
     # Upper 48 register bits must be ignored (defined semantics).
     pkt = bytes.fromhex("FFFF000000000002")
-    r = run_one(
+    r = run_pp_one(
         [
             enc.encode_ext("r1", 0, 64),  # r1 = 0xFFFF_0000_0000_0002
             enc.encode_advr("r1"),
@@ -153,7 +153,7 @@ def test_advr_uses_low16():
 
 
 def test_advr_violation():
-    r = run_one(
+    r = run_pp_one(
         [
             enc.encode_movi("r0", 5),
             enc.encode_advr("r0"),  # 5 > plen 4
@@ -170,7 +170,7 @@ def test_advr_violation():
 def test_movi_zero_extends():
     # Dirty all 64 bits of r0 first, then MOVI must clear the upper 48.
     pkt = b"\xff" * 8
-    r = run_one(
+    r = run_pp_one(
         [
             enc.encode_ext("r0", 0, 64),  # r0 = all-ones
             enc.encode_movi("r0", 0x8100),
@@ -183,7 +183,7 @@ def test_movi_zero_extends():
 
 def test_shl():
     pkt = bytes.fromhex("8000000000000001")
-    r = run_one(
+    r = run_pp_one(
         [
             enc.encode_movi("r1", 5),
             enc.encode_shl("r1", "r1", 2),   # 5 << 2 = 20 (IHL*4)
@@ -200,7 +200,7 @@ def test_shl():
 # --- RZ semantics (mirrors test_rz_semantics) -------------------------------
 
 def test_rz_reads_zero_discards_writes():
-    r = run_one(
+    r = run_pp_one(
         [
             enc.encode_movi("rz", 0x1234),        # write discarded
             enc.encode_beq("rz", "r0", 3),        # rz reads 0 == r0 (0)
@@ -216,7 +216,7 @@ def test_rz_reads_zero_discards_writes():
 # --- Branches (mirrors test_branches through the run loop) ------------------
 
 def test_beq_taken():
-    r = run_one(
+    r = run_pp_one(
         [
             enc.encode_movi("r0", 7),
             enc.encode_movi("r1", 7),
@@ -231,7 +231,7 @@ def test_beq_taken():
 
 
 def test_beq_not_taken():
-    r = run_one(
+    r = run_pp_one(
         [
             enc.encode_movi("r0", 5),
             enc.encode_movi("r1", 7),
@@ -246,7 +246,7 @@ def test_beq_not_taken():
 
 
 def test_bne_taken():
-    r = run_one(
+    r = run_pp_one(
         [
             enc.encode_movi("r0", 5),
             enc.encode_movi("r2", 7),
@@ -260,7 +260,7 @@ def test_bne_taken():
 
 
 def test_bne_not_taken():
-    r = run_one(
+    r = run_pp_one(
         [
             enc.encode_movi("r0", 7),
             enc.encode_movi("r2", 7),
@@ -274,7 +274,7 @@ def test_bne_not_taken():
 
 
 def test_jmp():
-    r = run_one([enc.encode_jmp(2), HALT_DROP, HALT_ACCEPT], b"")
+    r = run_pp_one([enc.encode_jmp(2), HALT_DROP, HALT_ACCEPT], b"")
     assert r.verdict == VERDICT_ACCEPT
     assert r.steps == 2
 
@@ -284,7 +284,7 @@ def test_jmp():
 def test_run_loop_program():
     # Exact mirror of test_run_loop_program: MOVI + BEQ (taken) skips the
     # HALT drop; 4 instructions executed.
-    r = run_one(
+    r = run_pp_one(
         [
             enc.encode_movi("r0", 0x0007),
             enc.encode_movi("r1", 0x0007),
@@ -300,7 +300,7 @@ def test_run_loop_program():
 
 def test_step_budget_watchdog():
     # JMP-to-self: exactly step_budget instructions run, then error 2.
-    r = run_one([enc.encode_jmp(0)], b"")
+    r = run_pp_one([enc.encode_jmp(0)], b"")
     assert r.verdict == VERDICT_ERROR
     assert r.error == ERR_STEP_BUDGET
     assert r.steps == STEP_BUDGET  # exactly 256
@@ -308,7 +308,7 @@ def test_step_budget_watchdog():
 
 def test_illegal_all_zeros():
     # Empty program: pc=0 holds 0x00000000, illegal by design.
-    r = run_one([], b"")
+    r = run_pp_one([], b"")
     assert r.verdict == VERDICT_ERROR
     assert r.error == ERR_ILLEGAL
     assert r.steps == 1  # halted on the first instruction
@@ -325,7 +325,7 @@ def test_illegal_words():
         0x0E800000,  # ADVR with register code 5
     ]
     for w in bad_words:
-        r = run_one([w, HALT_ACCEPT], b"")
+        r = run_pp_one([w, HALT_ACCEPT], b"")
         assert r.verdict == VERDICT_ERROR, hex(w)
         assert r.error == ERR_ILLEGAL, hex(w)
         assert r.steps == 1, hex(w)
@@ -335,7 +335,7 @@ def test_pc_range_error():
     # Fall off the end of imem: pc >= 1024 at fetch is error 4.
     words = [enc.encode_jmp(IMEM_WORDS - 1)] + [0] * (IMEM_WORDS - 2)
     words.append(enc.encode_movi("r0", 1))  # at word 1023
-    r = run_one(words, b"")
+    r = run_pp_one(words, b"")
     assert r.verdict == VERDICT_ERROR
     assert r.error == ERR_PC_RANGE
     assert r.regs[0] == 1
@@ -345,7 +345,7 @@ def test_pc_range_error():
 # --- SETHDR (mirrors test_sethdr_program) -----------------------------------
 
 def test_sethdr_program():
-    r = run_one(
+    r = run_pp_one(
         [
             enc.encode_sethdr(0x0),
             enc.encode_advi(0x000E),
@@ -367,7 +367,7 @@ def test_sethdr_program():
 def test_stmd_multislot():
     # 48-bit DMAC-like value into slots 0..2, MSB-first.
     pkt = bytes.fromhex("010203040506")
-    r = run_one(
+    r = run_pp_one(
         [
             enc.encode_ext("r0", 0, 48),      # r0 = 0x0000_0102_0304_0506
             enc.encode_stmd(0, "r0", 3),      # 3 units at slot 0
@@ -392,7 +392,7 @@ def test_stmd_range_error():
         | (1 << 21)   # nunits-1 = 1 -> 2 units
         | (7 << 17)   # slot 7
     )
-    r = run_one([word, HALT_ACCEPT], b"")
+    r = run_pp_one([word, HALT_ACCEPT], b"")
     assert r.verdict == VERDICT_ERROR
     assert r.error == ERR_SMD_RANGE
     assert r.steps == 1
@@ -401,7 +401,7 @@ def test_stmd_range_error():
 # --- HALT (mirrors test_halt_verdicts) --------------------------------------
 
 def test_halt_accept_with_payload_offset():
-    r = run_one([enc.encode_advi(0x22), HALT_ACCEPT], bytes(64))
+    r = run_pp_one([enc.encode_advi(0x22), HALT_ACCEPT], bytes(64))
     assert r.verdict == VERDICT_ACCEPT
     assert r.error == 0
     assert r.payload_offset == 0x22  # payload offset = cursor at halt
@@ -409,7 +409,7 @@ def test_halt_accept_with_payload_offset():
 
 
 def test_halt_drop():
-    r = run_one([HALT_DROP], b"")
+    r = run_pp_one([HALT_DROP], b"")
     assert r.verdict == VERDICT_DROP
     assert r.error == 0
     assert r.payload_offset == 0
@@ -426,7 +426,7 @@ def test_start_clears_arch_state_not_imem():
         HALT_ACCEPT,
     ]
     # Program loaded once; two packets through the same core instance.
-    r1, r2 = run_core(prog, [b"\xaa\xbb", b"\x55"])
+    r1, r2 = run_pp(prog, [b"\xaa\xbb", b"\x55"])
     assert (r1.regs[0], r1.smd[2], r1.payload_offset) == (0xAA, 0xAA, 1)
     assert r1.hdr_present[5] == 1
     # Second run reproduces from a clean slate (regs/smd/hdr/steps cleared,

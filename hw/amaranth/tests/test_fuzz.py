@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 from nanuk_amaranth.map_sim_util import run_map_one
-from nanuk_amaranth.sim_util import run_one
+from nanuk_amaranth.pp_sim_util import run_pp_one
 from nanuk.isa import encoding as enc
 from nanuk.isa.map_asm import assemble as map_assemble
 from nanuk.testkit.map_harness import Table, run_map
@@ -36,7 +36,7 @@ def golden(prog: bytes, packet: bytes):
 
 def assert_same(prog: bytes, packet: bytes, seed_info: str):
     g = golden(prog, packet)
-    r = run_one(prog, packet)
+    r = run_pp_one(prog, packet)
     for field in ("verdict", "error", "payload_offset", "steps",
                   "hdr_present", "hdr_offset", "smd"):
         assert getattr(g, field) == getattr(r, field), (
@@ -109,7 +109,7 @@ def test_fuzz_raw_words(seed):
 
 
 # --- MAP leg: random packets/tables through the M1 demo programs, plus raw
-# random MAP programs — nanuk-map-emu vs MapCore, full contract. ---
+# random MAP programs — nanuk-map-emu vs MatchActionProcessor, full contract. ---
 
 _EXAMPLES = Path(__file__).resolve().parents[3] / "examples"
 

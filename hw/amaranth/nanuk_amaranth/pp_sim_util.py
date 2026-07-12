@@ -1,4 +1,4 @@
-"""pysim driver for NanukCore: load program/packets, run, snapshot outputs.
+"""pysim driver for ParserProcessor: load program/packets, run, snapshot outputs.
 
 Used by the unit tests and the cosim rig (and later by the switch tests).
 """
@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from amaranth.sim import Simulator
 
-from .core import BUF_BYTES, IMEM_WORDS, NanukCore
+from .pp import BUF_BYTES, IMEM_WORDS, ParserProcessor
 
 # A run is at most 256 executed instructions; each takes 2 cycles
 # (FETCH + EXEC) plus start/finish overhead.
@@ -15,7 +15,7 @@ _MAX_RUN_CYCLES = 2048
 
 
 @dataclass(frozen=True)
-class CoreResult:
+class PPResult:
     """The core's output contract, plus a register-file peek for unit tests.
 
     Field names and shapes match nanuk.testkit.harness.ParseResult so the cosim
@@ -44,11 +44,11 @@ def _to_words(prog) -> list[int]:
     return list(prog)
 
 
-def _snapshot(ctx, dut: NanukCore) -> CoreResult:
+def _snapshot(ctx, dut: ParserProcessor) -> PPResult:
     hp = ctx.get(dut.hdr_present)
     ho = ctx.get(dut.hdr_offset)
     smd = ctx.get(dut.smd)
-    return CoreResult(
+    return PPResult(
         verdict=ctx.get(dut.verdict),
         error=ctx.get(dut.error),
         payload_offset=ctx.get(dut.payload_offset),
@@ -60,12 +60,12 @@ def _snapshot(ctx, dut: NanukCore) -> CoreResult:
     )
 
 
-def run_core(prog, packets, *, plens=None) -> list[CoreResult]:
-    """Run each packet through one NanukCore instance (program loaded once;
+def run_pp(prog, packets, *, plens=None) -> list[PPResult]:
+    """Run each packet through one ParserProcessor instance (program loaded once;
     `start` between packets exercises the architectural-state clear).
 
     packets: list of byte strings. plens: optional per-packet override of the
-    `plen` input (defaults to len(packet)). Returns one CoreResult per packet.
+    `plen` input (defaults to len(packet)). Returns one PPResult per packet.
     """
     words = _to_words(prog)
     if len(words) > IMEM_WORDS:
@@ -74,8 +74,8 @@ def run_core(prog, packets, *, plens=None) -> list[CoreResult]:
     if plens is None:
         plens = [len(p) for p in packets]
 
-    dut = NanukCore()
-    results: list[CoreResult] = []
+    dut = ParserProcessor()
+    results: list[PPResult] = []
 
     async def bench(ctx):
         # Load the program through the imem write port.
@@ -118,6 +118,6 @@ def run_core(prog, packets, *, plens=None) -> list[CoreResult]:
     return results
 
 
-def run_one(prog, packet=b"", *, plen=None) -> CoreResult:
-    """Single-packet convenience wrapper around run_core."""
-    return run_core(prog, [packet], plens=None if plen is None else [plen])[0]
+def run_pp_one(prog, packet=b"", *, plen=None) -> PPResult:
+    """Single-packet convenience wrapper around run_pp."""
+    return run_pp(prog, [packet], plens=None if plen is None else [plen])[0]

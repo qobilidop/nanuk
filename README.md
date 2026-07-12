@@ -35,9 +35,9 @@ sw/python/   The nanuk package, three descending abstraction levels: nanuk.lang
              -> nanuk.isa (assemblers, encodings, ISS). Plus its test suite
              (tests/; the golden-model pcap rig = tests/golden) and
              nanuk.testkit, the conformance machinery every suite shares.
-hw/amaranth/ The RTL below the ISA: Amaranth parser + MAP cores
-             (nanuk_amaranth), with cosim tests judging them against the ISS
-             oracle and the Sail golden models.
+hw/amaranth/ The nanuk core in Amaranth: PP (parser processor) + MAP
+             (match-action processor), with cosim tests judging them against
+             the ISS oracle and the Sail golden models.
 examples/    Example programs: hand-written asm paired with its eDSL twin
 demo/        The end-to-end SimBricks demo staging the examples on the RTL cores
 docs/        Design docs, plans, and lab notes
@@ -46,7 +46,7 @@ docs/        Design docs, plans, and lab notes
 ## The demo
 
 `demo/build_and_run.sh` runs the end-to-end demo: two QEMU Linux
-hosts exchange real traffic through the Verilator'd nanuk parser core
+hosts exchange real traffic through the Verilator'd nanuk PP
 inside SimBricks — `ping` works because the loaded parser program accepts
 the frames. Load `examples/drop_all/parse.asm` instead and the network
 goes dark: the parser program is the switch's forwarding policy.

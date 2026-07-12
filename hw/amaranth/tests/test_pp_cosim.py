@@ -1,4 +1,4 @@
-"""Differential cosimulation: NanukCore (pysim) vs the nanuk-emu golden
+"""Differential cosimulation: ParserProcessor (pysim) vs the nanuk-emu golden
 model, over the l2l3l4 demo corpus (the packets of
 tests/golden/test_demo.py, rebuilt with scapy the same way) plus
 seeded-random packets. The entire output contract is diffed field by field.
@@ -17,7 +17,7 @@ from nanuk.isa.asm import assemble
 from nanuk.testkit.harness import run_program
 from nanuk.testkit.testkit import l2l3l4_packets
 
-from nanuk_amaranth.sim_util import run_core
+from nanuk_amaranth.pp_sim_util import run_pp
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("NANUK_COSIM") != "1",
@@ -50,7 +50,7 @@ def assert_contract_matches(name: str, golden, rtl):
 
 def test_demo_corpus_cosim(prog):
     named = l2l3l4_packets()
-    rtl_results = run_core(prog, [pkt for _, pkt in named])
+    rtl_results = run_pp(prog, [pkt for _, pkt in named])
     for (name, pkt), rtl in zip(named, rtl_results):
         golden = run_program(prog, pkt)
         assert_contract_matches(name, golden, rtl)
@@ -59,7 +59,7 @@ def test_demo_corpus_cosim(prog):
 def test_random_packets_cosim(prog):
     rng = random.Random(0x4E414E) # "NAN"
     packets = [rng.randbytes(rng.randint(0, 300)) for _ in range(20)]
-    rtl_results = run_core(prog, packets)
+    rtl_results = run_pp(prog, packets)
     for i, (pkt, rtl) in enumerate(zip(packets, rtl_results)):
         golden = run_program(prog, pkt)
         assert_contract_matches(f"random[{i}] len={len(pkt)}", golden, rtl)

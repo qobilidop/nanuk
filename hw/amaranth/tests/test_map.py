@@ -1,4 +1,4 @@
-"""MapCore unit tests (pysim, no golden model needed): each case mirrors a
+"""MatchActionProcessor unit tests (pysim, no golden model needed): each case mirrors a
 spec/map-test/*.sail assertion so the RTL and the Sail model are pinned to
 the same behaviors even before the cosim rig runs."""
 
@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from nanuk_amaranth.map_core import (
+from nanuk_amaranth.map import (
     ERR_HDR_ABSENT,
     ERR_ILLEGAL,
     ERR_PC_RANGE,

@@ -1,4 +1,4 @@
-"""NanukCore: Amaranth RTL for the nanuk parser ISA v0.
+"""ParserProcessor: Amaranth RTL for the nanuk parser ISA v0.
 
 The Sail model (spec/sail/model/parser/*.sail) is the single source of truth; this core
 reproduces its semantics bit-for-bit:
@@ -62,7 +62,7 @@ _ST_EXT_ISSUE = 3
 _ST_EXT_CAPTURE = 4
 
 
-class NanukCore(wiring.Component):
+class ParserProcessor(wiring.Component):
     """nanuk parser core.
 
     Load the program via the imem write port and the packet via the buffer

@@ -1,4 +1,4 @@
-"""pysim driver for MapCore: load program/window/tables/ctx, run, snapshot.
+"""pysim driver for MatchActionProcessor: load program/window/tables/ctx, run, snapshot.
 
 Used by the unit tests, the MAP cosim rig, and the composed-pipeline rig.
 Mirrors the nanuk-map-emu CLI contract (spec/emulator/map_main.c): the
@@ -12,15 +12,15 @@ from dataclasses import dataclass
 
 from amaranth.sim import Simulator
 
-from .map_core import (
+from .map import (
     BUF_BYTES,
     HEADROOM_BYTES,
     IMEM_WORDS,
     VERDICT_SENT,
     WIN_BYTES,
-    MapCore,
+    MatchActionProcessor,
 )
-from .sim_util import CoreResult, run_core
+from .pp_sim_util import PPResult, run_pp
 
 # One instruction can cost up to ~64 scan cycles (LOOKUP) or ~120 (CSUM);
 # 256 instructions bounded well under this.
@@ -28,8 +28,8 @@ _MAX_RUN_CYCLES = 65536
 
 
 @dataclass(frozen=True)
-class MapCoreResult:
-    """MapCore's outbound contract; field names match map_harness.MapResult
+class MAPResult:
+    """MatchActionProcessor's outbound contract; field names match map_harness.MapResult
     so the cosim rig can diff them directly (frame includes the >256B tail
     passthrough, same rule as run_map)."""
 
@@ -58,12 +58,12 @@ def _mask(value: int, width: int) -> int:
     return value & ((1 << width) - 1)
 
 
-def run_map_core(prog, packets, ctxs, tables) -> list[MapCoreResult]:
-    """Run each packet through one MapCore instance.
+def run_map(prog, packets, ctxs, tables) -> list[MAPResult]:
+    """Run each packet through one MatchActionProcessor instance.
 
     prog: MAP program (bytes or word list). packets: list of frames.
     ctxs: list of (pp_result, ingress) — pp_result needs .hdr_present,
-    .hdr_offset, .smd (ParseResult or CoreResult shape). tables: list of
+    .hdr_offset, .smd (ParseResult or PPResult shape). tables: list of
     nanuk.testkit.map_harness.Table, index = table id.
     """
     words = _to_words(prog)
@@ -71,8 +71,8 @@ def run_map_core(prog, packets, ctxs, tables) -> list[MapCoreResult]:
         raise ValueError("program does not fit in imem")
     packets = [bytes(p) for p in packets]
 
-    dut = MapCore()
-    results: list[MapCoreResult] = []
+    dut = MatchActionProcessor()
+    results: list[MAPResult] = []
 
     async def bench(ctx):
         ctx.set(dut.prog_we, 1)
@@ -133,7 +133,7 @@ def run_map_core(prog, packets, ctxs, tables) -> list[MapCoreResult]:
                     break
                 await ctx.tick()
             else:
-                raise TimeoutError("MapCore did not assert done")
+                raise TimeoutError("MatchActionProcessor did not assert done")
 
             verdict = ctx.get(dut.verdict)
             delta = ctx.get(dut.delta)
@@ -150,7 +150,7 @@ def run_map_core(prog, packets, ctxs, tables) -> list[MapCoreResult]:
                 # beyond the window never entered the engine's custody.
                 frame = bytes(out) + packet[BUF_BYTES:]
             results.append(
-                MapCoreResult(
+                MAPResult(
                     verdict=verdict,
                     error=ctx.get(dut.error),
                     egress=ctx.get(dut.egress),
@@ -168,17 +168,17 @@ def run_map_core(prog, packets, ctxs, tables) -> list[MapCoreResult]:
     return results
 
 
-def run_map_one(prog, packet, pp, tables, ingress) -> MapCoreResult:
+def run_map_one(prog, packet, pp, tables, ingress) -> MAPResult:
     """Single-packet convenience wrapper (argument order matches
     nanuk.testkit.map_harness.run_map)."""
-    return run_map_core(prog, [packet], [(pp, ingress)], tables)[0]
+    return run_map(prog, [packet], [(pp, ingress)], tables)[0]
 
 
 def run_pipeline_rtl(
     pp_prog, map_prog, packet, tables, ingress
-) -> tuple[CoreResult, MapCoreResult | None]:
+) -> tuple[PPResult, MAPResult | None]:
     """PP-RTL -> MAP-RTL composition with run_pipeline's gating."""
-    pp = run_core(pp_prog, [bytes(packet)])[0]
+    pp = run_pp(pp_prog, [bytes(packet)])[0]
     if pp.verdict != 0:
         return pp, None
     return pp, run_map_one(map_prog, packet, pp, tables, ingress)
