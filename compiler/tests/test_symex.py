@@ -3,11 +3,6 @@ generation, and (cosim-gated) differential validation of every witness
 against interp AND the golden emulator — including the headline payoff:
 symex INVENTS a valid nanukproto tunnel packet from constraints alone."""
 
-import os
-from pathlib import Path
-
-import pytest
-
 from nanuk_ir import nanuk_ir_pb2 as ir
 from nanuk_ir.interp import interp
 from nanuk_ir.symex import SymPath, gen_corpus, reachable_states, symex

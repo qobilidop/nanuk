@@ -15,7 +15,7 @@
   // svelte-ignore state_referenced_locally -- deliberate: the URL param seeds the initial value only
   let packetHex = $state(initialPacket ?? '');
   let selected: string | null = $state(null);
-  let run_out: RunOk | null = $state(null);
+  let runOut: RunOk | null = $state(null);
   let error: BridgeError | null = $state(null);
 
   onMount(async () => {
@@ -33,11 +33,11 @@
     if (!runtime) return;
     const out = runtime.run(packetHex);
     if (out.ok) {
-      run_out = out;
+      runOut = out;
       error = null;
     } else {
       error = out.error;
-      run_out = null;
+      runOut = null;
     }
   }
 </script>
@@ -57,8 +57,8 @@
     Run packet
   </button>
   {#if error}<p class="error">{error.message}</p>{/if}
-  {#if run_out?.kind === 'parser'}<ResultView result={run_out.result} />{/if}
-  {#if run_out?.kind === 'map'}<MapResultView result={run_out.result} />{/if}
+  {#if runOut?.kind === 'parser'}<ResultView result={runOut.result} />{/if}
+  {#if runOut?.kind === 'map'}<MapResultView result={runOut.result} />{/if}
 </div>
 
 <style>

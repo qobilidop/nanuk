@@ -16,7 +16,7 @@ from nanuk_ir.lower_map import to_map_asm
 from nanuk_spec.map_asm import assemble
 from nanuk_spec.map_harness import Table, run_map
 
-from tests.test_validate_map import l2fwd_program, load, send
+from tests.irbuild import l2fwd_program, load, send
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("NANUK_COSIM") != "1",

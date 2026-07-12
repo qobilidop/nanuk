@@ -70,7 +70,7 @@ _ST_FETCH = 1
 _ST_EXEC = 2
 _ST_LD_ISSUE = 3
 _ST_LD_CAPTURE = 4
-_ST_ST_WRITE = 5
+_ST_STORE = 5
 _ST_LKP_ISSUE = 6
 _ST_LKP_SCAN = 7
 _ST_CSUM_ISSUE = 8
@@ -343,7 +343,7 @@ class MapCore(wiring.Component):
                 wwp.data.eq(self.win_data),
                 wwp.en.eq(1),
             ]
-        with m.Elif(state == _ST_ST_WRITE):
+        with m.Elif(state == _ST_STORE):
             m.d.comb += [
                 wwp.addr.eq(mem_addr_r),
                 wwp.data.eq(st_byte),
@@ -438,7 +438,7 @@ class MapCore(wiring.Component):
                             with m.Else():
                                 m.d.sync += [
                                     st_val_r.eq(reg_read(f_ra)),
-                                    state.eq(_ST_ST_WRITE),
+                                    state.eq(_ST_STORE),
                                 ]
 
                 with m.Case(OP_LDMD):
@@ -580,7 +580,7 @@ class MapCore(wiring.Component):
                 ]
 
         # --- ST byte loop (one write per cycle; write port muxed above) ----
-        with m.Elif(state == _ST_ST_WRITE):
+        with m.Elif(state == _ST_STORE):
             with m.If(mem_i_r + 1 == mem_n_r):
                 m.d.sync += state.eq(_ST_FETCH)
             with m.Else():

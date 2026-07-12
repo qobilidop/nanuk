@@ -36,6 +36,7 @@ dev = [
     { name = "grpcio-tools", specifier = ">=1.82" },
     { name = "nanuk-spec", editable = "../../spec/python" },
     { name = "pytest", specifier = ">=8" },
+    { name = "z3-solver", specifier = ">=4.16.0.0" },
 ]
 
 [[package]]
@@ -54,6 +55,7 @@ dev = [
     { name = "nanuk-spec", editable = "../../spec/python" },
     { name = "pytest", specifier = ">=8" },
     { name = "scapy", specifier = ">=2.5" },
+    { name = "z3-solver", specifier = ">=4.16.0.0" },
 ]
 
 [[package]]

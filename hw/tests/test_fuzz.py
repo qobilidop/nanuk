@@ -11,11 +11,15 @@ Gated like the cosim rig (needs nanuk-emu, i.e. the devcontainer).
 import os
 import random
 import struct
+from pathlib import Path
 
 import pytest
 
+from nanuk_hw.map_sim_util import run_map_one
 from nanuk_hw.sim_util import run_one
 from nanuk_spec import encoding as enc
+from nanuk_spec.map_asm import assemble as map_assemble
+from nanuk_spec.map_harness import Table, run_map
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("NANUK_COSIM") != "1", reason="needs nanuk-emu (devcontainer)"
@@ -106,13 +110,6 @@ def test_fuzz_raw_words(seed):
 
 # --- MAP leg: random packets/tables through the M1 demo programs, plus raw
 # random MAP programs — nanuk-map-emu vs MapCore, full contract. ---
-
-from pathlib import Path
-
-from nanuk_spec import map_encoding as menc
-from nanuk_spec.map_asm import assemble as map_assemble
-from nanuk_spec.map_harness import Table, run_map
-from nanuk_hw.map_sim_util import run_map_one
 
 _EXAMPLES = Path(__file__).resolve().parents[2] / "examples"
 

@@ -2,7 +2,7 @@
 // already advanced by step()), redirects pc (branches, LOOKUP miss), or
 // enters an error/halt state.
 
-let bit64_one : bits64 = 0x0000000000000001
+let one64 : bits64 = 0x0000000000000001
 
 // Bitmap of all ports: n_ports low bits set.
 val port_mask_all : unit -> bits64
@@ -18,7 +18,7 @@ function port_mask_all() = {
 val flood_mask : unit -> bits64
 function flood_mask() = {
     let all = port_mask_all();
-    let ing = sail_shiftleft(bit64_one, unsigned(ingress)) & all;
+    let ing = sail_shiftleft(one64, unsigned(ingress)) & all;
     xor_vec(all, ing)
 }
 
@@ -47,7 +47,7 @@ function ld_field(f) = {
         while h < 16 do {
             let hi = h;
             assert(0 <= hi & hi < 16, "header id out of bounds");
-            if hdr_present_in[hi] then bm = bm | sail_shiftleft(bit64_one, hi);
+            if hdr_present_in[hi] then bm = bm | sail_shiftleft(one64, hi);
             h = h + 1
         };
         bm
