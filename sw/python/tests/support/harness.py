@@ -27,7 +27,7 @@ ERR_ILLEGAL = 3
 ERR_PC_RANGE = 4
 ERR_SMD_RANGE = 5
 
-_DEFAULT_EMU = Path(__file__).resolve().parents[3] / "sail" / "build" / "nanuk-emu"
+_DEFAULT_EMU = Path(__file__).resolve().parents[4] / "sail" / "build" / "nanuk-emu"
 
 
 @dataclass(frozen=True)

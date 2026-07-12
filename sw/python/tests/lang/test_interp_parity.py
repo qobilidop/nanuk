@@ -27,7 +27,7 @@ pytestmark = pytest.mark.skipif(
     reason="interp parity needs NANUK_COSIM=1 and a built nanuk-emu",
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 nanukproto_ir = nanukproto_parse.build_ir
 
 FIELDS = ("verdict", "error", "payload_offset", "steps",

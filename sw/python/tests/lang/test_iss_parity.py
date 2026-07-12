@@ -34,7 +34,7 @@ from tests.support.testkit import (
     map_packets,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 nanukproto_ir = nanukproto_parse.build_ir
 
 PARSER_PROGRAMS = {"l2l3l4": l2l3l4_ir, "nanukproto": nanukproto_ir}

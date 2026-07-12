@@ -3,7 +3,7 @@
 
 The generated file is checked in so nanuk needs no build-time protoc
 dependency; rerun this (in an env with the dev group, e.g.
-`uv run python scripts/gen.py` from python/) after editing the schema.
+`uv run python scripts/gen.py` from sw/python/) after editing the schema.
 """
 
 import sys

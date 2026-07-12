@@ -24,7 +24,7 @@ pytestmark = pytest.mark.skipif(
     reason="needs nanuk-emu (linux container)",
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 DEMO_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"
 
 

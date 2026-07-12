@@ -22,7 +22,7 @@ pytestmark = pytest.mark.skipif(
     reason="needs nanuk-emu (linux container)",
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 def test_witnesses_reproduce_on_golden_model():

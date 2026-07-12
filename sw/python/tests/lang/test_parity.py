@@ -23,7 +23,7 @@ pytestmark = pytest.mark.skipif(
     reason="cosim parity needs NANUK_COSIM=1 and a built nanuk-emu",
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 HAND_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"
 
 DMAC = "aa:bb:cc:dd:ee:01"

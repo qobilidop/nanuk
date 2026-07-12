@@ -22,13 +22,13 @@ mkdir -p "$OUT"
 PROG="${1:-}"
 echo "==> assembling programs"
 ./dev.sh bash -lc '
-    cd python && uv sync --quiet &&
-    uv run nanuk-map-asm ../examples/map_l2fwd/fwd.asm -o ../demo/out/map.bin
+    cd sw/python && uv sync --quiet &&
+    uv run nanuk-map-asm ../../examples/map_l2fwd/fwd.asm -o ../../demo/out/map.bin
 '
 if [ -z "$PROG" ]; then
   ./dev.sh bash -lc '
-      cd python &&
-      uv run nanuk-asm ../examples/l2l3l4/parse.asm -o ../demo/out/prog.bin
+      cd sw/python &&
+      uv run nanuk-asm ../../examples/l2l3l4/parse.asm -o ../../demo/out/prog.bin
   '
 else
   cp "$PROG" "$OUT/prog.bin"

@@ -3,9 +3,9 @@ name: Pages
 on:
   push:
     branches: [main]
-    paths: ['web/**', 'python/**', '.github/workflows/pages.yml']
+    paths: ['web/**', 'sw/python/**', '.github/workflows/pages.yml']
   pull_request:
-    paths: ['web/**', 'python/**', '.github/workflows/pages.yml']
+    paths: ['web/**', 'sw/python/**', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
         run: web/scripts/build_wheels.sh
 
       - name: Build API docs (pdoc)
-        working-directory: python
+        working-directory: sw/python
         run: |
           uv sync --quiet --extra rtl --group docs
           uv run pdoc nanuk nanuk.ir.symex '!nanuk.isa._asm_core' -o build/api
@@ -43,7 +43,7 @@ jobs:
           mkdir -p _site/play
           cp -r web/dist/* _site/play/
           mkdir -p _site/api
-          cp -r python/build/api/* _site/api/
+          cp -r sw/python/build/api/* _site/api/
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'

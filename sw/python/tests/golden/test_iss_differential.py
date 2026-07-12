@@ -15,7 +15,7 @@ from nanuk.isa.iss import run_iss
 from tests.support.harness import run_program
 from tests.support.testkit import l2l3l4_packets
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 PROGRAMS = {
     "l2l3l4": REPO_ROOT / "examples" / "l2l3l4" / "parse.asm",
     "nanukproto": REPO_ROOT / "examples" / "nanukproto" / "parse_tunnel.asm",

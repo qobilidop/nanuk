@@ -20,7 +20,7 @@ from tests.support.harness import (
     run_program,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 DEMO_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"
 
 H_ETH, H_VLAN, H_IPV4, H_UDP = 0, 1, 2, 3

@@ -26,16 +26,16 @@ the full design.
 ## Layout
 
 ```
-sail/     Sail ISA models (the source of truth: model/{parser,map}) and the
-          generated golden-model emulators
-python/   The nanuk package, four descending abstraction levels: nanuk.lang
-          (eDSL) -> nanuk.ir (protobuf IR, lowerings, interpreters, symex)
-          -> nanuk.isa (assemblers, encodings, ISS) -> nanuk.rtl (Amaranth
-          cores). Plus the whole Python test suite (tests/; the golden-model
-          pcap rig = tests/golden, its machinery in tests/support).
-examples/ Example programs: hand-written asm paired with its eDSL twin
-demo/     The end-to-end SimBricks demo staging the examples on the RTL cores
-docs/     Design docs, plans, and lab notes
+sail/      Sail ISA models (the source of truth: model/{parser,map}) and the
+           generated golden-model emulators
+sw/python/ The nanuk package, four descending abstraction levels: nanuk.lang
+           (eDSL) -> nanuk.ir (protobuf IR, lowerings, interpreters, symex)
+           -> nanuk.isa (assemblers, encodings, ISS) -> nanuk.rtl (Amaranth
+           cores). Plus the whole Python test suite (tests/; the golden-model
+           pcap rig = tests/golden, its machinery in tests/support).
+examples/  Example programs: hand-written asm paired with its eDSL twin
+demo/      The end-to-end SimBricks demo staging the examples on the RTL cores
+docs/      Design docs, plans, and lab notes
 ```
 
 ## The demo
@@ -64,7 +64,7 @@ devcontainer up --workspace-folder .
 
 # The whole Python suite: ISA, IR, eDSL, RTL, golden-model pcap rig, and
 # playground bridge (NANUK_COSIM=1 also runs RTL-vs-golden-model cosim)
-./dev.sh bash -lc 'cd python && uv sync --extra rtl && NANUK_COSIM=1 uv run pytest tests ../web/py/tests'
+./dev.sh bash -lc 'cd sw/python && uv sync --extra rtl && NANUK_COSIM=1 uv run pytest tests ../../web/py/tests'
 ```
 
 The first thing nanuk ever parsed: `examples/l2l3l4/parse.asm` — Ethernet,

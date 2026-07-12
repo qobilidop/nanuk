@@ -2,7 +2,7 @@
 IPv4 (with options) -> UDP, behaviorally identical to the hand-written
 parse.asm next to this file.
 
-Header ids and SMD layout (shared with python/tests/spec/test_demo.py):
+Header ids and SMD layout (shared with sw/python/tests/golden/test_demo.py):
     h_eth=0  h_vlan=1  h_ipv4=2  h_udp=3
     SMD slots 0-2: DMAC   slot 3: outermost-last VLAN TCI   slot 4: UDP dport
 """

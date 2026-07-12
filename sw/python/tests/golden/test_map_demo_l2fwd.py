@@ -17,7 +17,7 @@ from nanuk.isa.map_asm import assemble as map_assemble
 from tests.support.map_harness import run_pipeline
 from tests.support.testkit import DMAC, DMAC2, demo_l2_table
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 PP_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"
 MAP_ASM = REPO_ROOT / "examples" / "map_l2fwd" / "fwd.asm"
 

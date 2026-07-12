@@ -10,7 +10,7 @@ import pytest
 from tests.support.load import load_example
 build = load_example("nanukproto/parse.py").build
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 def nk_hdr(magic=0x4E4B, version=1, flags=0, tenant=0x0ABCDE, inner=0x0800):

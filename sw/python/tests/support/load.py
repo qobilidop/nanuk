@@ -7,7 +7,7 @@ ships there. Tests treat the twins as fixtures and load them by path.
 import importlib.util
 from pathlib import Path
 
-_EXAMPLES = Path(__file__).resolve().parents[3] / "examples"
+_EXAMPLES = Path(__file__).resolve().parents[4] / "examples"
 
 
 def load_example(relpath: str):

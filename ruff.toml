@@ -1,11 +1,11 @@
 # Lint-only (no formatting): pyflakes catches unused/undefined names — the
 # class of wart the 2026-07-11 self-review found by hand. Run from the
-# python/ project: uv run ruff check <repo root>.
+# sw/python/ project: uv run ruff check <repo root>.
 target-version = "py312"
 
 extend-exclude = [
     "**/.venv",
-    "python/nanuk/ir/nanuk_ir_pb2.py",  # protoc-generated
+    "sw/python/nanuk/ir/nanuk_ir_pb2.py",  # protoc-generated
     ".agent_scratch",
     "web/node_modules",
 ]

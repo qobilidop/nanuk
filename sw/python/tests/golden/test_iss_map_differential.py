@@ -17,7 +17,7 @@ from tests.support.harness import VERDICT_ACCEPT, run_program
 from tests.support.map_harness import Table, run_map
 from tests.support.testkit import demo_l2_table, demo_tun_table, map_packets
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 PP_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"
 
 DEMOS = {

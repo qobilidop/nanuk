@@ -23,9 +23,9 @@ OUT="$SB/out"
 
 echo "==> assembling programs"
 ./dev.sh bash -lc '
-    cd python && uv sync --quiet &&
-    uv run nanuk-asm ../examples/l2l3l4/parse.asm -o ../demo/out/prog.bin &&
-    uv run nanuk-map-asm ../examples/map_l2fwd/fwd.asm -o ../demo/out/map.bin
+    cd sw/python && uv sync --quiet &&
+    uv run nanuk-asm ../../examples/l2l3l4/parse.asm -o ../../demo/out/prog.bin &&
+    uv run nanuk-map-asm ../../examples/map_l2fwd/fwd.asm -o ../../demo/out/map.bin
 '
 
 run_phase() {  # $1 = phase name; tables.txt (or absence) already staged in $OUT

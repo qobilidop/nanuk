@@ -33,7 +33,7 @@ pytestmark = pytest.mark.skipif(
     reason="needs nanuk-emu + nanuk-map-emu (linux container)",
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 EXAMPLES = REPO_ROOT / "examples"
 
 L2_TABLE = demo_l2_table()

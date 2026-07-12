@@ -35,7 +35,7 @@ MAP_ERR_SEND_RANGE = 6
 # Window geometry (mirror spec/map-model/params.sail)
 BUF_BYTES = 256
 
-_DEFAULT_MAP_EMU = Path(__file__).resolve().parents[3] / "sail" / "build" / "nanuk-map-emu"
+_DEFAULT_MAP_EMU = Path(__file__).resolve().parents[4] / "sail" / "build" / "nanuk-map-emu"
 
 
 @dataclass(frozen=True)
