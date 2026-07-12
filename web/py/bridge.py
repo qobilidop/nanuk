@@ -198,6 +198,34 @@ def _asm_ranges(asm_text: str, state_names: list[str]) -> dict[str, tuple[int, i
     return ranges
 
 
+def _provenance(rendered: RenderedIr, source: str, asm_text: str, program) -> list:
+    """The cross-pane provenance records: per state, its eDSL/IR/asm line
+    ranges; per op, its IR line and the asm lines it emitted (an ordered
+    walk — op order and per-op emission counts mirror the lowering)."""
+    names = [st.name for st in program.states]
+    edsl = _edsl_ranges(source, set(names))
+    asm = _asm_ranges(asm_text, names)
+    states = []
+    for rstate in rendered.states:
+        a_lo, _ = asm[rstate.name]
+        cursor = a_lo + 1  # first instruction line after the label
+        ops = []
+        for op in rstate.ops:
+            asm_lines = list(range(cursor, cursor + op.asm_count))
+            cursor += op.asm_count
+            ops.append(
+                {"label": op.label, "ir_line": op.ir_line, "asm_lines": asm_lines}
+            )
+        states.append({
+            "name": rstate.name,
+            "edsl": list(edsl[rstate.name]) if rstate.name in edsl else None,
+            "ir": list(rstate.ir_range),
+            "asm": list(asm[rstate.name]),
+            "ops": ops,
+        })
+    return states
+
+
 def compile_source(source: str) -> str:
     global _LAST_PROGRAM
     try:
@@ -233,27 +261,7 @@ def compile_source(source: str) -> str:
         return _err(kind, f"{type(e).__name__}: {e}", _edsl_line(e))
 
     rendered = render_ir(program)
-    names = [st.name for st in program.states]
-    edsl = _edsl_ranges(source, set(names))
-    asm = _asm_ranges(asm_text, names)
-    states = []
-    for rstate in rendered.states:
-        a_lo, _ = asm[rstate.name]
-        cursor = a_lo + 1  # first instruction line after the label
-        ops = []
-        for op in rstate.ops:
-            asm_lines = list(range(cursor, cursor + op.asm_count))
-            cursor += op.asm_count
-            ops.append(
-                {"label": op.label, "ir_line": op.ir_line, "asm_lines": asm_lines}
-            )
-        states.append({
-            "name": rstate.name,
-            "edsl": list(edsl[rstate.name]) if rstate.name in edsl else None,
-            "ir": list(rstate.ir_range),
-            "asm": list(asm[rstate.name]),
-            "ops": ops,
-        })
+    states = _provenance(rendered, source, asm_text, program)
     _LAST_PROGRAM = program
     globals()["_LAST_MAP_PROGRAM"] = None
     return json.dumps({
@@ -471,27 +479,7 @@ def _compile_map(source: str, build_map_ir) -> str:
         return _err(kind, f"{type(e).__name__}: {e}", _edsl_line(e))
 
     rendered = render_map_ir(program)
-    names = [st.name for st in program.states]
-    edsl = _edsl_ranges(source, set(names))
-    asm = _asm_ranges(asm_text, names)
-    states = []
-    for rstate in rendered.states:
-        a_lo, _ = asm[rstate.name]
-        cursor = a_lo + 1
-        ops = []
-        for op in rstate.ops:
-            asm_lines = list(range(cursor, cursor + op.asm_count))
-            cursor += op.asm_count
-            ops.append(
-                {"label": op.label, "ir_line": op.ir_line, "asm_lines": asm_lines}
-            )
-        states.append({
-            "name": rstate.name,
-            "edsl": list(edsl[rstate.name]) if rstate.name in edsl else None,
-            "ir": list(rstate.ir_range),
-            "asm": list(asm[rstate.name]),
-            "ops": ops,
-        })
+    states = _provenance(rendered, source, asm_text, program)
     _LAST_MAP_PROGRAM = program
     _LAST_PROGRAM = None
     return json.dumps({
