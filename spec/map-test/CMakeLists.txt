@@ -1,4 +1,4 @@
-# MAP Sail model tests, mirroring spec/test/ (parser). Each test is a Sail
+# MAP Sail model tests, mirroring spec/parser-test/ (parser). Each test is a Sail
 # file with a main(), compiled together with the MAP model to a C executable.
 
 function(add_map_sail_test TEST_NAME TEST_SAIL)

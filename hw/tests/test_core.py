@@ -1,6 +1,6 @@
 """pysim unit tests for NanukCore.
 
-These mirror the Sail test suites (spec/test/test_state.sail,
+These mirror the Sail test suites (spec/parser-test/test_state.sail,
 test_decode.sail, test_exec_linear.sail, test_exec_control.sail): same
 inputs, same expected values. Where a Sail test pokes machine state
 directly, the RTL test reaches the same state through architecturally

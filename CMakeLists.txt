@@ -15,10 +15,10 @@ endif()
 message(STATUS "Sail directory: ${SAIL_DIR}")
 
 # Collect all model Sail files
-file(GLOB_RECURSE MODEL_SAIL_FILES "${CMAKE_SOURCE_DIR}/spec/model/*.sail")
+file(GLOB_RECURSE MODEL_SAIL_FILES "${CMAKE_SOURCE_DIR}/spec/parser-model/*.sail")
 
 # The main entry point $includes all model files in dependency order.
-set(MODEL_MAIN "${CMAKE_SOURCE_DIR}/spec/model/main.sail")
+set(MODEL_MAIN "${CMAKE_SOURCE_DIR}/spec/parser-model/main.sail")
 
 # Target: type-check the model (fast, no C compilation)
 add_custom_target(check
@@ -40,7 +40,7 @@ add_custom_target(check-map
 )
 
 enable_testing()
-add_subdirectory(spec/test)
+add_subdirectory(spec/parser-test)
 add_subdirectory(spec/map-test)
 
 # The emulator CLI: Sail model compiled without a generated main, driven by

@@ -1,5 +1,5 @@
 """Golden-word tests. These words are identical to the ones pinned in
-spec/test/test_decode.sail — the two encoders must never drift."""
+spec/parser-test/test_decode.sail — the two encoders must never drift."""
 
 import pytest
 

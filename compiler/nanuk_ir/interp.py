@@ -7,7 +7,7 @@ running interp(program, packet) against emulate(lower(program), packet)
 differentially tests the compiler — a lightweight translation-validation
 rig (compiler/tests/test_differential.py, lang/tests/test_interp_parity.py).
 
-Semantics mirror ISA totality (spec/model, frozen in the stage-1 plan):
+Semantics mirror ISA totality (spec/parser-model, frozen in the stage-1 plan):
 same buffer clamp, same header-violation rule, same step budget, same
 output surface. Step accounting follows the v0 lowering's cost model
 instruction-for-instruction, so every InterpResult field — including
@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from . import nanuk_ir_pb2 as ir
 from .validate import validate
 
-# Mirror of spec/model/params.sail (see also nanuk_spec.harness).
+# Mirror of spec/parser-model/params.sail (see also nanuk_spec.harness).
 BUF_BYTES = 256
 NHDR = 16
 SMD_SLOTS = 8
@@ -84,7 +84,7 @@ class _Machine:
         self.values: dict[int, tuple[int, int]] = {}  # value_id -> (value, width)
 
     def tick(self) -> None:
-        # Mirrors step() in spec/model/exec.sail: budget checked before the
+        # Mirrors step() in spec/parser-model/exec.sail: budget checked before the
         # instruction runs (error 2 fires on the 257th attempt, steps
         # saturated at 256); counted once fetched, so an instruction that
         # error-halts mid-execute has already been counted.

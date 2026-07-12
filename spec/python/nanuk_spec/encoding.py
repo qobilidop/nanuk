@@ -1,6 +1,6 @@
 """Instruction encodings for the nanuk parser ISA v0.
 
-This mirrors the encdec mapping in spec/model/decode.sail — the Sail spec
+This mirrors the encdec mapping in spec/parser-model/decode.sail — the Sail spec
 owns the encoding truth; test_encoding.py pins both to the same golden words,
 and the harness's differential test guards against drift at run time.
 
