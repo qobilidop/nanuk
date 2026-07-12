@@ -26,9 +26,16 @@ RUN eval $(opam env --switch=5.1.0) && opam install sail --yes
 ENV PATH="/root/.opam/5.1.0/bin:${PATH}"
 ENV SAIL_DIR="/root/.opam/5.1.0/share/sail"
 
-# uv: Python project/dependency manager for spec/python
+# uv: Python project/dependency manager for the sw/ and hw/ projects
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:${PATH}"
+
+# buf: protobuf toolchain for the IR schema tripwires (lint + breaking
+# against main, run over spec/proto)
+ARG BUF_VERSION=1.71.0
+RUN curl -sSL -o /usr/local/bin/buf \
+    "https://github.com/bufbuild/buf/releases/download/v${BUF_VERSION}/buf-Linux-$(uname -m)" \
+    && chmod +x /usr/local/bin/buf
 
 # Use clang as the default C compiler
 ENV CC=clang
