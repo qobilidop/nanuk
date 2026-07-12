@@ -37,13 +37,23 @@ from ._asm_core import (
     to_binary,
 )
 
-__all__ = ["AsmError", "assemble", "main"]
+__all__ = ["AsmError", "assemble", "assemble_with_lines", "main"]
 
 _PREDEFINED = {"h_frame": encoding.H_FRAME}
 
 
 def assemble(text: str) -> bytes:
     """Assemble source text into big-endian 32-bit words."""
+    return to_binary(_assemble_words(text)[0])
+
+
+def assemble_with_lines(text: str) -> tuple[bytes, list[int]]:
+    """Assemble, also returning the 1-based source line of every word."""
+    words, program = _assemble_words(text)
+    return to_binary(words), [line.lineno for line in program]
+
+
+def _assemble_words(text: str):
     symbols, program = parse_lines(text, _PREDEFINED)
     words: list[int] = []
 
@@ -103,7 +113,7 @@ def assemble(text: str) -> bytes:
 
         words.append(word)
 
-    return to_binary(words)
+    return words, program
 
 
 def main(argv: list[str] | None = None) -> int:

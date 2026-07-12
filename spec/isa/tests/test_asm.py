@@ -1,7 +1,7 @@
 import pytest
 
 from nanuk_isa import encoding
-from nanuk_isa.asm import AsmError, assemble
+from nanuk_isa.asm import AsmError, assemble, assemble_with_lines
 
 
 def words(binary: bytes) -> list[int]:
@@ -88,3 +88,10 @@ def test_errors_carry_line_numbers(src, fragment):
         assemble(src)
     assert fragment in str(exc.value)
     assert "line 1" in str(exc.value)
+
+
+def test_assemble_with_lines():
+    src = "; comment\n.equ N 2\nstart:\n    advi N\n    halt accept\n"
+    binary, lines = assemble_with_lines(src)
+    assert binary == assemble(src)
+    assert lines == [4, 5]

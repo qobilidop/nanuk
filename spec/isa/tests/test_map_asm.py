@@ -5,7 +5,7 @@ the L2-forward demo against hand-encoded words."""
 import pytest
 
 from nanuk_isa import map_encoding as e
-from nanuk_isa.map_asm import AsmError, assemble
+from nanuk_isa.map_asm import AsmError, assemble, assemble_with_lines
 
 
 def words(binary: bytes) -> list[int]:
@@ -78,3 +78,10 @@ def test_errors():
         assemble("frobnicate r0")  # unknown mnemonic
     with pytest.raises(AsmError):
         assemble("send r0, 1000")  # delta out of signed range
+
+
+def test_assemble_with_lines():
+    src = "top:\n    movi r0, 1\n    drop\n"
+    binary, lines = assemble_with_lines(src)
+    assert binary == assemble(src)
+    assert lines == [2, 3]
