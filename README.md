@@ -34,8 +34,7 @@ python/   The nanuk package, four descending abstraction levels: nanuk.lang
           golden-model pcap rig in tests/support).
 examples/ Demo programs: hand-written asm paired with its eDSL twin
 hw/       Hardware workbench: Verilog export, SimBricks demos, RTL build outputs
-guide/    Lab notes and decision records
-docs/     Design docs and plans
+docs/     Design docs, plans, and lab notes
 ```
 
 ## The demo

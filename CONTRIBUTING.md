@@ -31,7 +31,8 @@ Run a single layer with `uv run pytest tests/rtl` (or `tests/isa`,
 - Commits: imperative sentence, no type prefixes (see `git log`).
 - Design docs live in `docs/superpowers/specs/`, implementation plans in
   `docs/superpowers/plans/` — read the relevant spec before changing a
-  subsystem. Decision records and lab notes: `guide/notes/`.
-- Licensing: code is Apache-2.0; `guide/` content is CC-BY-4.0. scapy
+  subsystem. Decision records and lab notes: `docs/notes/`.
+- Licensing: code is Apache-2.0; `docs/notes/` content is CC-BY-4.0
+  (raw material for the future book, which inherits the license). scapy
   (GPL-2.0-only) is a dev/test-only dependency and must never be shipped
   in a distributed artifact (wheels, the playground bundle, releases).
