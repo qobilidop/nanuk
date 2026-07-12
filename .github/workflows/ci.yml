@@ -29,10 +29,10 @@ jobs:
           cacheFrom: ghcr.io/${{ github.repository }}/dev
           push: never
           runCmd: |
-            cmake -S sail -B build
-            cmake --build build --target check
-            cmake --build build
-            ctest --test-dir build --output-on-failure
+            cmake -S sail -B sail/build
+            cmake --build sail/build --target check
+            cmake --build sail/build
+            ctest --test-dir sail/build --output-on-failure
             (cd python && uv sync --quiet --extra rtl \
               && NANUK_COSIM=1 uv run pytest tests ../web/py/tests -q \
               && uv run ruff check ..)

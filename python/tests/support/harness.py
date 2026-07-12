@@ -27,7 +27,7 @@ ERR_ILLEGAL = 3
 ERR_PC_RANGE = 4
 ERR_SMD_RANGE = 5
 
-_DEFAULT_EMU = Path(__file__).resolve().parents[3] / "build" / "nanuk-emu"
+_DEFAULT_EMU = Path(__file__).resolve().parents[3] / "sail" / "build" / "nanuk-emu"
 
 
 @dataclass(frozen=True)
@@ -59,7 +59,7 @@ def run_program(prog: bytes, packet: bytes, emu: Path | None = None) -> ParseRes
     emu = emu or emulator_path()
     if not emu.exists():
         raise FileNotFoundError(
-            f"emulator not found at {emu}; build it with: cmake --build build"
+            f"emulator not found at {emu}; build it with: cmake --build sail/build"
         )
     with tempfile.TemporaryDirectory() as tmp:
         prog_path = Path(tmp) / "prog.bin"

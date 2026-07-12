@@ -56,11 +56,11 @@ devcontainer build --workspace-folder .
 devcontainer up --workspace-folder .
 
 # Build the Sail model, emulator, and tests
-./dev.sh cmake -S sail -B build
-./dev.sh cmake --build build
+./dev.sh cmake -S sail -B sail/build
+./dev.sh cmake --build sail/build
 
 # Sail model tests + emulator smoke test
-./dev.sh ctest --test-dir build --output-on-failure
+./dev.sh ctest --test-dir sail/build --output-on-failure
 
 # The whole Python suite: ISA, IR, eDSL, RTL, golden-model pcap rig, and
 # playground bridge (NANUK_COSIM=1 also runs RTL-vs-golden-model cosim)

@@ -2,7 +2,8 @@
 .agent_scratch/
 third_party/
 
-# Build outputs (matches at any level: root CMake build, demo/build, ...)
+# Build outputs, per-subsystem (matches at any level: sail/build,
+# python/build, demo/build; sail_smt_cache follows the Sail cwd)
 build/
 sail_smt_cache
 

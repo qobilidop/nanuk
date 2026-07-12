@@ -2,8 +2,8 @@
 # with the model to a C executable and registered with CTest.
 #
 # Usage:
-#   cmake --build build
-#   ctest --test-dir build
+#   cmake --build sail/build
+#   ctest --test-dir sail/build
 
 function(add_sail_test TEST_NAME TEST_SAIL)
     set(SAIL_OUT_STEM "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}")

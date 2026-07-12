@@ -35,7 +35,7 @@ MAP_ERR_SEND_RANGE = 6
 # Window geometry (mirror spec/map-model/params.sail)
 BUF_BYTES = 256
 
-_DEFAULT_MAP_EMU = Path(__file__).resolve().parents[3] / "build" / "nanuk-map-emu"
+_DEFAULT_MAP_EMU = Path(__file__).resolve().parents[3] / "sail" / "build" / "nanuk-map-emu"
 
 
 @dataclass(frozen=True)
@@ -93,7 +93,7 @@ def run_map(
     emu = emu or map_emulator_path()
     if not emu.exists():
         raise FileNotFoundError(
-            f"MAP emulator not found at {emu}; build it with: cmake --build build"
+            f"MAP emulator not found at {emu}; build it with: cmake --build sail/build"
         )
     with tempfile.TemporaryDirectory() as tmp:
         prog_path = Path(tmp) / "prog.bin"
