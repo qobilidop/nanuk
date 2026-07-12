@@ -5,7 +5,7 @@ owns the encoding truth; test_map_encoding.py pins both to the same golden
 words (the drift tripwire shared with spec/map-test/test_map_decode.sail).
 
 32-bit words, opcode at [31:26], reserved bits zero. The `off` (LD/ST/
-CSUMUPD) and `delta` (SEND) fields are 10-bit two's complement.
+CSUM) and `delta` (SEND) fields are 10-bit two's complement.
 """
 
 REGS = {"r0": 0, "r1": 1, "r2": 2, "r3": 3, "rz": 4}
@@ -22,9 +22,12 @@ OP_BEQ = 0x06
 OP_BNE = 0x07
 OP_JMP = 0x08
 OP_LOOKUP = 0x09
-OP_CSUMUPD = 0x0A
+OP_CSUM = 0x0A
 OP_SEND = 0x0B
 OP_DROP = 0x0C
+OP_STMD = 0x0D
+OP_ANDI = 0x0E
+OP_SHLI = 0x0F
 
 
 def _check(value: int, width: int, what: str) -> int:
@@ -67,7 +70,7 @@ def encode_st(rs: str, hdr: int, off: int, nbytes: int) -> int:
 
 
 def encode_ldmd(rd: str, field: int) -> int:
-    return (OP_LDMD << 26) | (_reg(rd) << 23) | (_check(field, 4, "SMD field") << 19)
+    return (OP_LDMD << 26) | (_reg(rd) << 23) | (_check(field, 4, "md slot") << 19)
 
 
 def encode_movi(rd: str, imm: int) -> int:
@@ -115,17 +118,48 @@ def encode_lookup(rd: str, table: int, rs: str, target: int) -> int:
     )
 
 
-def encode_csumupd(hdr: int, off: int) -> int:
+def encode_csum(rd: str, hdr: int, off: int, rl: str) -> int:
     return (
-        (OP_CSUMUPD << 26)
-        | (_check(hdr, 4, "header id") << 22)
-        | (_signed(off, 10, "byte offset") << 12)
+        (OP_CSUM << 26)
+        | (_reg(rd) << 23)
+        | (_check(hdr, 4, "header id") << 19)
+        | (_signed(off, 10, "byte offset") << 9)
+        | (_reg(rl) << 6)
     )
 
 
-def encode_send(rs: str, delta: int) -> int:
-    return (OP_SEND << 26) | (_reg(rs) << 23) | (_signed(delta, 10, "send delta") << 13)
+def encode_send(delta: int) -> int:
+    return (OP_SEND << 26) | (_signed(delta, 10, "send delta") << 13)
 
 
 def encode_drop() -> int:
     return OP_DROP << 26
+
+
+def encode_stmd(rs: str, nunits: int, slot: int) -> int:
+    if not 1 <= nunits <= 4:
+        raise ValueError(f"unit count {nunits} out of range 1..4")
+    return (
+        (OP_STMD << 26)
+        | (_reg(rs) << 23)
+        | ((nunits - 1) << 21)
+        | (_check(slot, 4, "md slot") << 17)
+    )
+
+
+def encode_andi(rd: str, rs: str, imm: int) -> int:
+    return (
+        (OP_ANDI << 26)
+        | (_reg(rd) << 23)
+        | (_reg(rs) << 20)
+        | _check(imm, 16, "ANDI immediate")
+    )
+
+
+def encode_shli(rd: str, rs: str, sh: int) -> int:
+    return (
+        (OP_SHLI << 26)
+        | (_reg(rd) << 23)
+        | (_reg(rs) << 20)
+        | (_check(sh, 6, "shift amount") << 14)
+    )

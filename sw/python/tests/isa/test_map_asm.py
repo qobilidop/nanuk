@@ -15,34 +15,60 @@ def words(binary: bytes) -> list[int]:
 
 def test_l2fwd_demo_assembles_to_golden_words():
     src = """
-    ; L2 forward: exact-match on DMAC -> port bitmap; miss -> flood.
+    ; L2 forward: exact-match on DMAC -> port bitmap; miss -> flood table.
     .equ H_ETH 0
     .equ T_L2 0
-    .equ MD_FLOOD 9
+    .equ T_SYS 3
         ld      r0, H_ETH, 0, 6
         lookup  r1, T_L2, r0, miss
-        send    r1, 0
+        stmd    r1, 1, 0
+        send    0
     miss:
-        ldmd    r1, MD_FLOOD
-        send    r1, 0
+        ldmd    r2, 0
+        lookup  r1, T_SYS, r2, dark
+        stmd    r1, 1, 0
+        send    0
+    dark:
+        drop
     """
     assert words(assemble(src)) == [
         e.encode_ld("r0", 0, 0, 6),
-        e.encode_lookup("r1", 0, "r0", 3),
-        e.encode_send("r1", 0),
-        e.encode_ldmd("r1", 9),
-        e.encode_send("r1", 0),
+        e.encode_lookup("r1", 0, "r0", 4),
+        e.encode_stmd("r1", 1, 0),
+        e.encode_send(0),
+        e.encode_ldmd("r2", 0),
+        e.encode_lookup("r1", 3, "r2", 8),
+        e.encode_stmd("r1", 1, 0),
+        e.encode_send(0),
+        e.encode_drop(),
+    ]
+
+
+def test_csum_sequence_assembles():
+    src = """
+        ld      r2, 1, 0, 1
+        andi    r2, r2, 0x000F
+        shli    r2, r2, 2
+        csum    r3, 1, 0, r2
+        st      r3, 1, 10, 2
+    """
+    assert words(assemble(src)) == [
+        e.encode_ld("r2", 1, 0, 1),
+        e.encode_andi("r2", "r2", 0x000F),
+        e.encode_shli("r2", "r2", 2),
+        e.encode_csum("r3", 1, 0, "r2"),
+        e.encode_st("r3", 1, 10, 2),
     ]
 
 
 def test_negative_offsets_and_deltas():
     src = """
         st      r0, h_frame, -22, 6
-        send    r1, -22
+        send    -22
     """
     assert words(assemble(src)) == [
         e.encode_st("r0", 15, -22, 6),
-        e.encode_send("r1", -22),
+        e.encode_send(-22),
     ]
 
 
@@ -77,7 +103,11 @@ def test_errors():
     with pytest.raises(AsmError):
         assemble("frobnicate r0")  # unknown mnemonic
     with pytest.raises(AsmError):
-        assemble("send r0, 1000")  # delta out of signed range
+        assemble("send 1000")  # delta out of signed range
+    with pytest.raises(AsmError):
+        assemble("csumupd 2, 0")  # retired mnemonic
+    with pytest.raises(AsmError):
+        assemble("stmd r0, 5, 0")  # nunits out of range
 
 
 def test_assemble_with_lines():

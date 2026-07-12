@@ -25,7 +25,7 @@ ERR_HDR_VIOLATION = 1
 ERR_STEP_BUDGET = 2
 ERR_ILLEGAL = 3
 ERR_PC_RANGE = 4
-ERR_SMD_RANGE = 5
+ERR_MD_RANGE = 5
 
 _DEFAULT_EMU = Path(__file__).resolve().parents[4] / "spec" / "sail" / "build" / "nanuk-pp-emu"
 
@@ -38,7 +38,7 @@ class ParserResult:
     steps: int
     hdr_present: list[int]
     hdr_offset: list[int]
-    smd: list[int]
+    md: list[int]
 
     @property
     def accepted(self) -> bool:
@@ -54,8 +54,12 @@ def emulator_path() -> Path:
     return Path(os.environ.get("NANUK_PP_EMU", _DEFAULT_EMU))
 
 
-def run_program(prog: bytes, packet: bytes, emu: Path | None = None) -> ParserResult:
-    """Run one packet through the golden model."""
+def run_program(
+    prog: bytes, packet: bytes, md_in=(), emu: Path | None = None
+) -> ParserResult:
+    """Run one packet through the golden model.
+
+    md_in: up to 8 16-bit slots seeding the PP's metadata window."""
     emu = emu or emulator_path()
     if not emu.exists():
         raise FileNotFoundError(
@@ -66,8 +70,15 @@ def run_program(prog: bytes, packet: bytes, emu: Path | None = None) -> ParserRe
         pkt_path = Path(tmp) / "pkt.bin"
         prog_path.write_bytes(prog)
         pkt_path.write_bytes(packet)
+        argv = [str(emu), str(prog_path), str(pkt_path)]
+        if any(md_in):
+            ctx_path = Path(tmp) / "ctx.txt"
+            ctx_path.write_text(
+                "".join(f"md {i} {v}\n" for i, v in enumerate(md_in) if v)
+            )
+            argv.append(str(ctx_path))
         out = subprocess.run(
-            [str(emu), str(prog_path), str(pkt_path)],
+            argv,
             capture_output=True,
             text=True,
             check=True,

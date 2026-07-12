@@ -1,7 +1,8 @@
 """Instruction-set simulator for the Nanuk MAP ISA v0. Sibling of iss.py.
 
 Executes assembled 32-bit words against the window (32-byte headroom +
-frame), the inbound PP contract, and exact-match tables. Semantics
+frame), the metadata window, the inbound PP hdr map, and exact-match
+tables. Semantics
 mirror spec/sail/model/map ({exec,insts,decode,state}.sail): same error
 codes, same step accounting, reserved bits enforced. Table entries are
 masked to the declared widths, matching the emulator's load behavior
@@ -15,7 +16,6 @@ from dataclasses import dataclass
 HEADROOM_BYTES = 32
 BUF_BYTES = 256
 WIN_BYTES = 288
-N_PORTS = 4
 N_TABLES = 4
 IMEM_WORDS = 1024
 STEP_BUDGET = 256
@@ -57,7 +57,7 @@ class MatchActionIssResult:
 
     verdict: int
     error: int
-    egress: int
+    md: tuple[int, ...]
     delta: int
     steps: int
     frame: bytes | None
@@ -120,24 +120,36 @@ def _decode(w: int):
             if r1 > 4 or rs > 4:
                 return None
             return ("lookup", r1, (w >> 19) & 0xF, rs, w & _MASK16)
-        case 0x0A:  # CSUMUPD hdr(4), off(10 signed)
-            if w & 0x0FFF:
+        case 0x0A:  # CSUM rd, hdr(4), off(10 signed), rl
+            if w & 0x3F or r1 > 4 or ((w >> 6) & 7) > 4:
                 return None
-            return ("csumupd", (w >> 22) & 0xF, _sext10((w >> 12) & 0x3FF))
-        case 0x0B:  # SEND rs, delta(10 signed)
-            if w & 0x1FFF or r1 > 4:
+            return ("csum", r1, (w >> 19) & 0xF, _sext10((w >> 9) & 0x3FF), (w >> 6) & 7)
+        case 0x0B:  # SEND delta(10 signed)
+            if w & 0x1FFF or (w >> 23) & 7:
                 return None
-            return ("send", r1, _sext10((w >> 13) & 0x3FF))
+            return ("send", _sext10((w >> 13) & 0x3FF))
         case 0x0C:  # DROP
             if w & 0x03FFFFFF:
                 return None
             return ("drop",)
+        case 0x0D:  # STMD rs, nm1(2), slot(4)
+            if w & 0x1FFFF or r1 > 4:
+                return None
+            return ("stmd", r1, ((w >> 21) & 3) + 1, (w >> 17) & 0xF)
+        case 0x0E:  # ANDI rd, rs, imm16 (zero-extended)
+            if w & 0x000F0000 or r1 > 4 or r2 > 4:
+                return None
+            return ("andi", r1, r2, w & _MASK16)
+        case 0x0F:  # SHLI rd, rs, sh(6)
+            if w & 0x3FFF or r1 > 4 or r2 > 4:
+                return None
+            return ("shli", r1, r2, (w >> 14) & 0x3F)
         case _:
             return None
 
 
 class _Machine:
-    def __init__(self, words, packet: bytes, pp, tables, ingress: int, line_map=None):
+    def __init__(self, words, packet: bytes, pp, tables, md_in, line_map=None):
         self.words = words
         self.line_map = line_map
         self.window = bytearray(WIN_BYTES)
@@ -148,14 +160,14 @@ class _Machine:
         self.win_limit = HEADROOM_BYTES + self.plen_min
         self.pp = pp
         self.tables = list(tables)
-        self.ingress = ingress
+        md = [v & _MASK16 for v in md_in]
+        self.md = md + [0] * (8 - len(md))
         self.regs = [0, 0, 0, 0]
         self.pc = 0
         self.steps = 0
         self.halted = False
         self.verdict = VERDICT_SENT
         self.err = ERR_NONE
-        self.egress = 0
         self.delta = 0
         self.trace: list[MatchActionIssStep] = []
         # per-step effect accumulators
@@ -241,7 +253,21 @@ class _Machine:
                     v = self.read_reg(rs) & ((1 << (8 * n)) - 1)
                     self.write_win(addr, v.to_bytes(n, "big"))
             case ("ldmd", rd, f):
-                self.write_reg(rd, self._ld_field(f))
+                if f >= 8:
+                    self.raise_err(ERR_ILLEGAL)
+                else:
+                    self.write_reg(rd, self.md[f])
+            case ("stmd", rs, n, slot):
+                if slot + n > 8:
+                    self.raise_err(ERR_ILLEGAL)
+                else:
+                    v = self.read_reg(rs)
+                    for i in range(n):
+                        self.md[slot + i] = (v >> (16 * (n - 1 - i))) & _MASK16
+            case ("andi", rd, rs, imm):
+                self.write_reg(rd, self.read_reg(rs) & imm)
+            case ("shli", rd, rs, sh):
+                self.write_reg(rd, self.read_reg(rs) << sh)
             case ("movi", rd, imm):
                 self.write_reg(rd, imm)
             case ("addi", rd, rs, imm):
@@ -269,13 +295,12 @@ class _Machine:
                 else:
                     self.write_reg(rd, 0)
                     self.pc = tgt
-            case ("csumupd", h, off):
-                self._csumupd(h, off)
-            case ("send", rs, d):
+            case ("csum", rd, h, off, rl):
+                self._csum(rd, h, off, rl)
+            case ("send", d):
                 if d > HEADROOM_BYTES or d <= -self.plen_min:
                     self.raise_err(ERR_SEND_RANGE)
                     return
-                self.egress = self.read_reg(rs) & ((1 << N_PORTS) - 1)
                 self.delta = d
                 self.verdict = VERDICT_SENT
                 self.halted = True
@@ -283,40 +308,25 @@ class _Machine:
                 self.verdict = VERDICT_DROP
                 self.halted = True
 
-    def _ld_field(self, f: int) -> int:
-        # Mirrors ld_field in spec/sail/model/map/insts.sail.
-        if f < 8:
-            return self.pp.smd[f]
-        if f == 8:
-            return self.ingress
-        if f == 9:
-            all_ports = (1 << N_PORTS) - 1
-            return (all_ports ^ (1 << self.ingress)) & all_ports
-        if f == 10:
-            return sum(1 << h for h in range(16) if self.pp.hdr_present[h])
-        return 0
-
-    def _csumupd(self, h: int, off: int) -> None:
-        base = self._checked_addr(h, off, 20)
-        if base is None:
+    def _csum(self, rd: int, h: int, off: int, rl: int) -> None:
+        # RFC 1071 ones-complement checksum of an explicit range into rd.
+        base_hdr = self.hdr_base(h)
+        if base_hdr < 0:
+            self.raise_err(ERR_HDR_ABSENT)
             return
-        ihl = self.window[base] & 0xF
-        if ihl < 5:
-            self.raise_err(ERR_WINDOW_VIOLATION)
-            return
-        hlen = ihl * 4
-        if base + hlen > self.win_limit:
+        base = HEADROOM_BYTES + base_hdr + off
+        length = self.read_reg(rl) & _MASK16
+        if base < 0 or base + length > self.win_limit:
             self.raise_err(ERR_WINDOW_VIOLATION)
             return
         total = 0
-        for i in range(0, hlen, 2):
-            b0 = 0 if i == 10 else self.window[base + i]
-            b1 = 0 if i == 10 else self.window[base + i + 1]
+        for i in range(0, length, 2):
+            b0 = self.window[base + i]
+            b1 = self.window[base + i + 1] if i + 1 < length else 0
             total += (b0 << 8) | b1
         while total > 0xFFFF:
             total = (total & 0xFFFF) + (total >> 16)
-        ck = total ^ 0xFFFF
-        self.write_win(base + 10, bytes([ck >> 8, ck & 0xFF]))
+        self.write_reg(rd, total ^ 0xFFFF)
 
 
 def run_map_iss(
@@ -324,20 +334,21 @@ def run_map_iss(
     packet: bytes,
     pp,
     tables,
-    ingress: int,
+    md_in,
     *,
     line_map: list[int] | None = None,
 ) -> MatchActionIssResult:
     """Run one already-parsed frame through the MAP ISS. Total, like the ISA.
 
-    pp: ParserResult-shaped (hdr_present/hdr_offset/smd). tables: list of
+    pp: ParserResult-shaped (hdr_present/hdr_offset). tables: list of
     Table-shaped objects (key_width/action_width/entries), index = table
-    id. prog: big-endian 32-bit words.
+    id. md_in: up to 8 16-bit metadata slots (pass-through default).
+    prog: big-endian 32-bit words.
     """
     if len(prog) % 4:
         raise ValueError("program length is not a multiple of 4 bytes")
     words = [int.from_bytes(prog[i : i + 4], "big") for i in range(0, len(prog), 4)]
-    m = _Machine(words, bytes(packet), pp, tables, ingress, line_map)
+    m = _Machine(words, bytes(packet), pp, tables, md_in, line_map)
     while not m.halted:
         m.step()
     frame = None
@@ -349,7 +360,7 @@ def run_map_iss(
     return MatchActionIssResult(
         verdict=m.verdict,
         error=m.err,
-        egress=m.egress,
+        md=tuple(m.md),
         delta=m.delta,
         steps=m.steps,
         frame=frame,

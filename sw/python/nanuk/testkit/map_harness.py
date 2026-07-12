@@ -2,11 +2,11 @@
 PP -> MAP pipeline.
 
 run_map feeds a MAP program, the frame bytes, the PP's outputs (a
-ParserResult), and table config through the emulator CLI's ctx.txt contract.
-run_pipeline chains the two golden models with the same gating the SimBricks
-glue applies: a PP verdict other than accept short-circuits (the MAP never
-runs; the packet is dropped/flooded per policy at the glue layer — here we
-just report None).
+ParserResult: hdr map + the metadata window as the PP left it), and table
+config through the emulator CLI's ctx.txt contract. run_pipeline chains the
+two golden models: the system md_in seeds the PP; the PP's md output seeds
+the MAP (the shared-window pass-through). A PP verdict other than accept
+short-circuits (the MAP never runs).
 """
 
 import json
@@ -51,7 +51,7 @@ class Table:
 class MatchActionResult:
     verdict: int
     error: int
-    egress: int
+    md: tuple[int, ...]
     delta: int
     steps: int
     frame: bytes | None
@@ -66,11 +66,11 @@ def map_emulator_path() -> Path:
     return Path(os.environ.get("NANUK_MAP_EMU", _DEFAULT_MAP_EMU))
 
 
-def _ctx_text(pp: ParserResult, tables: list[Table], ingress: int) -> str:
-    lines = [f"ingress {ingress}"]
-    for slot, value in enumerate(pp.smd):
+def _ctx_text(pp: ParserResult, tables: list[Table], md_in) -> str:
+    lines = []
+    for slot, value in enumerate(md_in):
         if value:
-            lines.append(f"smd {slot} {value}")
+            lines.append(f"md {slot} {value}")
     for hdr_id in range(len(pp.hdr_present)):
         if pp.hdr_present[hdr_id]:
             lines.append(f"hdr {hdr_id} 1 {pp.hdr_offset[hdr_id]}")
@@ -86,10 +86,13 @@ def run_map(
     packet: bytes,
     pp: ParserResult,
     tables: list[Table],
-    ingress: int,
+    md_in,
     emu: Path | None = None,
 ) -> MatchActionResult:
-    """Run one already-parsed frame through the MAP golden model."""
+    """Run one already-parsed frame through the MAP golden model.
+
+    md_in: up to 8 16-bit slots seeding the MAP's metadata window —
+    in the composed pipeline this is the PP's md output."""
     emu = emu or map_emulator_path()
     if not emu.exists():
         raise FileNotFoundError(
@@ -101,7 +104,7 @@ def run_map(
         ctx_path = Path(tmp) / "ctx.txt"
         prog_path.write_bytes(prog)
         pkt_path.write_bytes(packet)
-        ctx_path.write_text(_ctx_text(pp, tables, ingress))
+        ctx_path.write_text(_ctx_text(pp, tables, md_in))
         out = subprocess.run(
             [str(emu), str(prog_path), str(pkt_path), str(ctx_path)],
             capture_output=True,
@@ -119,7 +122,7 @@ def run_map(
     return MatchActionResult(
         verdict=raw["verdict"],
         error=raw["error"],
-        egress=raw["egress"],
+        md=tuple(raw["md"]),
         delta=raw["delta"],
         steps=raw["steps"],
         frame=frame,
@@ -131,14 +134,15 @@ def run_pipeline(
     map_prog: bytes,
     packet: bytes,
     tables: list[Table],
-    ingress: int,
+    md_in,
 ) -> tuple[ParserResult, MatchActionResult | None]:
     """Run one packet through PP then MAP (the composed golden model).
 
-    Short-circuits when the PP verdict is not accept — the same gating the
-    SimBricks glue applies before its forwarding stage.
+    md_in seeds the PP's metadata window; the PP's md output seeds the
+    MAP's — the shared-window pass-through, in golden-model form.
+    Short-circuits when the PP verdict is not accept.
     """
-    pp = run_program(pp_prog, packet)
+    pp = run_program(pp_prog, packet, md_in)
     if pp.verdict != VERDICT_ACCEPT:
         return pp, None
-    return pp, run_map(map_prog, packet, pp, tables, ingress)
+    return pp, run_map(map_prog, packet, pp, tables, pp.md)

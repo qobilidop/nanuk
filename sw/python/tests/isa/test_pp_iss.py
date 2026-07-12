@@ -14,7 +14,7 @@ from nanuk.isa.pp_iss import (
     ERR_HDR_VIOLATION,
     ERR_ILLEGAL,
     ERR_PC_RANGE,
-    ERR_SMD_RANGE,
+    ERR_MD_RANGE,
     ERR_STEP_BUDGET,
     STEP_BUDGET,
     VERDICT_ACCEPT,
@@ -91,11 +91,11 @@ def test_pc_range_step_order():
     assert m2.err == ERR_STEP_BUDGET
 
 
-def test_smd_range():
+def test_md_range():
     # slot 7, 2 units: the encoder rejects it, so build the raw word.
     word = (0x0A << 26) | (0 << 23) | (1 << 21) | (7 << 17)
     r = run_pp_iss(raw(pp_encoding.encode_movi("r0", 1), word), b"")
-    assert (r.verdict, r.error) == (VERDICT_ERROR, ERR_SMD_RANGE)
+    assert (r.verdict, r.error) == (VERDICT_ERROR, ERR_MD_RANGE)
 
 
 def test_reserved_bits_and_bad_reg_are_illegal():
@@ -125,7 +125,26 @@ def test_stmd_msb_first():
         "    halt accept\n"
     )
     r = run_pp_iss(assemble(src), b"")
-    assert r.smd == [0x1234, 0, 0, 0, 0, 0, 0, 0]
+    assert r.md == [0x1234, 0, 0, 0, 0, 0, 0, 0]
+
+
+def test_ldmd_reads_md_in_and_round_trips():
+    src = (
+        "    ldmd r0, 0\n"
+        "    stmd 4, r0, 1\n"
+        "    ldmd r1, 4\n"
+        "    halt accept\n"
+    )
+    r = run_pp_iss(assemble(src), b"", md_in=[0xCAFE])
+    assert r.trace[0].regs[0] == 0xCAFE
+    assert r.trace[2].regs[1] == 0xCAFE
+    # Pass-through: untouched slots keep their inbound values.
+    assert r.md == [0xCAFE, 0, 0, 0, 0xCAFE, 0, 0, 0]
+
+
+def test_ldmd_slot_bounds_illegal():
+    r = run_pp_iss(assemble("    ldmd r0, 8\n    halt accept\n"), b"")
+    assert (r.verdict, r.error) == (VERDICT_ERROR, ERR_ILLEGAL)
 
 
 def test_rz_reads_zero_discards_writes():
