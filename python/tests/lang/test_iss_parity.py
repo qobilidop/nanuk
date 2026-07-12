@@ -20,11 +20,12 @@ from nanuk.isa.asm import assemble_with_lines
 from nanuk.isa.iss import run_iss
 from nanuk.isa.iss_map import run_map_iss
 from nanuk.isa.map_asm import assemble_with_lines as map_assemble_with_lines
-from examples.nanukproto import parse as nanukproto_parse
-from examples.l2l3l4.parse import build_ir as l2l3l4_ir
-from examples.map_l2fwd.fwd import make_l2fwd
-from examples.map_ttl.fwd import make_ttl
-from examples.nanukproto.tunnel import make_tunnel_pop, make_tunnel_push
+from tests.support.load import load_example
+nanukproto_parse = load_example("nanukproto/parse.py")
+l2l3l4_ir = load_example("l2l3l4/parse.py").build_ir
+make_l2fwd = load_example("map_l2fwd/fwd.py").make_l2fwd
+make_ttl = load_example("map_ttl/fwd.py").make_ttl
+_ex = load_example("nanukproto/tunnel.py"); make_tunnel_pop, make_tunnel_push = _ex.make_tunnel_pop, _ex.make_tunnel_push
 from tests.support.testkit import (
     NO_TABLE,
     demo_l2_table,

@@ -2,7 +2,8 @@
 
 import json
 
-from examples.l2l3l4 import parse as l2l3l4  # noqa: F401  (env sanity)
+from tests.support.load import load_example
+l2l3l4 = load_example("l2l3l4/parse.py")
 
 import bridge
 
@@ -117,6 +118,6 @@ def test_pp_rig_mirrors_l2l3l4_example():
     """Tripwire: the bridge's inlined composed-run parser is a copy of
     examples/l2l3l4/parse.py (the bridge must not import example content);
     hold the two identical at the assembly level."""
-    from examples.l2l3l4.parse import build
+    build = load_example("l2l3l4/parse.py").build
 
     assert bridge._make_pp_parser().compile() == build()

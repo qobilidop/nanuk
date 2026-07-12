@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from examples.nanukproto.parse import build
+from tests.support.load import load_example
+build = load_example("nanukproto/parse.py").build
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 

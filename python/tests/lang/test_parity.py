@@ -13,7 +13,8 @@ from scapy.layers.inet import IP, TCP, UDP
 from scapy.layers.l2 import ARP, Dot1Q, Ether
 from scapy.packet import Raw
 
-from examples.l2l3l4.parse import build
+from tests.support.load import load_example
+build = load_example("l2l3l4/parse.py").build
 from nanuk.isa.asm import assemble
 from tests.support.harness import run_program
 

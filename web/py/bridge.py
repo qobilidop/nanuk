@@ -491,8 +491,17 @@ def _make_pp_parser():
     (with options) -> UDP. A copy of examples/l2l3l4/parse.py (the bridge is
     playground toolchain and must not import example content); the composed
     bridge tests pin its behavior against the example's corpus."""
-    from nanuk.lang import Parser
-    from nanuk.lang.headers import ETY_IPV4, ETY_VLAN, PROTO_UDP, eth, ipv4, udp, vlan
+    from nanuk.lang import Header, Parser
+
+    eth = Header("eth", dst=48, src=48, ethertype=16)
+    vlan = Header("vlan", tci=16, ethertype=16)
+    ipv4 = Header(
+        "ipv4",
+        version=4, ihl=4, tos=8, total_len=16, ident=16,
+        flags_frag=16, ttl=8, proto=8, csum=16, src=32, dst=32,
+    )
+    udp = Header("udp", sport=16, dport=16, length=16, csum=16)
+    ETY_VLAN, ETY_IPV4, PROTO_UDP = 0x8100, 0x0800, 17
 
     p = Parser()
 

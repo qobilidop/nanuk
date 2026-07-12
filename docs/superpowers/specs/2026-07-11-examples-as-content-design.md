@@ -18,23 +18,27 @@ imports). The fix is to move what was actually toolchain into the
 library, at which point examples become pure content and live at the
 repo root.
 
-## The decisions
+## The decisions (as amended same day: standalone examples)
 
-- **`nanuk.lang.headers`**: standard protocol headers (eth/vlan/ipv4/udp
-  + IANA wire constants), shipped with the toolchain — the p4include
-  pattern. Invented protocols (nanukproto's `nk`) stay with their
-  example.
+- **Examples are standalone documents.** Each example declares its own
+  headers and wire constants — everything readable on one page, matching
+  the playground's editor seeds, which were already self-contained.
+  (First cut introduced `nanuk.lang.headers`, a p4include-style shared
+  header library; Bili reversed it hours later — with examples
+  standalone it had no real consumers, so it was deleted rather than
+  kept speculatively. If a user-facing header library is ever wanted,
+  that argument can resurrect it with actual consumers.)
 - **The bridge owns its rig**: `_make_pp_parser()` in `web/py/bridge.py`
-  is a copy of examples/l2l3l4/parse.py, built from `nanuk.lang.headers`.
-  Tripwire: `test_pp_rig_mirrors_l2l3l4_example` holds bridge rig and
-  example identical at the assembly level.
-- **`examples/` returns to the repo root as flat content** (asm + eDSL
-  twins, no `__init__`, no packaging). Nothing that ships imports it.
-  Tests import the eDSL twins via the `examples` namespace package:
-  pytest `pythonpath = [".", ".."]` (repo root). The wheel carries no
-  examples.
+  is a self-contained copy of examples/l2l3l4/parse.py. Tripwire:
+  `test_pp_rig_mirrors_l2l3l4_example` holds bridge rig and example
+  identical at the assembly level.
+- **`examples/` lives at the repo root as flat content** (asm + eDSL
+  twins, no `__init__`, no packaging, not importable). Nothing that
+  ships imports it; the wheel carries no examples. Tests treat the eDSL
+  twins as fixtures loaded by path via `tests.support.load.load_example`
+  (pytest `pythonpath` stays `["."]`).
 - The playground's editor programs (`web/src/programs/`) remain bundled
-  text seeds; nanukproto's seed now imports `nanuk.lang.headers`.
+  text seeds, each standalone.
 
 ## Where demo content goes (the rule going forward)
 
