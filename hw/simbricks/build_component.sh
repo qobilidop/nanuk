@@ -18,7 +18,7 @@ BIN="$OUT/nanuk_hw"
 
 newer_than_sources() {
   [ -f "$BIN" ] || return 1
-  for f in hw/nanuk_hw/core.py hw/nanuk_hw/map_core.py hw/simbricks/nanuk_hw.cc; do
+  for f in python/nanuk/rtl/core.py python/nanuk/rtl/map_core.py hw/simbricks/nanuk_hw.cc; do
     [ "$BIN" -nt "$f" ] || return 1
   done
   return 0
@@ -31,9 +31,9 @@ fi
 
 echo "==> exporting Verilog (both cores)"
 ./dev.sh bash -lc '
-    cd hw && uv sync --quiet &&
-    uv run python export.py build/nanuk_core.v &&
-    uv run python export.py --core map build/nanuk_map_core.v
+    cd python && uv sync --quiet --extra rtl && cd ../hw &&
+    uv run --project ../python python export.py build/nanuk_core.v &&
+    uv run --project ../python python export.py --core map build/nanuk_map_core.v
 '
 
 echo "==> verilating with devcontainer verilator 5 (native)"

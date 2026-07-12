@@ -4,4 +4,4 @@ Compile: cd lang && uv run python -c \
     "from fwd import make_map; print(make_map().compile())"  # (with examples/map_l2fwd on sys.path)
 """
 
-from nanuk_lang.programs.map_demos import make_l2fwd as make_map  # noqa: F401
+from nanuk.lang.programs.map_demos import make_l2fwd as make_map  # noqa: F401

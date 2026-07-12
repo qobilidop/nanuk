@@ -3,9 +3,9 @@ name: Pages
 on:
   push:
     branches: [main]
-    paths: ['web/**', 'lang/**', 'compiler/**', '.github/workflows/pages.yml']
+    paths: ['web/**', 'python/**', '.github/workflows/pages.yml']
   pull_request:
-    paths: ['web/**', 'lang/**', 'compiler/**', '.github/workflows/pages.yml']
+    paths: ['web/**', 'python/**', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 jobs:

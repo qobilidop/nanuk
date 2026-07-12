@@ -12,7 +12,7 @@ export async function initBrowserRuntime(
     fetch(`${BASE}bridge.py`).then((r) => r.text()),
   ]);
   const wheelUrls = (manifest.wheels as string[])
-    .sort() // nanuk_ir before nanuk_lang, dependency-first
+    .sort() // nanuk.ir before nanuk.lang, dependency-first
     .map((w) => new URL(`${BASE}wheels/${w}`, location.origin).href);
   return initRuntime({
     loadPyodide,

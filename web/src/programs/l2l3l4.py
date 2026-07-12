@@ -4,7 +4,7 @@
 # Header ids: eth=0 vlan=1 ipv4=2 udp=3
 # SMD slots:  0-2 DMAC | 3 outermost-last VLAN TCI | 4 UDP dport
 
-from nanuk_lang import Header, Parser
+from nanuk.lang import Header, Parser
 
 eth = Header("eth", dst=48, src=48, ethertype=16)
 vlan = Header("vlan", tci=16, ethertype=16)

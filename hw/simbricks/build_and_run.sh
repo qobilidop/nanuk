@@ -21,14 +21,14 @@ STAGE="$REPO/hw/simbricks/stage"
 PROG="${1:-}"
 if [ -z "$PROG" ]; then
   echo "==> assembling demo parser program"
-  ./dev.sh bash -lc 'cd spec/python && uv run nanuk-asm ../../examples/l2l3l4/parse.asm -o ../../hw/simbricks/prog.bin'
+  ./dev.sh bash -lc 'cd python && uv sync --quiet && uv run nanuk-asm ../examples/l2l3l4/parse.asm -o ../hw/simbricks/prog.bin'
 else
   cp "$PROG" hw/simbricks/prog.bin
 fi
 
 if [ ! -f hw/build/nanuk_core.v ]; then
   echo "==> exporting nanuk_core.v"
-  ./dev.sh bash -lc 'cd hw && uv sync --quiet && uv run python export.py build/nanuk_core.v'
+  ./dev.sh bash -lc 'cd python && uv sync --quiet --extra rtl && cd ../hw && uv run --project ../python python export.py build/nanuk_core.v'
 fi
 
 echo "==> verilating with devcontainer verilator 5 (native)"
