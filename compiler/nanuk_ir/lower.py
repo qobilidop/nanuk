@@ -30,20 +30,33 @@ class LowerError(Exception):
 
 
 def to_asm(program: ir.Program, *, check: bool = True) -> str:
-    """Lower an IR program to assembly text for nanuk_spec's assembler.
+    """Lower an IR program to assembly text for nanuk_isa's assembler.
 
     With check=True (default) the program is validated first; lowering
     itself only raises LowerError for ISA-encoding limits (registers,
     immediate widths).
     """
+    return to_asm_annotated(program, check=check)[0]
+
+
+def to_asm_annotated(
+    program: ir.Program, *, check: bool = True
+) -> tuple[str, list[dict[str, str]]]:
+    """to_asm, plus one {register: value name} binding snapshot per
+    emitted instruction (emission order; labels/blanks excluded). The
+    snapshot reflects live bindings at that instruction; the scratch
+    register never appears."""
     if check:
         validate(program)
     lines: list[str] = []
+    bindings: list[dict[str, str]] = []
     for state in program.states:
+        lo = _lower_state(state)
         lines.append(f"{state.name}:")
-        lines.extend(f"    {line}" for line in _lower_state(state))
+        lines.extend(f"    {line}" for line in lo.lines)
         lines.append("")
-    return "\n".join(lines).rstrip() + "\n"
+        bindings.extend(lo.bindings)
+    return "\n".join(lines).rstrip() + "\n", bindings
 
 
 class _StateLowering:
@@ -54,11 +67,13 @@ class _StateLowering:
         self.widths: dict[int, int] = {}  # value_id -> bit width
         self.names: dict[int, str] = {}   # value_id -> human-readable name
         self.order: list[int] = []        # value ids in allocation order
+        self.bindings: list[dict[str, str]] = []  # per emitted instruction
 
     def emit(self, instr: str, comment: str | None = None) -> None:
         if comment:
             instr = f"{instr:<26} ; {comment}"
         self.lines.append(instr)
+        self.bindings.append({reg: self.names[v] for v, reg in self.regs.items()})
 
     def alloc(self, value_id: int, width: int, name: str) -> str:
         used = set(self.regs.values())
@@ -85,7 +100,7 @@ class _StateLowering:
         return reg
 
 
-def _lower_state(state: ir.State) -> list[str]:
+def _lower_state(state: ir.State) -> "_StateLowering":
     lo = _StateLowering(state)
     for op in state.ops:
         match op.WhichOneof("op"):
@@ -134,7 +149,7 @@ def _lower_state(state: ir.State) -> list[str]:
                     comment=lo.names[smd.value_id],
                 )
     _lower_terminator(lo, state.terminator)
-    return lo.lines
+    return lo
 
 
 def _lower_terminator(lo: _StateLowering, term: ir.Terminator) -> None:

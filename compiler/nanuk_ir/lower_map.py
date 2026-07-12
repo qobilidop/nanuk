@@ -26,15 +26,27 @@ _MD_NAMES = {8: "ingress", 9: "flood", 10: "hdr_present"}
 
 
 def to_map_asm(program: ir.MapProgram, *, check: bool = True) -> str:
-    """Lower a MapProgram to assembly text for nanuk_spec's map assembler."""
+    """Lower a MapProgram to assembly text for nanuk_isa's map assembler."""
+    return to_map_asm_annotated(program, check=check)[0]
+
+
+def to_map_asm_annotated(
+    program: ir.MapProgram, *, check: bool = True
+) -> tuple[str, list[dict[str, str]]]:
+    """to_map_asm, plus one {register: value name} binding snapshot per
+    emitted instruction (emission order). With last-use liveness, a
+    register visibly rebinds to the newest value after the old one dies."""
     if check:
         validate_map(program)
     lines: list[str] = []
+    bindings: list[dict[str, str]] = []
     for state in program.states:
+        lo = _lower_state(state)
         lines.append(f"{state.name}:")
-        lines.extend(f"    {line}" for line in _lower_state(state))
+        lines.extend(f"    {line}" for line in lo.lines)
         lines.append("")
-    return "\n".join(lines).rstrip() + "\n"
+        bindings.extend(lo.bindings)
+    return "\n".join(lines).rstrip() + "\n", bindings
 
 
 def _last_uses(state: ir.MapState) -> dict[int, int]:
@@ -71,11 +83,13 @@ class _StateLowering:
         self.names: dict[int, str] = {}
         self.order: list[int] = []
         self.last_uses = _last_uses(state)
+        self.bindings: list[dict[str, str]] = []  # per emitted instruction
 
     def emit(self, instr: str, comment: str | None = None) -> None:
         if comment:
             instr = f"{instr:<30} ; {comment}"
         self.lines.append(instr)
+        self.bindings.append({reg: self.names[v] for v, reg in self.regs.items()})
 
     def alloc(self, value_id: int, name: str) -> str:
         used = set(self.regs.values())
@@ -109,7 +123,7 @@ class _StateLowering:
                 del self.regs[vid]
 
 
-def _lower_state(state: ir.MapState) -> list[str]:
+def _lower_state(state: ir.MapState) -> "_StateLowering":
     lo = _StateLowering(state)
     for idx, op in enumerate(state.ops):
         match op.WhichOneof("op"):
@@ -164,7 +178,7 @@ def _lower_state(state: ir.MapState) -> list[str]:
                     comment=name,
                 )
     _lower_terminator(lo, state.terminator)
-    return lo.lines
+    return lo
 
 
 def _lower_terminator(lo: _StateLowering, term: ir.Terminator) -> None:
