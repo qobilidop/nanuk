@@ -3,13 +3,10 @@ to Nanuk parser ISA v0 assembly (stage 2 of the Nanuk project)."""
 
 from . import compile  # noqa: F401  (public submodule)
 from .header import CompileError, Header
-from .match_action import MD_FLOOD, MD_HDRS, MD_INGRESS, MatchActionProgram
+from .match_action import MatchActionProgram
 from .parser import Parser
 
 __all__ = [
-    "MD_FLOOD",
-    "MD_HDRS",
-    "MD_INGRESS",
     "CompileError",
     "Header",
     "MatchActionProgram",
