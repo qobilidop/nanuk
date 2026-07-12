@@ -1,5 +1,5 @@
 // Fetch-decode-execute step and run loop. Same shape as the parser's
-// (spec/parser-model/exec.sail): budget check, pc range check, decode, execute.
+// (sail/model/parser/exec.sail): budget check, pc range check, decode, execute.
 // Every path is total.
 
 val step : unit -> unit

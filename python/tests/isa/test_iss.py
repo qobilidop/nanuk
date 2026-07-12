@@ -2,7 +2,7 @@
 error code, reserved-bit enforcement, and trace snapshots.
 
 The differential leg (ISS vs the generated C emulator over the demo
-corpus) lives in tests/spec/test_iss_differential.py, next to the
+corpus) lives in tests/golden/test_iss_differential.py, next to the
 harness that drives the emulator.
 """
 

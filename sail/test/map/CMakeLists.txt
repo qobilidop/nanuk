@@ -1,4 +1,4 @@
-# MAP Sail model tests, mirroring spec/parser-test/ (parser). Each test is a Sail
+# MAP Sail model tests, mirroring sail/test/parser/ (parser). Each test is a Sail
 # file with a main(), compiled together with the MAP model to a C executable.
 
 function(add_map_sail_test TEST_NAME TEST_SAIL)
@@ -30,8 +30,8 @@ function(add_map_sail_test TEST_NAME TEST_SAIL)
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
 endfunction()
 
-add_map_sail_test(test_map_decode spec/map-test/test_map_decode.sail)
-add_map_sail_test(test_map_exec_mem spec/map-test/test_map_exec_mem.sail)
-add_map_sail_test(test_map_exec_lookup spec/map-test/test_map_exec_lookup.sail)
-add_map_sail_test(test_map_exec_csum spec/map-test/test_map_exec_csum.sail)
-add_map_sail_test(test_map_exec_control spec/map-test/test_map_exec_control.sail)
+add_map_sail_test(test_map_decode sail/test/map/test_map_decode.sail)
+add_map_sail_test(test_map_exec_mem sail/test/map/test_map_exec_mem.sail)
+add_map_sail_test(test_map_exec_lookup sail/test/map/test_map_exec_lookup.sail)
+add_map_sail_test(test_map_exec_csum sail/test/map/test_map_exec_csum.sail)
+add_map_sail_test(test_map_exec_control sail/test/map/test_map_exec_control.sail)

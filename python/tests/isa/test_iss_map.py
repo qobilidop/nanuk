@@ -2,7 +2,7 @@
 checksum, SEND/DROP, every error code, and trace events.
 
 The differential leg (vs the MAP C emulator over the demo programs)
-lives in tests/spec/test_iss_map_differential.py.
+lives in tests/golden/test_iss_map_differential.py.
 """
 
 import struct

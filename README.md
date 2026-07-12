@@ -26,12 +26,13 @@ the full design.
 ## Layout
 
 ```
-spec/     Sail ISA specs (the source of truth: parser-model/ + map-model/) and emulators
+sail/     Sail ISA models (the source of truth: model/{parser,map}) and the
+          generated golden-model emulators
 python/   The nanuk package, four descending abstraction levels: nanuk.lang
           (eDSL) -> nanuk.ir (protobuf IR, lowerings, interpreters, symex)
           -> nanuk.isa (assemblers, encodings, ISS) -> nanuk.rtl (Amaranth
-          cores). Plus the whole Python test suite (tests/, incl. the
-          golden-model pcap rig in tests/support).
+          cores). Plus the whole Python test suite (tests/; the golden-model
+          pcap rig = tests/golden, its machinery in tests/support).
 examples/ Example programs: hand-written asm paired with its eDSL twin
 demo/     The end-to-end SimBricks demo staging the examples on the RTL cores
 docs/     Design docs, plans, and lab notes

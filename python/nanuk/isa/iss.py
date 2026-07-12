@@ -6,7 +6,7 @@ Semantics mirror spec/parser-model ({exec,insts,decode,state}.sail)
 exactly: same error codes, same step accounting (budget checked before
 execute, counted at fetch), reserved encoding bits enforced (nonzero →
 ILLEGAL). Constants are deliberate local mirrors of params.sail
-(mirror-with-tripwire doctrine); tests/spec.s differential test pins
+(mirror-with-tripwire doctrine); tests/golden.s differential test pins
 this file to the golden model at run time.
 """
 

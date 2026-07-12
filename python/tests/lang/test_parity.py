@@ -28,7 +28,7 @@ HAND_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"
 
 DMAC = "aa:bb:cc:dd:ee:01"
 
-# The full tests/spec/test_demo.py corpus, including the three
+# The full tests/golden/test_demo.py corpus, including the three
 # packets of its step-budget test.
 CORPUS = [
     ("plain_ipv4_udp", Ether(dst=DMAC) / IP(dst="10.0.0.1") / UDP(dport=53) / Raw(b"hi")),

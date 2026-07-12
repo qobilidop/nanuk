@@ -15,10 +15,10 @@ endif()
 message(STATUS "Sail directory: ${SAIL_DIR}")
 
 # Collect all model Sail files
-file(GLOB_RECURSE MODEL_SAIL_FILES "${CMAKE_SOURCE_DIR}/spec/parser-model/*.sail")
+file(GLOB_RECURSE MODEL_SAIL_FILES "${CMAKE_SOURCE_DIR}/sail/model/parser/*.sail")
 
 # The main entry point $includes all model files in dependency order.
-set(MODEL_MAIN "${CMAKE_SOURCE_DIR}/spec/parser-model/main.sail")
+set(MODEL_MAIN "${CMAKE_SOURCE_DIR}/sail/model/parser/main.sail")
 
 # Target: type-check the model (fast, no C compilation)
 add_custom_target(check
@@ -29,8 +29,8 @@ add_custom_target(check
 )
 
 # The MAP sibling model (match-action processor).
-file(GLOB_RECURSE MAP_SAIL_FILES "${CMAKE_SOURCE_DIR}/spec/map-model/*.sail")
-set(MAP_MAIN "${CMAKE_SOURCE_DIR}/spec/map-model/main.sail")
+file(GLOB_RECURSE MAP_SAIL_FILES "${CMAKE_SOURCE_DIR}/sail/model/map/*.sail")
+set(MAP_MAIN "${CMAKE_SOURCE_DIR}/sail/model/map/main.sail")
 
 add_custom_target(check-map
     COMMAND ${SAIL} --just-check ${MAP_MAIN}
@@ -40,8 +40,8 @@ add_custom_target(check-map
 )
 
 enable_testing()
-add_subdirectory(spec/parser-test)
-add_subdirectory(spec/map-test)
+add_subdirectory(sail/test/parser)
+add_subdirectory(sail/test/map)
 
 # The emulator CLI: Sail model compiled without a generated main, driven by
 # a thin C shim through the machine-word emu_* API.
@@ -63,13 +63,13 @@ add_custom_command(
         --c-preserve emu_get_hdr_offset
         --c-preserve emu_get_smd
         ${MODEL_MAIN}
-        ${CMAKE_SOURCE_DIR}/spec/emulator/entry.sail -o ${EMU_STEM}
-    DEPENDS ${MODEL_SAIL_FILES} ${CMAKE_SOURCE_DIR}/spec/emulator/entry.sail
+        ${CMAKE_SOURCE_DIR}/sail/emulator/entry.sail -o ${EMU_STEM}
+    DEPENDS ${MODEL_SAIL_FILES} ${CMAKE_SOURCE_DIR}/sail/emulator/entry.sail
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMENT "Compiling Sail model to C (emulator core)..."
 )
 add_executable(nanuk-emu
-    spec/emulator/main.c
+    sail/emulator/main.c
     ${EMU_STEM}.c
     ${SAIL_DIR}/lib/sail.c
     ${SAIL_DIR}/lib/rts.c
@@ -81,7 +81,7 @@ target_link_libraries(nanuk-emu PRIVATE gmp z)
 target_compile_options(nanuk-emu PRIVATE -O2)
 
 add_test(NAME emu_smoke
-    COMMAND bash ${CMAKE_SOURCE_DIR}/spec/emulator/smoke_test.sh $<TARGET_FILE:nanuk-emu>)
+    COMMAND bash ${CMAKE_SOURCE_DIR}/sail/emulator/smoke_test.sh $<TARGET_FILE:nanuk-emu>)
 
 # The MAP emulator CLI: same shape as nanuk-emu, second Sail model.
 set(MAP_EMU_STEM "${CMAKE_BINARY_DIR}/nanuk_map_model")
@@ -105,13 +105,13 @@ add_custom_command(
         --c-preserve emu_map_get_delta
         --c-preserve emu_map_get_win_byte
         ${MAP_MAIN}
-        ${CMAKE_SOURCE_DIR}/spec/emulator/entry.sail -o ${MAP_EMU_STEM}
-    DEPENDS ${MAP_SAIL_FILES} ${CMAKE_SOURCE_DIR}/spec/emulator/entry.sail
+        ${CMAKE_SOURCE_DIR}/sail/emulator/entry.sail -o ${MAP_EMU_STEM}
+    DEPENDS ${MAP_SAIL_FILES} ${CMAKE_SOURCE_DIR}/sail/emulator/entry.sail
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMENT "Compiling MAP Sail model to C (emulator core)..."
 )
 add_executable(nanuk-map-emu
-    spec/emulator/map_main.c
+    sail/emulator/map_main.c
     ${MAP_EMU_STEM}.c
     ${SAIL_DIR}/lib/sail.c
     ${SAIL_DIR}/lib/rts.c
@@ -123,4 +123,4 @@ target_link_libraries(nanuk-map-emu PRIVATE gmp z)
 target_compile_options(nanuk-map-emu PRIVATE -O2)
 
 add_test(NAME map_emu_smoke
-    COMMAND bash ${CMAKE_SOURCE_DIR}/spec/emulator/map_smoke_test.sh $<TARGET_FILE:nanuk-map-emu>)
+    COMMAND bash ${CMAKE_SOURCE_DIR}/sail/emulator/map_smoke_test.sh $<TARGET_FILE:nanuk-map-emu>)

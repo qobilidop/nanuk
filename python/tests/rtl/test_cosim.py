@@ -1,6 +1,6 @@
 """Differential cosimulation: NanukCore (pysim) vs the nanuk-emu golden
 model, over the l2l3l4 demo corpus (the packets of
-tests/spec/test_demo.py, rebuilt with scapy the same way) plus
+tests/golden/test_demo.py, rebuilt with scapy the same way) plus
 seeded-random packets. The entire output contract is diffed field by field.
 
 Requires the nanuk-emu binary (built in the linux devcontainer); gated on

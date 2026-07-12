@@ -21,7 +21,7 @@ The web playground additionally needs Node ≥ 22 on the host (`cd web`).
 | SimBricks e2e (not in CI) | `demo/run_beats12.sh` and `demo/run_beat3.sh` (host; needs Docker) |
 
 Run a single layer with `uv run pytest tests/rtl` (or `tests/isa`,
-`tests/ir`, `tests/lang`, `tests/spec`) from `python/`.
+`tests/ir`, `tests/lang`, `tests/golden`) from `python/`.
 
 `NANUK_COSIM=1` enables the suites that need the built `nanuk-emu` /
 `nanuk-map-emu` golden models.
