@@ -26,11 +26,13 @@ the full design.
 ## Layout
 
 ```
-spec/     Sail ISA specs (the source of truth: parser-model/ + map-model/), emulators, pcap rig
-spec/isa/ nanuk-isa: dependency-free assemblers, encodings, and instruction-set simulators
-lang/     Python eDSL (parser programs and match-action programs -> the IR)
-compiler/ protobuf nanuk IR: schema, validation, lowerings, interpreters, symbolic executor
-hw/       Amaranth RTL cores (cosimulated against the specs) + SimBricks demos
+spec/     Sail ISA specs (the source of truth: parser-model/ + map-model/) and emulators
+python/   The nanuk package, four descending abstraction levels: nanuk.lang
+          (eDSL) -> nanuk.ir (protobuf IR, lowerings, interpreters, symex)
+          -> nanuk.isa (assemblers, encodings, ISS) -> nanuk.rtl (Amaranth
+          cores). Plus the whole Python test suite (tests/, incl. the
+          golden-model pcap rig in tests/support).
+hw/       Hardware workbench: Verilog export, SimBricks demos, RTL build outputs
 examples/ Parser + match-action programs (hand-written asm and eDSL pairs)
 guide/    Lab notes and decision records
 docs/     Design docs and plans
@@ -60,14 +62,9 @@ devcontainer up --workspace-folder .
 # Sail model tests + emulator smoke test
 ./dev.sh ctest --test-dir build --output-on-failure
 
-# Assembler + golden-model pcap tests (incl. the L2/L3/L4 demo corpus)
-./dev.sh bash -lc 'cd spec/python && uv sync && uv run pytest'
-
-# RTL, eDSL, and IR test suites (NANUK_COSIM=1 also runs the
-# RTL-vs-golden-model cosimulation)
-./dev.sh bash -lc 'cd hw && uv sync && NANUK_COSIM=1 uv run pytest tests'
-./dev.sh bash -lc 'cd lang && uv sync && NANUK_COSIM=1 uv run --group dev pytest tests'
-./dev.sh bash -lc 'cd compiler && uv sync && NANUK_COSIM=1 uv run --group dev pytest tests'
+# The whole Python suite: ISA, IR, eDSL, RTL, golden-model pcap rig, and
+# playground bridge (NANUK_COSIM=1 also runs RTL-vs-golden-model cosim)
+./dev.sh bash -lc 'cd python && uv sync --extra rtl && NANUK_COSIM=1 uv run pytest tests ../web/py/tests'
 ```
 
 The first thing nanuk ever parsed: `examples/l2l3l4/parse.asm` — Ethernet,

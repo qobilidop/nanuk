@@ -3,8 +3,8 @@ ranges, and per-op asm emission counts that mirror the v0 lowering
 (ext/shl/adv/stmd/sethdr = 1, re-anchor mark = 0, dispatch = 2 per case
 + 1 for the default, goto/halt = 1)."""
 
-from nanuk_ir.lower import to_asm
-from nanuk_lang.programs.l2l3l4 import build_ir
+from nanuk.ir.lower import to_asm
+from nanuk.lang.programs.l2l3l4 import build_ir
 
 from bridge import render_ir
 

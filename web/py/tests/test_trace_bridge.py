@@ -90,7 +90,7 @@ def test_map_gated_trace_has_pp_only():
 
 def test_budget_exhaustion_traces_256():
     src = """\
-from nanuk_lang import Header, Parser
+from nanuk.lang import Header, Parser
 
 eth = Header("eth", dst=48, src=48, ethertype=16)
 

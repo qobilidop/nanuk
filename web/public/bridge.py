@@ -8,7 +8,7 @@ everywhere."""
 
 from dataclasses import dataclass, field
 
-from nanuk_ir import nanuk_ir_pb2 as ir
+from nanuk.ir import nanuk_ir_pb2 as ir
 
 
 @dataclass
@@ -146,13 +146,13 @@ import ast
 import json
 import traceback
 
-from nanuk_ir.interp import interp
-from nanuk_ir.lower import LowerError, to_asm_annotated
-from nanuk_ir.validate import ValidationError, validate
-from nanuk_isa.asm import assemble_with_lines
-from nanuk_isa.iss import run_iss
-from nanuk_isa.iss_map import run_map_iss
-from nanuk_isa.map_asm import assemble_with_lines as map_assemble_with_lines
+from nanuk.ir.interp import interp
+from nanuk.ir.lower import LowerError, to_asm_annotated
+from nanuk.ir.validate import ValidationError, validate
+from nanuk.isa.asm import assemble_with_lines
+from nanuk.isa.iss import run_iss
+from nanuk.isa.iss_map import run_map_iss
+from nanuk.isa.map_asm import assemble_with_lines as map_assemble_with_lines
 
 _EDSL_FILENAME = "<edsl>"
 _LAST_PROGRAM = None
@@ -245,7 +245,7 @@ def compile_source(source: str) -> str:
         exec(code, namespace)
     except (ValidationError, LowerError) as e:
         return _err("compile", str(e), _edsl_line(e))
-    except Exception as e:  # CompileError included: nanuk_lang may not be imported yet
+    except Exception as e:  # CompileError included: nanuk.lang may not be imported yet
         kind = "compile" if type(e).__name__ == "CompileError" else "runtime"
         return _err(kind, f"{type(e).__name__}: {e}", _edsl_line(e))
     build_map_ir = namespace.get("build_map_ir")
@@ -333,9 +333,9 @@ def run_packet(packet_hex: str) -> str:
 
 # --- MAP programs (M3): render, compile, composed run ------------------------
 
-from nanuk_ir.interp_map import interp_map
-from nanuk_ir.lower_map import to_map_asm_annotated
-from nanuk_ir.validate_map import validate_map
+from nanuk.ir.interp_map import interp_map
+from nanuk.ir.lower_map import to_map_asm_annotated
+from nanuk.ir.validate_map import validate_map
 
 
 def render_map_ir(program: ir.MapProgram) -> RenderedIr:
@@ -462,7 +462,7 @@ def _render_map_terminator(
 
 
 class _Table:
-    """Table-shaped (key_width/action_width/entries) without nanuk_spec."""
+    """Table-shaped (key_width/action_width/entries) without tests.support."""
 
     def __init__(self, key_width: int, action_width: int, entries: dict):
         self.key_width = key_width
@@ -492,7 +492,7 @@ def _pp_rig():
     provenance is built against an empty source)."""
     global _PP_RIG
     if _PP_RIG is None:
-        from nanuk_lang.programs.l2l3l4 import make_parser
+        from nanuk.lang.programs.l2l3l4 import make_parser
 
         program = make_parser().build_ir()
         asm_text, bindings = to_asm_annotated(program, check=False)

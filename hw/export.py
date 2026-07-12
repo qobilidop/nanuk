@@ -1,19 +1,18 @@
 """Emit Verilog for the nanuk cores.
 
-Usage: python export.py build/nanuk_core.v
-       python export.py --core map build/nanuk_map_core.v
+Usage (env: the python/ project with the rtl extra):
+    uv run --project ../python python export.py build/nanuk_core.v
+    uv run --project ../python python export.py --core map build/nanuk_map_core.v
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
 from amaranth.back import verilog
 
-from nanuk_hw.core import NanukCore
-from nanuk_hw.map_core import MapCore
+from nanuk.rtl.core import NanukCore
+from nanuk.rtl.map_core import MapCore
 
 
 def main(argv: list[str] | None = None) -> int:

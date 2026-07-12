@@ -14,16 +14,13 @@ The web playground additionally needs Node ≥ 22 on the host (`cd web`).
 | Suite | Command (from repo root) |
 |---|---|
 | Sail models + emulators (parser + MAP) | `./dev.sh bash -lc 'cmake -B build && cmake --build build && ctest --test-dir build'` |
-| isa (assemblers, encodings, ISS ×2) | `./dev.sh bash -lc 'cd spec/isa && uv sync && uv run --group dev pytest'` |
-| spec (pcap rig, MAP harness, ISS differential) | `./dev.sh bash -lc 'cd spec/python && uv sync && uv run pytest'` |
-| hw (RTL cores + cosim + fuzz) | `./dev.sh bash -lc 'cd hw && uv sync && NANUK_COSIM=1 uv run pytest tests'` |
-| lang (eDSL) | `./dev.sh bash -lc 'cd lang && uv sync && NANUK_COSIM=1 uv run --group dev pytest tests'` |
-| compiler (IR, interps, symex, differential) | `./dev.sh bash -lc 'cd compiler && uv sync && NANUK_COSIM=1 uv run --group dev pytest tests'` |
-| playground bridge | `./dev.sh bash -lc 'cd web/py && uv sync && uv run --group dev pytest tests'` |
+| Python (nanuk package + bridge: isa, ir, lang, rtl+cosim, pcap rig, playground) | `./dev.sh bash -lc 'cd python && uv sync --extra rtl && NANUK_COSIM=1 uv run pytest tests ../web/py/tests'` |
 | playground SPA | `cd web && npm test && npm run build` (host; `web/scripts/build_wheels.sh` first) |
-
-| lint (ruff, all packages) | `./dev.sh bash -lc 'cd spec/python && uv sync && uv run ruff check . ../isa ../../hw ../../lang ../../compiler ../../web'` |
+| lint (ruff, whole repo) | `./dev.sh bash -lc 'cd python && uv run ruff check ..'` |
 | SimBricks e2e (not in CI) | `hw/simbricks/run_beats12.sh` and `hw/simbricks/run_beat3.sh` (host; needs Docker) |
+
+Run a single layer with `uv run pytest tests/rtl` (or `tests/isa`,
+`tests/ir`, `tests/lang`, `tests/spec`) from `python/`.
 
 `NANUK_COSIM=1` enables the suites that need the built `nanuk-emu` /
 `nanuk-map-emu` golden models.

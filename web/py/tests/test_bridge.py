@@ -2,12 +2,12 @@
 
 import json
 
-from nanuk_lang.programs import l2l3l4  # noqa: F401  (env sanity)
+from nanuk.lang.programs import l2l3l4  # noqa: F401  (env sanity)
 
 import bridge
 
 GOOD = """\
-from nanuk_lang import Header, Parser
+from nanuk.lang import Header, Parser
 
 eth = Header("eth", dst=48, src=48, ethertype=16)
 
@@ -84,7 +84,7 @@ def test_user_exception_reports_edsl_line():
 
 def test_compile_error_kind():
     src = (
-        "from nanuk_lang import Header\n"
+        "from nanuk.lang import Header\n"
         "h = Header('bad', x=3)\n"  # 3 bits: not whole bytes -> CompileError
         "def build_ir():\n    pass\n"
     )
