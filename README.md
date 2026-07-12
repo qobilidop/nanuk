@@ -79,6 +79,12 @@ The first thing Nanuk ever parsed: `examples/l2l3l4/parse.asm` — Ethernet,
 11-instruction ISA, verified against a scapy-generated pcap corpus on the
 Sail golden model.
 
+## Development
+
+[docs/development.md](docs/development.md) has the dev environment, the
+full test matrix, and repo conventions. Nanuk is a personal educational
+project and isn't accepting external contributions yet.
+
 ## License
 
 [Apache-2.0](LICENSE)

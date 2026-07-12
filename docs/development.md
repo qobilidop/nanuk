@@ -1,4 +1,4 @@
-# Contributing to Nanuk
+# Nanuk development reference
 
 ## Environment
 
