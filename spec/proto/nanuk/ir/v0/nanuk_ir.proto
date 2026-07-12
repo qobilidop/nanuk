@@ -64,7 +64,10 @@ message Mark {
 
 message MdStore {
   uint32 value_id = 1;
-  uint32 slot = 2;                // occupies ceil(width/16) slots from here
+  uint32 slot = 2;
+  uint32 nunits = 3;              // 1..4 16-bit units, MSB-first from here
+                                  // (mirrors STMD; frontends set
+                                  // ceil(value width / 16))
 }
 
 message MdLoad {

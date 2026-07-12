@@ -19,18 +19,24 @@ def test_l2fwd_golden_asm():
 forward:
     ld      r0, 0, 0, 6            ; v1
     lookup  r0, 0, r0, flood       ; lookup t0[v1]
-    send    r0, 0                  ; lookup t0[v1]
+    stmd    r0, 1, 0               ; lookup t0[v1]
+    send    0
 
 flood:
-    ldmd    r0, 9                  ; flood
-    send    r0, 0                  ; flood
+    ldmd    r0, 0                  ; md0
+    lookup  r0, 3, r0, dark        ; lookup t3[md0]
+    stmd    r0, 1, 0               ; lookup t3[md0]
+    send    0
+
+dark:
+    drop
 """
     assert asm == expected
 
 
 def test_lowered_asm_assembles():
     binary = assemble(to_map_asm(l2fwd_program()))
-    assert len(binary) == 5 * 4  # the 5-instruction switch
+    assert len(binary) == 9 * 4  # the 9-instruction switch (flood table form)
 
 
 def test_out_of_registers():

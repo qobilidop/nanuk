@@ -89,7 +89,6 @@ def test_trace_none_is_default_and_unchanged():
 class _Pp:
     hdr_present = [1] + [0] * 15
     hdr_offset = [0] * 16
-    smd = [0] * 8
 
 
 class _Tbl:
@@ -114,7 +113,7 @@ def map_prog() -> ir.MatchActionProgram:
                                               key_value_id=1,
                                               miss_state="bye")),
                 ],
-                terminator=ir.Terminator(send=ir.MapSend(bitmap_value_id=2)),
+                terminator=ir.Terminator(send=ir.MapSend()),
             ),
             ir.MatchActionState(name="bye", ops=[],
                         terminator=ir.Terminator(drop=ir.Drop())),
@@ -124,7 +123,7 @@ def map_prog() -> ir.MatchActionProgram:
 
 def test_map_trace_store_lookup_and_miss_events():
     events = []
-    r = map_interp(map_prog(), bytes(20), _Pp(), [_Tbl()], 0, trace=events)
+    r = map_interp(map_prog(), bytes(20), _Pp(), [_Tbl()], [0], trace=events)
     assert r.verdict == 0
     st = next(e for e in events if e.kind == "op" and e.index == 1)
     assert st.writes == ((32, b"\xab"),)
@@ -137,7 +136,7 @@ def test_map_trace_store_lookup_and_miss_events():
         key_width, action_width, entries = 48, 8, {}
 
     events = []
-    r = map_interp(map_prog(), bytes(20), _Pp(), [Empty()], 0, trace=events)
+    r = map_interp(map_prog(), bytes(20), _Pp(), [Empty()], [0], trace=events)
     assert r.verdict == 1
     lk = next(e for e in events if e.kind == "op" and e.index == 2)
     assert lk.lookup == (0, 0xAB, False, 0)

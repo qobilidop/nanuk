@@ -210,8 +210,14 @@ def symex(
             case "mark":
                 if op.mark.emit_sethdr:
                     m.tick()
-            case "emit_smd":
+            case "emit_md":
                 m.tick()
+            case "load_md":
+                md = op.load_md
+                m.tick()
+                sym = z3.BitVec(f"md_{md.slot}_{md.value_id}", 64)
+                m.constraints.append(z3.ULE(sym, 0xFFFF))
+                m.values[md.value_id] = (sym, 16)
         return True
 
     def _exec_terminator(m: _Sym, term: ir.Terminator) -> None:

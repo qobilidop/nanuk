@@ -16,7 +16,7 @@ def rich_program() -> ir.ParserProgram:
                     ir.ParserOp(mark=ir.Mark(hdr_id=0, emit_sethdr=True, debug_name="outer")),
                     ir.ParserOp(extract=ir.Extract(
                         value_id=1, bit_offset=0, width=48, debug_name="outer.key")),
-                    ir.ParserOp(emit_smd=ir.EmitSmd(value_id=1, slot=0)),
+                    ir.ParserOp(emit_md=ir.MdStore(value_id=1, slot=0, nunits=3)),
                     ir.ParserOp(extract=ir.Extract(
                         value_id=2, bit_offset=48, width=4, debug_name="outer.len")),
                     ir.ParserOp(shift=ir.Shift(value_id=3, src_value_id=2, amount=1)),

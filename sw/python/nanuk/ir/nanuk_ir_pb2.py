@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0enanuk_ir.proto\x12\x0bnanuk.ir.v0\"M\n\rParserProgram\x12\x12\n\nir_version\x18\x01 \x01(\r\x12(\n\x06states\x18\x02 \x03(\x0b\x32\x18.nanuk.ir.v0.ParserState\"l\n\x0bParserState\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\"\n\x03ops\x18\x02 \x03(\x0b\x32\x15.nanuk.ir.v0.ParserOp\x12+\n\nterminator\x18\x03 \x01(\x0b\x32\x17.nanuk.ir.v0.Terminator\"\xfb\x01\n\x08ParserOp\x12\'\n\x07\x65xtract\x18\x01 \x01(\x0b\x32\x14.nanuk.ir.v0.ExtractH\x00\x12\'\n\x07\x61\x64vance\x18\x02 \x01(\x0b\x32\x14.nanuk.ir.v0.AdvanceH\x00\x12!\n\x04mark\x18\x03 \x01(\x0b\x32\x11.nanuk.ir.v0.MarkH\x00\x12\'\n\x07\x65mit_md\x18\x04 \x01(\x0b\x32\x14.nanuk.ir.v0.MdStoreH\x00\x12#\n\x05shift\x18\x05 \x01(\x0b\x32\x12.nanuk.ir.v0.ShiftH\x00\x12&\n\x07load_md\x18\x06 \x01(\x0b\x32\x13.nanuk.ir.v0.MdLoadH\x00\x42\x04\n\x02op\"R\n\x07\x45xtract\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x12\n\nbit_offset\x18\x02 \x01(\r\x12\r\n\x05width\x18\x03 \x01(\r\x12\x12\n\ndebug_name\x18\x04 \x01(\t\">\n\x07\x41\x64vance\x12\x15\n\x0b\x63onst_bytes\x18\x01 \x01(\rH\x00\x12\x12\n\x08value_id\x18\x02 \x01(\rH\x00\x42\x08\n\x06\x61mount\"?\n\x04Mark\x12\x0e\n\x06hdr_id\x18\x01 \x01(\r\x12\x13\n\x0b\x65mit_sethdr\x18\x02 \x01(\x08\x12\x12\n\ndebug_name\x18\x03 \x01(\t\")\n\x07MdStore\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x0c\n\x04slot\x18\x02 \x01(\r\"<\n\x06MdLoad\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x0c\n\x04slot\x18\x02 \x01(\r\x12\x12\n\ndebug_name\x18\x03 \x01(\t\"?\n\x05Shift\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x14\n\x0csrc_value_id\x18\x02 \x01(\r\x12\x0e\n\x06\x61mount\x18\x03 \x01(\r\"\xce\x01\n\nTerminator\x12)\n\x08\x64ispatch\x18\x01 \x01(\x0b\x32\x15.nanuk.ir.v0.DispatchH\x00\x12!\n\x04halt\x18\x02 \x01(\x0b\x32\x11.nanuk.ir.v0.HaltH\x00\x12!\n\x04goto\x18\x03 \x01(\x0b\x32\x11.nanuk.ir.v0.GotoH\x00\x12$\n\x04send\x18\x04 \x01(\x0b\x32\x14.nanuk.ir.v0.MapSendH\x00\x12!\n\x04\x64rop\x18\x05 \x01(\x0b\x32\x11.nanuk.ir.v0.DropH\x00\x42\x06\n\x04kind\"h\n\x08\x44ispatch\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12 \n\x05\x63\x61ses\x18\x02 \x03(\x0b\x32\x11.nanuk.ir.v0.Case\x12(\n\x07\x64\x65\x66\x61ult\x18\x03 \x01(\x0b\x32\x17.nanuk.ir.v0.Terminator\"+\n\x04\x43\x61se\x12\r\n\x05match\x18\x01 \x01(\x04\x12\x14\n\x0ctarget_state\x18\x02 \x01(\t\"\x14\n\x04Halt\x12\x0c\n\x04\x64rop\x18\x01 \x01(\x08\"\x1c\n\x04Goto\x12\x14\n\x0ctarget_state\x18\x01 \x01(\t\"\x7f\n\x12MatchActionProgram\x12\x12\n\nir_version\x18\x01 \x01(\r\x12&\n\x06tables\x18\x02 \x03(\x0b\x32\x16.nanuk.ir.v0.TableDecl\x12-\n\x06states\x18\x03 \x03(\x0b\x32\x1d.nanuk.ir.v0.MatchActionState\"Z\n\tTableDecl\x12\x10\n\x08table_id\x18\x01 \x01(\r\x12\x11\n\tkey_width\x18\x02 \x01(\r\x12\x14\n\x0c\x61\x63tion_width\x18\x03 \x01(\r\x12\x12\n\ndebug_name\x18\x04 \x01(\t\"v\n\x10MatchActionState\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\'\n\x03ops\x18\x02 \x03(\x0b\x32\x1a.nanuk.ir.v0.MatchActionOp\x12+\n\nterminator\x18\x03 \x01(\x0b\x32\x17.nanuk.ir.v0.Terminator\"\x98\x03\n\rMatchActionOp\x12$\n\x04load\x18\x01 \x01(\x0b\x32\x14.nanuk.ir.v0.MapLoadH\x00\x12&\n\x07load_md\x18\x02 \x01(\x0b\x32\x13.nanuk.ir.v0.MdLoadH\x00\x12&\n\x05\x63onst\x18\x03 \x01(\x0b\x32\x15.nanuk.ir.v0.MapConstH\x00\x12\"\n\x03\x61\x64\x64\x18\x04 \x01(\x0b\x32\x13.nanuk.ir.v0.MapAddH\x00\x12&\n\x05store\x18\x05 \x01(\x0b\x32\x15.nanuk.ir.v0.MapStoreH\x00\x12!\n\x04\x63sum\x18\x06 \x01(\x0b\x32\x11.nanuk.ir.v0.CsumH\x00\x12%\n\x06lookup\x18\x07 \x01(\x0b\x32\x13.nanuk.ir.v0.LookupH\x00\x12(\n\x08store_md\x18\x08 \x01(\x0b\x32\x14.nanuk.ir.v0.MdStoreH\x00\x12&\n\x07\x61nd_imm\x18\t \x01(\x0b\x32\x13.nanuk.ir.v0.AndImmH\x00\x12#\n\x05shift\x18\n \x01(\x0b\x32\x12.nanuk.ir.v0.ShiftH\x00\x42\x04\n\x02op\"d\n\x07MapLoad\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x0e\n\x06hdr_id\x18\x02 \x01(\r\x12\x13\n\x0b\x62yte_offset\x18\x03 \x01(\x11\x12\x0e\n\x06nbytes\x18\x04 \x01(\r\x12\x12\n\ndebug_name\x18\x05 \x01(\t\"=\n\x08MapConst\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x0b\n\x03imm\x18\x02 \x01(\r\x12\x12\n\ndebug_name\x18\x03 \x01(\t\"=\n\x06MapAdd\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x14\n\x0csrc_value_id\x18\x02 \x01(\r\x12\x0b\n\x03imm\x18\x03 \x01(\x11\"e\n\x08MapStore\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x0e\n\x06hdr_id\x18\x02 \x01(\r\x12\x13\n\x0b\x62yte_offset\x18\x03 \x01(\x11\x12\x0e\n\x06nbytes\x18\x04 \x01(\r\x12\x12\n\ndebug_name\x18\x05 \x01(\t\"=\n\x06\x41ndImm\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x14\n\x0csrc_value_id\x18\x02 \x01(\r\x12\x0b\n\x03imm\x18\x03 \x01(\r\"S\n\x04\x43sum\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x0e\n\x06hdr_id\x18\x02 \x01(\r\x12\x13\n\x0b\x62yte_offset\x18\x03 \x01(\x11\x12\x14\n\x0clen_value_id\x18\x04 \x01(\r\"V\n\x06Lookup\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x10\n\x08table_id\x18\x02 \x01(\r\x12\x14\n\x0ckey_value_id\x18\x03 \x01(\r\x12\x12\n\nmiss_state\x18\x04 \x01(\t\"\x1e\n\x07MapSend\x12\r\n\x05\x64\x65lta\x18\x02 \x01(\x11J\x04\x08\x01\x10\x02\"\x06\n\x04\x44ropb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0enanuk_ir.proto\x12\x0bnanuk.ir.v0\"M\n\rParserProgram\x12\x12\n\nir_version\x18\x01 \x01(\r\x12(\n\x06states\x18\x02 \x03(\x0b\x32\x18.nanuk.ir.v0.ParserState\"l\n\x0bParserState\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\"\n\x03ops\x18\x02 \x03(\x0b\x32\x15.nanuk.ir.v0.ParserOp\x12+\n\nterminator\x18\x03 \x01(\x0b\x32\x17.nanuk.ir.v0.Terminator\"\xfb\x01\n\x08ParserOp\x12\'\n\x07\x65xtract\x18\x01 \x01(\x0b\x32\x14.nanuk.ir.v0.ExtractH\x00\x12\'\n\x07\x61\x64vance\x18\x02 \x01(\x0b\x32\x14.nanuk.ir.v0.AdvanceH\x00\x12!\n\x04mark\x18\x03 \x01(\x0b\x32\x11.nanuk.ir.v0.MarkH\x00\x12\'\n\x07\x65mit_md\x18\x04 \x01(\x0b\x32\x14.nanuk.ir.v0.MdStoreH\x00\x12#\n\x05shift\x18\x05 \x01(\x0b\x32\x12.nanuk.ir.v0.ShiftH\x00\x12&\n\x07load_md\x18\x06 \x01(\x0b\x32\x13.nanuk.ir.v0.MdLoadH\x00\x42\x04\n\x02op\"R\n\x07\x45xtract\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x12\n\nbit_offset\x18\x02 \x01(\r\x12\r\n\x05width\x18\x03 \x01(\r\x12\x12\n\ndebug_name\x18\x04 \x01(\t\">\n\x07\x41\x64vance\x12\x15\n\x0b\x63onst_bytes\x18\x01 \x01(\rH\x00\x12\x12\n\x08value_id\x18\x02 \x01(\rH\x00\x42\x08\n\x06\x61mount\"?\n\x04Mark\x12\x0e\n\x06hdr_id\x18\x01 \x01(\r\x12\x13\n\x0b\x65mit_sethdr\x18\x02 \x01(\x08\x12\x12\n\ndebug_name\x18\x03 \x01(\t\"9\n\x07MdStore\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x0c\n\x04slot\x18\x02 \x01(\r\x12\x0e\n\x06nunits\x18\x03 \x01(\r\"<\n\x06MdLoad\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x0c\n\x04slot\x18\x02 \x01(\r\x12\x12\n\ndebug_name\x18\x03 \x01(\t\"?\n\x05Shift\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x14\n\x0csrc_value_id\x18\x02 \x01(\r\x12\x0e\n\x06\x61mount\x18\x03 \x01(\r\"\xce\x01\n\nTerminator\x12)\n\x08\x64ispatch\x18\x01 \x01(\x0b\x32\x15.nanuk.ir.v0.DispatchH\x00\x12!\n\x04halt\x18\x02 \x01(\x0b\x32\x11.nanuk.ir.v0.HaltH\x00\x12!\n\x04goto\x18\x03 \x01(\x0b\x32\x11.nanuk.ir.v0.GotoH\x00\x12$\n\x04send\x18\x04 \x01(\x0b\x32\x14.nanuk.ir.v0.MapSendH\x00\x12!\n\x04\x64rop\x18\x05 \x01(\x0b\x32\x11.nanuk.ir.v0.DropH\x00\x42\x06\n\x04kind\"h\n\x08\x44ispatch\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12 \n\x05\x63\x61ses\x18\x02 \x03(\x0b\x32\x11.nanuk.ir.v0.Case\x12(\n\x07\x64\x65\x66\x61ult\x18\x03 \x01(\x0b\x32\x17.nanuk.ir.v0.Terminator\"+\n\x04\x43\x61se\x12\r\n\x05match\x18\x01 \x01(\x04\x12\x14\n\x0ctarget_state\x18\x02 \x01(\t\"\x14\n\x04Halt\x12\x0c\n\x04\x64rop\x18\x01 \x01(\x08\"\x1c\n\x04Goto\x12\x14\n\x0ctarget_state\x18\x01 \x01(\t\"\x7f\n\x12MatchActionProgram\x12\x12\n\nir_version\x18\x01 \x01(\r\x12&\n\x06tables\x18\x02 \x03(\x0b\x32\x16.nanuk.ir.v0.TableDecl\x12-\n\x06states\x18\x03 \x03(\x0b\x32\x1d.nanuk.ir.v0.MatchActionState\"Z\n\tTableDecl\x12\x10\n\x08table_id\x18\x01 \x01(\r\x12\x11\n\tkey_width\x18\x02 \x01(\r\x12\x14\n\x0c\x61\x63tion_width\x18\x03 \x01(\r\x12\x12\n\ndebug_name\x18\x04 \x01(\t\"v\n\x10MatchActionState\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\'\n\x03ops\x18\x02 \x03(\x0b\x32\x1a.nanuk.ir.v0.MatchActionOp\x12+\n\nterminator\x18\x03 \x01(\x0b\x32\x17.nanuk.ir.v0.Terminator\"\x98\x03\n\rMatchActionOp\x12$\n\x04load\x18\x01 \x01(\x0b\x32\x14.nanuk.ir.v0.MapLoadH\x00\x12&\n\x07load_md\x18\x02 \x01(\x0b\x32\x13.nanuk.ir.v0.MdLoadH\x00\x12&\n\x05\x63onst\x18\x03 \x01(\x0b\x32\x15.nanuk.ir.v0.MapConstH\x00\x12\"\n\x03\x61\x64\x64\x18\x04 \x01(\x0b\x32\x13.nanuk.ir.v0.MapAddH\x00\x12&\n\x05store\x18\x05 \x01(\x0b\x32\x15.nanuk.ir.v0.MapStoreH\x00\x12!\n\x04\x63sum\x18\x06 \x01(\x0b\x32\x11.nanuk.ir.v0.CsumH\x00\x12%\n\x06lookup\x18\x07 \x01(\x0b\x32\x13.nanuk.ir.v0.LookupH\x00\x12(\n\x08store_md\x18\x08 \x01(\x0b\x32\x14.nanuk.ir.v0.MdStoreH\x00\x12&\n\x07\x61nd_imm\x18\t \x01(\x0b\x32\x13.nanuk.ir.v0.AndImmH\x00\x12#\n\x05shift\x18\n \x01(\x0b\x32\x12.nanuk.ir.v0.ShiftH\x00\x42\x04\n\x02op\"d\n\x07MapLoad\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x0e\n\x06hdr_id\x18\x02 \x01(\r\x12\x13\n\x0b\x62yte_offset\x18\x03 \x01(\x11\x12\x0e\n\x06nbytes\x18\x04 \x01(\r\x12\x12\n\ndebug_name\x18\x05 \x01(\t\"=\n\x08MapConst\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x0b\n\x03imm\x18\x02 \x01(\r\x12\x12\n\ndebug_name\x18\x03 \x01(\t\"=\n\x06MapAdd\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x14\n\x0csrc_value_id\x18\x02 \x01(\r\x12\x0b\n\x03imm\x18\x03 \x01(\x11\"e\n\x08MapStore\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x0e\n\x06hdr_id\x18\x02 \x01(\r\x12\x13\n\x0b\x62yte_offset\x18\x03 \x01(\x11\x12\x0e\n\x06nbytes\x18\x04 \x01(\r\x12\x12\n\ndebug_name\x18\x05 \x01(\t\"=\n\x06\x41ndImm\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x14\n\x0csrc_value_id\x18\x02 \x01(\r\x12\x0b\n\x03imm\x18\x03 \x01(\r\"S\n\x04\x43sum\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x0e\n\x06hdr_id\x18\x02 \x01(\r\x12\x13\n\x0b\x62yte_offset\x18\x03 \x01(\x11\x12\x14\n\x0clen_value_id\x18\x04 \x01(\r\"V\n\x06Lookup\x12\x10\n\x08value_id\x18\x01 \x01(\r\x12\x10\n\x08table_id\x18\x02 \x01(\r\x12\x14\n\x0ckey_value_id\x18\x03 \x01(\r\x12\x12\n\nmiss_state\x18\x04 \x01(\t\"\x1e\n\x07MapSend\x12\r\n\x05\x64\x65lta\x18\x02 \x01(\x11J\x04\x08\x01\x10\x02\"\x06\n\x04\x44ropb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -44,45 +44,45 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_MARK']._serialized_start=622
   _globals['_MARK']._serialized_end=685
   _globals['_MDSTORE']._serialized_start=687
-  _globals['_MDSTORE']._serialized_end=728
-  _globals['_MDLOAD']._serialized_start=730
-  _globals['_MDLOAD']._serialized_end=790
-  _globals['_SHIFT']._serialized_start=792
-  _globals['_SHIFT']._serialized_end=855
-  _globals['_TERMINATOR']._serialized_start=858
-  _globals['_TERMINATOR']._serialized_end=1064
-  _globals['_DISPATCH']._serialized_start=1066
-  _globals['_DISPATCH']._serialized_end=1170
-  _globals['_CASE']._serialized_start=1172
-  _globals['_CASE']._serialized_end=1215
-  _globals['_HALT']._serialized_start=1217
-  _globals['_HALT']._serialized_end=1237
-  _globals['_GOTO']._serialized_start=1239
-  _globals['_GOTO']._serialized_end=1267
-  _globals['_MATCHACTIONPROGRAM']._serialized_start=1269
-  _globals['_MATCHACTIONPROGRAM']._serialized_end=1396
-  _globals['_TABLEDECL']._serialized_start=1398
-  _globals['_TABLEDECL']._serialized_end=1488
-  _globals['_MATCHACTIONSTATE']._serialized_start=1490
-  _globals['_MATCHACTIONSTATE']._serialized_end=1608
-  _globals['_MATCHACTIONOP']._serialized_start=1611
-  _globals['_MATCHACTIONOP']._serialized_end=2019
-  _globals['_MAPLOAD']._serialized_start=2021
-  _globals['_MAPLOAD']._serialized_end=2121
-  _globals['_MAPCONST']._serialized_start=2123
-  _globals['_MAPCONST']._serialized_end=2184
-  _globals['_MAPADD']._serialized_start=2186
-  _globals['_MAPADD']._serialized_end=2247
-  _globals['_MAPSTORE']._serialized_start=2249
-  _globals['_MAPSTORE']._serialized_end=2350
-  _globals['_ANDIMM']._serialized_start=2352
-  _globals['_ANDIMM']._serialized_end=2413
-  _globals['_CSUM']._serialized_start=2415
-  _globals['_CSUM']._serialized_end=2498
-  _globals['_LOOKUP']._serialized_start=2500
-  _globals['_LOOKUP']._serialized_end=2586
-  _globals['_MAPSEND']._serialized_start=2588
-  _globals['_MAPSEND']._serialized_end=2618
-  _globals['_DROP']._serialized_start=2620
-  _globals['_DROP']._serialized_end=2626
+  _globals['_MDSTORE']._serialized_end=744
+  _globals['_MDLOAD']._serialized_start=746
+  _globals['_MDLOAD']._serialized_end=806
+  _globals['_SHIFT']._serialized_start=808
+  _globals['_SHIFT']._serialized_end=871
+  _globals['_TERMINATOR']._serialized_start=874
+  _globals['_TERMINATOR']._serialized_end=1080
+  _globals['_DISPATCH']._serialized_start=1082
+  _globals['_DISPATCH']._serialized_end=1186
+  _globals['_CASE']._serialized_start=1188
+  _globals['_CASE']._serialized_end=1231
+  _globals['_HALT']._serialized_start=1233
+  _globals['_HALT']._serialized_end=1253
+  _globals['_GOTO']._serialized_start=1255
+  _globals['_GOTO']._serialized_end=1283
+  _globals['_MATCHACTIONPROGRAM']._serialized_start=1285
+  _globals['_MATCHACTIONPROGRAM']._serialized_end=1412
+  _globals['_TABLEDECL']._serialized_start=1414
+  _globals['_TABLEDECL']._serialized_end=1504
+  _globals['_MATCHACTIONSTATE']._serialized_start=1506
+  _globals['_MATCHACTIONSTATE']._serialized_end=1624
+  _globals['_MATCHACTIONOP']._serialized_start=1627
+  _globals['_MATCHACTIONOP']._serialized_end=2035
+  _globals['_MAPLOAD']._serialized_start=2037
+  _globals['_MAPLOAD']._serialized_end=2137
+  _globals['_MAPCONST']._serialized_start=2139
+  _globals['_MAPCONST']._serialized_end=2200
+  _globals['_MAPADD']._serialized_start=2202
+  _globals['_MAPADD']._serialized_end=2263
+  _globals['_MAPSTORE']._serialized_start=2265
+  _globals['_MAPSTORE']._serialized_end=2366
+  _globals['_ANDIMM']._serialized_start=2368
+  _globals['_ANDIMM']._serialized_end=2429
+  _globals['_CSUM']._serialized_start=2431
+  _globals['_CSUM']._serialized_end=2514
+  _globals['_LOOKUP']._serialized_start=2516
+  _globals['_LOOKUP']._serialized_end=2602
+  _globals['_MAPSEND']._serialized_start=2604
+  _globals['_MAPSEND']._serialized_end=2634
+  _globals['_DROP']._serialized_start=2636
+  _globals['_DROP']._serialized_end=2642
 # @@protoc_insertion_point(module_scope)

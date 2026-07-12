@@ -24,7 +24,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 FIELDS = ("verdict", "error", "payload_offset", "steps",
-          "hdr_present", "hdr_offset", "smd")
+          "hdr_present", "hdr_offset", "md")
 
 
 def assert_same(program: ir.ParserProgram, packet: bytes, label: str) -> None:
