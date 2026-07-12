@@ -13,9 +13,10 @@ from scapy.layers.inet import IP, UDP
 from scapy.layers.l2 import Ether
 
 from nanuk.ir.interp_map import interp_map
-from examples.map_l2fwd.fwd import make_l2fwd
-from examples.map_ttl.fwd import make_ttl
-from examples.nanukproto.tunnel import make_tunnel_pop, make_tunnel_push
+from tests.support.load import load_example
+make_l2fwd = load_example("map_l2fwd/fwd.py").make_l2fwd
+make_ttl = load_example("map_ttl/fwd.py").make_ttl
+_ex = load_example("nanukproto/tunnel.py"); make_tunnel_pop, make_tunnel_push = _ex.make_tunnel_pop, _ex.make_tunnel_push
 from nanuk.isa.asm import assemble as pp_assemble
 from tests.support.harness import VERDICT_ACCEPT, run_program
 from nanuk.isa.map_asm import assemble as map_assemble

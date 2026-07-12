@@ -6,8 +6,9 @@ the tunnel map (t0 left unused, as the M1 tests do). Header ids follow
 l2l3l4/parse.asm: h_eth=0.
 """
 
-from nanuk.lang.headers import eth
-from nanuk.lang import MD_FLOOD, MapProgram
+from nanuk.lang import MD_FLOOD, Header, MapProgram
+
+eth = Header("eth", dst=48, src=48, ethertype=16)
 
 H_ETH = 0
 

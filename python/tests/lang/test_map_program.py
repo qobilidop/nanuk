@@ -4,7 +4,8 @@ byte-alignment guards, terminator discipline, table/header binding."""
 import pytest
 
 from nanuk.lang import CompileError, MapProgram, MD_FLOOD
-from examples.l2l3l4.parse import eth, ipv4
+from tests.support.load import load_example
+_ex = load_example("l2l3l4/parse.py"); eth, ipv4 = _ex.eth, _ex.ipv4
 
 from nanuk.ir.lower_map import to_map_asm
 from nanuk.ir.validate_map import validate_map

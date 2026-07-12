@@ -7,11 +7,21 @@ Header ids and SMD layout (shared with python/tests/spec/test_demo.py):
     SMD slots 0-2: DMAC   slot 3: outermost-last VLAN TCI   slot 4: UDP dport
 """
 
-from nanuk.lang import Parser
-from nanuk.lang.headers import ETY_IPV4, ETY_VLAN, PROTO_UDP, eth, ipv4, udp, vlan
+from nanuk.lang import Header, Parser
+
+eth = Header("eth", dst=48, src=48, ethertype=16)
+vlan = Header("vlan", tci=16, ethertype=16)
+ipv4 = Header(
+    "ipv4",
+    version=4, ihl=4, tos=8, total_len=16, ident=16,
+    flags_frag=16, ttl=8, proto=8, csum=16, src=32, dst=32,
+)
+udp = Header("udp", sport=16, dport=16, length=16, csum=16)
 
 H_ETH, H_VLAN, H_IPV4, H_UDP = 0, 1, 2, 3
 SMD_DMAC, SMD_VLAN_TCI, SMD_L4_DPORT = 0, 3, 4
+ETY_VLAN, ETY_IPV4 = 0x8100, 0x0800
+PROTO_UDP = 17
 
 
 def make_parser() -> Parser:

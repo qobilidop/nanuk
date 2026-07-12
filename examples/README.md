@@ -6,8 +6,8 @@ parity tests hold the two behaviorally identical. `drop_all/` is asm-only
 by design: the negative gate for the SimBricks demo (load it and the
 network goes dark).
 
-These are content, not library code: nothing that ships imports them.
-Standard protocol headers they build on ship with the toolchain as
-`nanuk.lang.headers` (the p4include pattern), so every program here reads
-the way a user's program would. Tests import the eDSL twins as the
-`examples` namespace package (the repo root is on pytest's `pythonpath`).
+These are content, not library code: nothing that ships imports them,
+and each program is standalone by design — headers and wire constants
+are declared in the file that uses them, so every example reads complete
+on one page. Tests treat the eDSL twins as fixtures and load them by
+path (`tests.support.load.load_example`).

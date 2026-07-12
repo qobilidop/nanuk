@@ -4,7 +4,8 @@ ranges, and per-op asm emission counts that mirror the v0 lowering
 + 1 for the default, goto/halt = 1)."""
 
 from nanuk.ir.lower import to_asm
-from examples.l2l3l4.parse import build_ir
+from tests.support.load import load_example
+build_ir = load_example("l2l3l4/parse.py").build_ir
 
 from bridge import render_ir
 

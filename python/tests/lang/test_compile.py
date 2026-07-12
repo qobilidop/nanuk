@@ -5,6 +5,7 @@ documented compile errors."""
 import pytest
 
 from nanuk.lang import CompileError, Header, Parser
+from tests.support.load import load_example
 
 # -- helpers -----------------------------------------------------------------
 
@@ -245,7 +246,7 @@ def test_remark_after_dynamic_advance_reanchors():
 def test_demo_program_compiles_and_assembles():
     from nanuk.isa.asm import assemble
 
-    from examples.l2l3l4.parse import build
+    build = load_example("l2l3l4/parse.py").build
 
     asm = build()
     assert labels(asm)[0] == "start"
@@ -258,7 +259,7 @@ def test_demo_output_matches_pre_ir_golden():
     direct (pre-IR) compiler produced, byte for byte."""
     from pathlib import Path
 
-    from examples.l2l3l4.parse import build
+    build = load_example("l2l3l4/parse.py").build
 
     golden = (Path(__file__).parent / "golden" / "l2l3l4.asm").read_text()
     assert build() == golden
