@@ -288,11 +288,8 @@ Discipline demands these be checked against the corpora rather than
 assumed — the boundary rule is "cover the corpus, no more," so each of
 these is in scope only if a corpus program actually demands it.
 
-1. **Tail delta at `SEND`.** `xdp_adjust_tail` (synthesize an ICMP
-   "too big" reply) needs it, and everything else in that program is
-   already in-ISA — but it is in `samples/bpf`, not necessarily in the
-   xdp-tutorial lessons. Verify whether the corpus demands it. If not, it
-   is out of scope for now despite being cheap and attractive.
+1. ~~**Tail delta at `SEND`.**~~ **RESOLVED 2026-07-13: out of scope.**
+   See "Tail delta" below.
 2. **Headroom > 32B.** IPv6-in-IPv4 encap needs 40B. Verify whether any
    corpus program requires it; headroom is already a parameter, so this
    may be a sizing note rather than a change.
@@ -302,10 +299,56 @@ these is in scope only if a corpus program actually demands it.
 4. **Gibb's fourth parse graph (edge).** Four graphs exist, not three.
    Decide whether `edge` earns a benchmark or folds into P5/P6.
 
+## Tail delta — investigated, out of scope
+
+Recorded because the investigation is more useful than the verdict.
+
+**What it is for.** In a zero-copy machine you cannot allocate a reply
+packet — you only have the one that arrived. Generating an ICMP error
+therefore means *reshaping the received frame into the reply*: shrink the
+tail down to the quoted prefix of the original datagram (the kernel sample
+cuts to 98B = 14B Ethernet + 20B IP + 64B payload), grow the head by 28B
+for a fresh IP + ICMP header, swap addresses, recompute checksums, reflect
+it out (`XDP_TX`). The tail shrink is what makes the quoted original the
+right size. This is production code, not a toy: **Katran** (its
+encapsulation can exceed path MTU, so it must answer PMTUD) and **Cilium**
+(DSR ICMP replies) both do exactly this, and the 2018 kernel commit that
+added `bpf_xdp_adjust_tail` names it as the intended use case.
+
+**Why it is nonetheless out of scope.** No reference corpus demands it:
+
+- **xdp-tutorial** — appears only in `experiment01-tailgrow`, which is
+  outside the graded lesson tracks and has no assignments. `packet02`
+  mentions it in one README sentence and does not use it.
+- **p4lang tutorials** — `truncate()` exists in v1model; **zero of the 13
+  exercises use it**. No exercise appends at the tail either (v1model's
+  deparser emits headers *before* the payload — a tail edit is not
+  expressible).
+- **xISA** — **no tail concept at all.** `FrameDelta` is a 9-bit signed
+  *head* delta ("start of packet is calculated as FOF − FrameDelta").
+  `SIZEQUERY` reads packet size; there is no `SIZESET`. All five example
+  programs set `FrameDelta = 0`.
+
+**The asymmetry to remember if this is ever revisited.** Tail *shrink* is
+a length decision, not a data operation — in a streaming egress the drain
+simply stops early (`out_len = in_len + head_delta + tail_delta`); nothing
+moves. bmv2's `truncate()` is a one-line `min()`. It is arguably cheaper
+than the head delta Nanuk already has. Tail *grow* is an allocation
+decision: it needs tailroom ownership, a failure mode, and initialization
+semantics for the appended bytes — precisely the three things the kernel
+had to invent (`frame_sz`, `-EINVAL`, `memset`) to ship grow in v5.8, two
+years after shrink. **If Nanuk ever takes this, take shrink only.**
+
+Counterpoint worth holding: xISA declines to expose even the cheap half,
+which suggests that in a real pipeline even a "free" tail shrink needs the
+egress subsystem to agree on the length (flit accounting, CRC recompute).
+Do not assume it is free in RTL without checking.
+
 ## Parked, with triggers
 
 | Item | Re-entry trigger |
 |---|---|
+| **Tail delta at `SEND` (shrink only)** | A corpus program demands it — the natural one is ICMP-error generation in place (Katran/Cilium PMTUD pattern) |
 | Hash unit + per-flow register arrays | The in-scope corpora are fully supported *and* a deliberate decision to cross the cliff |
 | Queue-depth signal | A traffic manager exists |
 | Ternary tables | An ACL demo that exact match genuinely cannot express |
