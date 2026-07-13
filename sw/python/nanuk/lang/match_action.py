@@ -126,15 +126,29 @@ class MatchActionProgram:
         self._states: list[MatchActionState] = []
         self._tables: list[Table] = []
 
-    def table(self, name: str, *, key_width: int, action_width: int) -> Table:
-        """Declare an exact-match table; ids are assigned in declaration order."""
-        if len(self._tables) >= _N_TABLES:
-            raise CompileError(f"at most {_N_TABLES} tables (t0..t{_N_TABLES - 1})")
+    def table(
+        self, name: str, *, key_width: int, action_width: int,
+        table_id: int | None = None,
+    ) -> Table:
+        """Declare an exact-match table. Ids are assigned in declaration
+        order unless table_id places one explicitly (e.g. the nanuk_switch
+        flood-table convention lives at table 3)."""
         if not 1 <= key_width <= 64:
             raise CompileError(f"key_width {key_width} out of range 1..64")
         if not 1 <= action_width <= 64:
             raise CompileError(f"action_width {action_width} out of range 1..64")
-        t = Table(len(self._tables), name, key_width, action_width)
+        used = {t.table_id for t in self._tables}
+        if table_id is None:
+            table_id = next(
+                (i for i in range(_N_TABLES) if i not in used), None
+            )
+            if table_id is None:
+                raise CompileError(f"at most {_N_TABLES} tables (t0..t{_N_TABLES - 1})")
+        elif not 0 <= table_id < _N_TABLES:
+            raise CompileError(f"table_id {table_id} out of range 0..{_N_TABLES - 1}")
+        elif table_id in used:
+            raise CompileError(f"table_id {table_id} already declared")
+        t = Table(table_id, name, key_width, action_width)
         self._tables.append(t)
         return t
 
@@ -351,7 +365,7 @@ class MatchActionStateCompiler:
         self._require_value(length, "csum length")
         if isinstance(field, BoundHeader):
             hdr_id, off = field.hdr_id, byte_offset or 0
-            name = f"csum({field.header.name})"
+            name = f"csum({field.name})"
         elif field is None and hdr is not None:
             hdr_id, off = hdr, byte_offset or 0
             name = f"csum(h{hdr_id}+{off})"
