@@ -3,6 +3,10 @@
 **Date:** 2026-07-13
 **Status:** Approved design. Implementation deferred (suite is designed
 up front; programs, vectors, and the ISA worklist land later).
+**Audited 2026-07-13** against all four corpora — see the
+[coverage audit](2026-07-13-benchmark-coverage-audit.md), which revises the
+parser ladder (P5 lookahead added, P4 split), settles the open items, and
+sharpens the ISA worklist. Read it alongside this doc.
 **Siblings:** [Core interface design](2026-07-12-core-interface-design.md) ·
 [MAP extension design](2026-07-11-map-extension-design.md) ·
 [Naming doctrine](2026-07-12-naming-doctrine.md) ·
@@ -272,32 +276,51 @@ Generated e2e artifacts stay under the producing subsystem
 
 Forced by the suite under the stated boundary. **PP: nothing.** MAP:
 
+Superseded in detail by the [coverage audit](2026-07-13-benchmark-coverage-audit.md);
+the audited form is:
+
 | Demanded by | Addition | Cost |
 |---|---|---|
-| E3 (`calc`, ×2 corpora) | reg-reg ALU: `ADD`, `SUB`, `OR`, `XOR` | cheap, uncontroversial |
-| T3 (xISA `ipv4-counters`) | **counter tables** — new table kind + increment instruction | reopens the table subsystem |
-| T4 (p4 `basic`, xISA `simple-ipv4`) | **LPM tables** — new match kind | reopens the table subsystem |
+| E3 (`calc`, ×2 corpora) | reg-reg ALU: `ADD`, `SUB`, **`AND`**, `OR`, `XOR` | cheap, uncontroversial |
+| T3 (xISA `ipv4-counters`, p4 `p4runtime`, xdp `basic03/04`) | **counter tables** — double counters, **implicit `plen` byte delta** | reopens the table subsystem; first data-plane table write |
+| T4 (p4 `basic`, xdp `bpf_fib_lookup`, xISA `simple-ipv4`) | **LPM tables** — new match kind; keys fit 64b | reopens the table subsystem |
+| — (pre-existing gap the audit exposed) | **specify `LOOKUP`'s hit result** — action data width + action-id convention | spec debt, not a feature |
 
 Explicitly *not* forced, and therefore not taken: register-indirect branch
-(a `BEQ` chain covers E3's dispatch), `MUL` (shift-and-add is
-expressible), queue-depth signal (refused), hash (refused).
+(a `BEQ` chain covers E3's dispatch — behavior reachable, though xISA's
+control-plane-defined *control flow* is not), `MUL` (shift-and-add is
+expressible; 64-bit GPRs delete xISA's carry dance), a frame-length read
+(implicit-`plen` counters make it unnecessary), ordered compares
+(`BLT`/`BGE` — workaroundable in every corpus program), queue-depth signal
+(refused), hash (refused), ternary (**demanded by zero programs across all
+four corpora** — the refusal is free).
 
-## Open items to verify before implementation
+## Open items — all resolved by the 2026-07-13 audit
 
-Discipline demands these be checked against the corpora rather than
-assumed — the boundary rule is "cover the corpus, no more," so each of
-these is in scope only if a corpus program actually demands it.
-
-1. ~~**Tail delta at `SEND`.**~~ **RESOLVED 2026-07-13: out of scope.**
+1. ~~**Tail delta at `SEND`.**~~ **Out of scope** — no corpus demands it.
    See "Tail delta" below.
-2. **Headroom > 32B.** IPv6-in-IPv4 encap needs 40B. Verify whether any
-   corpus program requires it; headroom is already a parameter, so this
-   may be a sizing note rather than a change.
-3. **Frame length in the metadata window.** T3's byte counters need it
-   (xISA uses `SIZEQUERY`). Check whether `md` already carries it; if not,
-   this is a contract question, not an ISA question.
-4. **Gibb's fourth parse graph (edge).** Four graphs exist, not three.
-   Decide whether `edge` earns a benchmark or folds into P5/P6.
+2. ~~**Headroom > 32B.**~~ **32B stands, with 8× margin.** Worst head
+   growth across all corpora: p4 `link_monitor` 18B, xdp VLAN push 4B,
+   xISA **zero** (all five examples set `FrameDelta = 0`).
+3. ~~**Frame length in the metadata window.**~~ **Not needed.** Counter
+   tables supply the byte delta implicitly (`packets += 1; bytes += plen`),
+   so no program in any corpus reads the length. No `SIZEQUERY`, no second
+   system md slot — slot 0 remains the only one.
+4. ~~**Gibb's `edge` graph.**~~ **Folds in as a use case; earns a rung as a
+   capability** — it exposed that no benchmark forced *lookahead* (MPLS
+   carries no next-protocol field). P4 splits; P5 (incomplete information)
+   is new; P5 + P6 together *are* the edge graph.
+
+**One decision escalated:** `flowcache` (p4) needs clone-to-CPU where the
+copy is edited differently from the original — which replication-as-bitmap
+structurally cannot express. Recommendation: **REFUSE**, reason = *no
+egress pipeline / no per-copy processing*, as a first-class architectural
+boundary alongside the single-ISA and no-deparser doctrines.
+
+**One minimality wrinkle:** **T2** (stateless ACL) is demanded by *no*
+corpus program standalone. Under a strict reading of the boundary rule it
+should be cut; it survives on the strength of the deployed shape
+(Cloudflare L4Drop). Flagged, not decided.
 
 ## Tail delta — investigated, out of scope
 
