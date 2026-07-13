@@ -194,15 +194,18 @@ the switch's convention covers all eight slots:
 | Slot | nanuk_switch convention |
 |---|---|
 | `md[0]` | in: ingress port id · out: egress port bitmap (0 = drop-by-policy) |
-| `md[1..3]` | in: zero · out: ignored (reserved for the system) |
-| `md[4..7]` | program-pair private (e.g. PP→MAP classification flags) |
+| `md[1..7]` | program-pair space (in: zero · out: ignored by the switch) |
 
 Slot 0 is deliberately dual-use: the program consumes the ingress id
 and overwrites the slot with its egress decision — making the
 pass-through edge (forgetting to write it would "forward toward
 ingress") loud in the conventions table and guarded by the eDSL sugar.
-PP/MAP program pairs are co-designed artifacts, so slots 4–7 are theirs
-by convention (the tunnel examples' MD_TUN flag moves to slot 4).
+PP/MAP program pairs are co-designed artifacts, so every other slot is
+theirs. (Implementation revised the first draft here: it reserved
+`md[1..3]` for the system, but nothing used them and the reservation
+starved the richest PP demo — l2l3l4 records DMAC + TCI + dport, five
+slots. One system slot is the honest minimum; the tunnel examples' tag
+stays at slot 5.)
 
 **The flood table.** The switch control plane installs table 3 (its
 "system table" convention, kw = 16, aw = 16) with
