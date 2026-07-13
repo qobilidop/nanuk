@@ -35,7 +35,7 @@ class MAPResult:
 
     verdict: int
     error: int
-    egress: int
+    md: tuple[int, ...]
     delta: int
     steps: int
     frame: bytes | None
@@ -62,9 +62,10 @@ def run_map(prog, packets, ctxs, tables) -> list[MAPResult]:
     """Run each packet through one MatchActionProcessor instance.
 
     prog: MAP program (bytes or word list). packets: list of frames.
-    ctxs: list of (pp_result, ingress) — pp_result needs .hdr_present,
-    .hdr_offset, .smd (ParserResult or PPResult shape). tables: list of
-    nanuk.testkit.map_harness.Table, index = table id.
+    ctxs: list of (pp_result, md_in) — pp_result needs .hdr_present and
+    .hdr_offset (ParserResult or PPResult shape); md_in is up to 8 16-bit
+    metadata slots. tables: list of nanuk.testkit.map_harness.Table,
+    index = table id.
     """
     words = _to_words(prog)
     if len(words) > IMEM_WORDS:
@@ -98,7 +99,7 @@ def run_map(prog, packets, ctxs, tables) -> list[MAPResult]:
                 await ctx.tick()
                 ctx.set(dut.tbl_add_we, 0)
 
-        for packet, (pp, ingress) in zip(packets, ctxs):
+        for packet, (pp, md_in) in zip(packets, ctxs):
             # Whole window per packet: headroom zeros + frame + padding.
             win = bytes(HEADROOM_BYTES) + packet[:BUF_BYTES]
             win = win.ljust(WIN_BYTES, b"\x00")
@@ -110,11 +111,10 @@ def run_map(prog, packets, ctxs, tables) -> list[MAPResult]:
             ctx.set(dut.win_we, 0)
 
             ctx.set(dut.plen, min(len(packet), 0xFFFF))
-            ctx.set(dut.ingress, ingress)
-            smd = 0
-            for i, v in enumerate(pp.smd):
-                smd |= (v & 0xFFFF) << (16 * i)
-            ctx.set(dut.smd_in, smd)
+            md = 0
+            for i, v in enumerate(md_in):
+                md |= (v & 0xFFFF) << (16 * i)
+            ctx.set(dut.md_in, md)
             hp = 0
             ho = 0
             for i in range(16):
@@ -149,11 +149,12 @@ def run_map(prog, packets, ctxs, tables) -> list[MAPResult]:
                 # Tail passthrough, same rule as map_harness.run_map: bytes
                 # beyond the window never entered the engine's custody.
                 frame = bytes(out) + packet[BUF_BYTES:]
+            md_out = ctx.get(dut.md_out)
             results.append(
                 MAPResult(
                     verdict=verdict,
                     error=ctx.get(dut.error),
-                    egress=ctx.get(dut.egress),
+                    md=tuple((md_out >> (16 * i)) & 0xFFFF for i in range(8)),
                     delta=delta,
                     steps=ctx.get(dut.steps),
                     frame=frame,
@@ -168,17 +169,18 @@ def run_map(prog, packets, ctxs, tables) -> list[MAPResult]:
     return results
 
 
-def run_map_one(prog, packet, pp, tables, ingress) -> MAPResult:
+def run_map_one(prog, packet, pp, tables, md_in) -> MAPResult:
     """Single-packet convenience wrapper (argument order matches
     nanuk.testkit.map_harness.run_map)."""
-    return run_map(prog, [packet], [(pp, ingress)], tables)[0]
+    return run_map(prog, [packet], [(pp, md_in)], tables)[0]
 
 
 def run_pipeline_rtl(
-    pp_prog, map_prog, packet, tables, ingress
+    pp_prog, map_prog, packet, tables, md_in
 ) -> tuple[PPResult, MAPResult | None]:
-    """PP-RTL -> MAP-RTL composition with run_pipeline's gating."""
-    pp = run_pp(pp_prog, [bytes(packet)])[0]
+    """PP-RTL -> MAP-RTL composition with run_pipeline's gating: the
+    system md_in seeds the PP; the PP's md output seeds the MAP."""
+    pp = run_pp(pp_prog, [bytes(packet)], [md_in])[0]
     if pp.verdict != 0:
         return pp, None
-    return pp, run_map_one(map_prog, packet, pp, tables, ingress)
+    return pp, run_map_one(map_prog, packet, pp, tables, pp.md)

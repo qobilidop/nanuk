@@ -38,7 +38,7 @@ def assert_same(prog: bytes, packet: bytes, seed_info: str):
     g = golden(prog, packet)
     r = run_pp_one(prog, packet)
     for field in ("verdict", "error", "payload_offset", "steps",
-                  "hdr_present", "hdr_offset", "smd"):
+                  "hdr_present", "hdr_offset", "md"):
         assert getattr(g, field) == getattr(r, field), (
             f"{field} diverged ({seed_info}): "
             f"golden={getattr(g, field)} rtl={getattr(r, field)}"
@@ -119,7 +119,6 @@ class _StubPP:
 
     hdr_present = [0] * 16
     hdr_offset = [0] * 16
-    smd = [0] * 8
 
     # run_map consumes attribute access only; this mirrors ParserResult's shape.
     verdict = 0
@@ -128,13 +127,15 @@ class _StubPP:
     steps = 0
 
 
-def _assert_map_same(prog, packet, pp, tables, ingress, seed_info):
-    g = run_map(prog, packet, pp, tables, ingress)
-    r = run_map_one(prog, packet, pp, tables, ingress)
-    for field in ("verdict", "error", "egress", "delta", "steps", "frame"):
-        assert getattr(g, field) == getattr(r, field), (
-            f"MAP {field} diverged ({seed_info}): "
-            f"golden={getattr(g, field)} rtl={getattr(r, field)}"
+def _assert_map_same(prog, packet, pp, tables, md_in, seed_info):
+    g = run_map(prog, packet, pp, tables, md_in)
+    r = run_map_one(prog, packet, pp, tables, md_in)
+    for field in ("verdict", "error", "md", "delta", "steps", "frame"):
+        g_v, r_v = getattr(g, field), getattr(r, field)
+        if field == "md":
+            g_v, r_v = tuple(g_v), tuple(r_v)
+        assert g_v == r_v, (
+            f"MAP {field} diverged ({seed_info}): golden={g_v} rtl={r_v}"
         )
 
 
@@ -154,17 +155,20 @@ def test_fuzz_map_l2fwd(seed):
     from nanuk.testkit.pp_harness import run_program
     from nanuk.isa.pp_asm import assemble as pp_assemble
 
+    from nanuk.testkit.testkit import NO_TABLE, demo_flood_table
+
     rng = random.Random(3000 + seed)
     pp_prog = pp_assemble((_EXAMPLES / "l2l3l4" / "parse.asm").read_text())
     map_prog = map_assemble((_EXAMPLES / "map_l2fwd" / "fwd.asm").read_text())
     for i in range(4):
         packet = rng.randbytes(rng.randrange(14, 300))
-        pp = run_program(pp_prog, packet)
+        ingress = rng.randrange(4)
+        pp = run_program(pp_prog, packet, [ingress])
         if pp.verdict != 0:
             continue
-        tables = [_random_table(rng, packet)]
+        tables = [_random_table(rng, packet), NO_TABLE, NO_TABLE, demo_flood_table()]
         _assert_map_same(
-            map_prog, packet, pp, tables, rng.randrange(4),
+            map_prog, packet, pp, tables, pp.md,
             f"l2fwd seed={seed} pkt={i}",
         )
 
@@ -178,6 +182,6 @@ def test_fuzz_map_raw_words(seed):
     for i in range(3):
         packet = rng.randbytes(rng.randrange(0, 300))
         _assert_map_same(
-            prog, packet, _StubPP(), [], rng.randrange(4),
+            prog, packet, _StubPP(), [], [rng.randrange(4)],
             f"map-raw seed={seed} pkt={i}",
         )
