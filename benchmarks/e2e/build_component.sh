@@ -9,8 +9,9 @@
 # its sources; FORCE_BUILD=1 rebuilds.
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."   # benchmarks/e2e -> repo root
 REPO="$PWD"
+[ -d "$REPO/hw/amaranth" ] || { echo "not at the repo root: $REPO" >&2; exit 1; }
 IMG=simbricks/simbricks-local:latest
 STAGE="$REPO/benchmarks/e2e/stage"
 OUT="$REPO/benchmarks/e2e/out"
