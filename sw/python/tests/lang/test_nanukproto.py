@@ -65,10 +65,10 @@ class TestOnGoldenModel:
         assert r.hdr(2) == 22                     # inner ipv4 = 14 + 8
         assert r.hdr(3) == 42                     # inner udp = 22 + 20
         assert r.payload_offset == 50
-        assert r.smd[5] == 0x000A                 # tenant 0x0ABCDE, MSB-first
-        assert r.smd[6] == 0xBCDE
-        assert r.smd[4] == 4242                   # inner dport
-        assert r.smd[0:3] == [0xAABB, 0xCCDD, 0xEE01]
+        assert r.md[6] == 0x000A                 # tenant 0x0ABCDE, MSB-first
+        assert r.md[7] == 0xBCDE
+        assert r.md[5] == 4242                   # inner dport
+        assert r.md[1:4] == [0xAABB, 0xCCDD, 0xEE01]
 
     def test_bad_magic_drops(self, prog):
         pkt = self._eth(0x88B5) + nk_hdr(magic=0xDEAD) + self._inner_ipv4_udp()
@@ -88,7 +88,7 @@ class TestOnGoldenModel:
         assert r.hdr(5) is None
         assert r.hdr(2) == 14
         assert r.hdr(3) == 34
-        assert r.smd[4] == 53
+        assert r.md[5] == 53
 
     def test_vlan_inside_tunnel(self, prog):
         from scapy.layers.inet import IP, UDP
@@ -101,4 +101,4 @@ class TestOnGoldenModel:
         assert r.hdr(5) == 14
         assert r.hdr(1) == 22                     # vlan tag inside the tunnel
         assert r.hdr(2) == 26
-        assert r.smd[3] == 7
+        assert r.md[4] == 7

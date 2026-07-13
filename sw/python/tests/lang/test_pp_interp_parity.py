@@ -31,7 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 nanukproto_ir = nanukproto_parse.build_ir
 
 FIELDS = ("verdict", "error", "payload_offset", "steps",
-          "hdr_present", "hdr_offset", "smd")
+          "hdr_present", "hdr_offset", "md")
 
 
 def nk_tunnel(magic=0x4E4B, version=1) -> bytes:

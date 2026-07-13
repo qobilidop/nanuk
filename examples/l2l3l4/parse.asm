@@ -17,7 +17,7 @@
 start:
     sethdr  h_eth
     ext     r0, 0, 48          ; DMAC
-    stmd    0, r0, 3           ; -> SMD slots 0..2
+    stmd    1, r0, 3           ; -> md slots 1..3 (slot 0 is the system's)
     ext     r0, 96, 16         ; EtherType
     advi    14                 ; skip Ethernet header
 
@@ -31,7 +31,7 @@ dispatch:                      ; r0 = current EtherType
 vlan:                          ; cursor sits at TCI (TPID consumed above)
     sethdr  h_vlan
     ext     r2, 0, 16          ; TCI
-    stmd    3, r2, 1           ; -> SMD slot 3
+    stmd    4, r2, 1           ; -> md slot 4
     ext     r0, 16, 16         ; inner EtherType
     advi    4
     jmp     dispatch           ; QinQ loop - bounded by the step budget
@@ -52,7 +52,7 @@ ipv4:
 udp:
     sethdr  h_udp
     ext     r1, 16, 16         ; dst port
-    stmd    4, r1, 1           ; -> SMD slot 4
+    stmd    5, r1, 1           ; -> md slot 5
     advi    8
     halt    accept
 

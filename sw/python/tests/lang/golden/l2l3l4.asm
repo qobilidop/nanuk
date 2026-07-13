@@ -3,7 +3,7 @@
 start:
     sethdr  0                  ; eth
     ext     r0, 0, 48          ; eth.dst
-    stmd    0, r0, 3           ; eth.dst
+    stmd    1, r0, 3           ; eth.dst
     ext     r1, 96, 16         ; eth.ethertype
     advi    14
     movi    r3, 0x8100
@@ -15,7 +15,7 @@ start:
 vlan_tag:
     sethdr  1                  ; vlan
     ext     r0, 0, 16          ; vlan.tci
-    stmd    3, r0, 1           ; vlan.tci
+    stmd    4, r0, 1           ; vlan.tci
     ext     r1, 16, 16         ; vlan.ethertype
     advi    4
     movi    r3, 0x8100
@@ -43,6 +43,6 @@ ipv4_body:
 udp_hdr:
     sethdr  3                  ; udp
     ext     r0, 16, 16         ; udp.dport
-    stmd    4, r0, 1           ; udp.dport
+    stmd    5, r0, 1           ; udp.dport
     advi    8
     halt    accept

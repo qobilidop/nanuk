@@ -15,21 +15,29 @@ from nanuk.isa.map_iss import run_map_iss
 from nanuk.isa.map_asm import assemble as map_assemble
 from nanuk.testkit.pp_harness import VERDICT_ACCEPT, run_program
 from nanuk.testkit.map_harness import Table, run_map
-from nanuk.testkit.testkit import demo_l2_table, demo_tun_table, map_packets
+from nanuk.testkit.testkit import NO_TABLE, demo_flood_table, demo_l2_table, demo_tun_table, map_packets
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 PP_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"
 
+_FLOOD = demo_flood_table()
+
 DEMOS = {
-    "map_l2fwd": (REPO_ROOT / "examples" / "map_l2fwd" / "fwd.asm", [demo_l2_table(both=True)]),
-    "map_ttl": (REPO_ROOT / "examples" / "map_ttl" / "fwd.asm", [demo_l2_table()]),
+    "map_l2fwd": (
+        REPO_ROOT / "examples" / "map_l2fwd" / "fwd.asm",
+        [demo_l2_table(both=True), NO_TABLE, NO_TABLE, _FLOOD],
+    ),
+    "map_ttl": (
+        REPO_ROOT / "examples" / "map_ttl" / "fwd.asm",
+        [demo_l2_table(), NO_TABLE, NO_TABLE, _FLOOD],
+    ),
     "tunnel_push": (
         REPO_ROOT / "examples" / "nanukproto" / "tunnel_push.asm",
-        [demo_l2_table(), demo_tun_table()],
+        [demo_l2_table(), demo_tun_table(), NO_TABLE, _FLOOD],
     ),
     "tunnel_pop": (
         REPO_ROOT / "examples" / "nanukproto" / "tunnel_pop.asm",
-        [demo_l2_table(both=True)],
+        [demo_l2_table(both=True), NO_TABLE, NO_TABLE, _FLOOD],
     ),
 }
 
