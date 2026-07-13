@@ -18,7 +18,7 @@ nk = Header(
 )
 
 H_ETH, H_VLAN, H_IPV4, H_UDP, H_NK = 0, 1, 2, 3, 5
-SMD_DMAC, SMD_VLAN_TCI, SMD_L4_DPORT, SMD_TENANT = 0, 3, 4, 5
+SMD_DMAC, SMD_VLAN_TCI, SMD_L4_DPORT, SMD_TENANT = 1, 4, 5, 6  # slot 0 is the system's
 ETY_VLAN, ETY_IPV4, ETY_NK = 0x8100, 0x0800, 0x88B5
 NK_MAGIC, NK_VERSION = 0x4E4B, 1
 PROTO_UDP = 17
@@ -61,7 +61,7 @@ def make_parser() -> Parser:
     @p.state()
     def nk_body(s):
         s.mark(nk)  # re-anchor
-        s.smd(s.extract(nk.tenant_id), slot=SMD_TENANT)  # 24b -> slots 5-6
+        s.smd(s.extract(nk.tenant_id), slot=SMD_TENANT)  # 24b -> slots 6-7
         iety = s.extract(nk.inner_ethertype)
         s.advance(nk.byte_len)
         s.dispatch(iety, {ETY_VLAN: vlan_tag, ETY_IPV4: ipv4_check},

@@ -82,10 +82,15 @@ def render_ir(program: ir.ParserProgram) -> RenderedIr:
                         rstate.ops.append(
                             RenderedOp(f"mark {disp} (re-anchor)", len(lines), 0)
                         )
-                case "emit_smd":
-                    s = op.emit_smd
+                case "emit_md":
+                    s = op.emit_md
                     name = _value_name(names, s.value_id)
-                    lines.append(f"    smd[{s.slot}] = v{s.value_id}  ; {name}")
+                    lines.append(f"    md[{s.slot}] = v{s.value_id}  ; {name}")
+                    rstate.ops.append(RenderedOp(name, len(lines), 1))
+                case "load_md":
+                    s = op.load_md
+                    name = _value_name(names, s.value_id)
+                    lines.append(f"    v{s.value_id} = md[{s.slot}]  ; {name}")
                     rstate.ops.append(RenderedOp(name, len(lines), 1))
         _render_terminator(st.terminator, lines, rstate, names)
         rstate.ir_range = (start_line, len(lines))
@@ -310,9 +315,9 @@ def run_packet(packet_hex: str) -> str:
     _stamp_result_match(
         trace,
         (result.verdict, result.error, result.payload_offset, result.steps,
-         result.hdr_present, result.hdr_offset, result.smd),
+         result.hdr_present, result.hdr_offset, result.md),
         (iss_res.verdict, iss_res.error, iss_res.payload_offset, iss_res.steps,
-         iss_res.hdr_present, iss_res.hdr_offset, iss_res.smd),
+         iss_res.hdr_present, iss_res.hdr_offset, iss_res.md),
         iss_res.steps,
     )
     return json.dumps({
@@ -325,7 +330,7 @@ def run_packet(packet_hex: str) -> str:
             "steps": result.steps,
             "hdr_present": result.hdr_present,
             "hdr_offset": result.hdr_offset,
-            "smd": result.smd,
+            "md": result.md,
         },
         "trace": trace,
     })
@@ -367,9 +372,9 @@ def render_map_ir(program: ir.MatchActionProgram) -> RenderedIr:
                     rstate.ops.append(RenderedOp(name, len(lines), 1))
                 case "load_md":
                     md = op.load_md
-                    name = md.debug_name or f"md{md.field}"
+                    name = md.debug_name or f"md{md.slot}"
                     names[md.value_id] = name
-                    lines.append(f"    v{md.value_id} = load_md({md.field})  ; {name}")
+                    lines.append(f"    v{md.value_id} = md[{md.slot}]  ; {name}")
                     rstate.ops.append(RenderedOp(name, len(lines), 1))
                 case "const":
                     c = op.const
@@ -393,10 +398,35 @@ def render_map_ir(program: ir.MatchActionProgram) -> RenderedIr:
                     rstate.ops.append(RenderedOp(f"store {name}", len(lines), 1))
                 case "csum":
                     cs = op.csum
+                    name = f"csum(hdr={cs.hdr_id})"
+                    names[cs.value_id] = name
                     lines.append(
-                        f"    csum_update(hdr={cs.hdr_id}, off={cs.byte_offset:+d})"
+                        f"    v{cs.value_id} = csum(hdr={cs.hdr_id}, "
+                        f"off={cs.byte_offset:+d}, len=v{cs.len_value_id})"
                     )
-                    rstate.ops.append(RenderedOp("csum_update", len(lines), 1))
+                    rstate.ops.append(RenderedOp(name, len(lines), 1))
+                case "store_md":
+                    sm = op.store_md
+                    name = _value_name(names, sm.value_id)
+                    lines.append(
+                        f"    md[{sm.slot}] = v{sm.value_id}  ; {name}"
+                        if sm.nunits == 1 else
+                        f"    md[{sm.slot}..{sm.slot + sm.nunits - 1}] = "
+                        f"v{sm.value_id}  ; {name}"
+                    )
+                    rstate.ops.append(RenderedOp(f"md[{sm.slot}] = {name}", len(lines), 1))
+                case "and_imm":
+                    ai = op.and_imm
+                    name = f"{_value_name(names, ai.src_value_id)} & {ai.imm:#x}"
+                    names[ai.value_id] = name
+                    lines.append(f"    v{ai.value_id} = v{ai.src_value_id} & {ai.imm:#06x}")
+                    rstate.ops.append(RenderedOp(name, len(lines), 1))
+                case "shift":
+                    sh = op.shift
+                    name = f"{_value_name(names, sh.src_value_id)} << {sh.amount}"
+                    names[sh.value_id] = name
+                    lines.append(f"    v{sh.value_id} = v{sh.src_value_id} << {sh.amount}")
+                    rstate.ops.append(RenderedOp(name, len(lines), 1))
                 case "lookup":
                     lk = op.lookup
                     key = _value_name(names, lk.key_value_id)
@@ -423,10 +453,9 @@ def _render_map_terminator(
     match term.WhichOneof("kind"):
         case "send":
             s = term.send
-            name = _value_name(names, s.bitmap_value_id)
-            suffix = f", delta={s.delta:+d}" if s.delta else ""
-            lines.append(f"    send v{s.bitmap_value_id}{suffix}  ; {name}")
-            rstate.ops.append(RenderedOp(f"send {name}", len(lines), 1))
+            suffix = f" delta={s.delta:+d}" if s.delta else ""
+            lines.append(f"    send{suffix}")
+            rstate.ops.append(RenderedOp(f"send{suffix}", len(lines), 1))
         case "drop":
             lines.append("    drop")
             rstate.ops.append(RenderedOp("drop", len(lines), 1))
@@ -471,8 +500,11 @@ class _Table:
 
 
 # Playground control plane: every declared 48-bit-key table knows the two
-# demo MACs (matches the docs' examples); other widths start empty.
+# demo MACs (matches the docs' examples); every declared 16-bit-key table
+# gets the system flood entries ({ingress -> flood bitmap}, the
+# nanuk_switch convention at t3); other widths start empty.
 _DEMO_ENTRIES = {0xAABBCCDDEE01: 0x4, 0xAABBCCDDEE02: 0x8}
+_FLOOD_ENTRIES = {i: (0xF & ~(1 << i)) for i in range(4)}
 _LAST_MAP_PROGRAM = None
 
 
@@ -481,7 +513,12 @@ def _default_tables(program: ir.MatchActionProgram) -> list:
     for t in program.tables:
         while len(tables) < t.table_id:
             tables.append(_Table(0, 0, {}))
-        entries = dict(_DEMO_ENTRIES) if t.key_width == 48 else {}
+        if t.key_width == 48:
+            entries = dict(_DEMO_ENTRIES)
+        elif t.key_width == 16:
+            entries = dict(_FLOOD_ENTRIES)
+        else:
+            entries = {}
         tables.append(_Table(t.key_width, t.action_width, entries))
     return tables
 
@@ -508,7 +545,7 @@ def _make_pp_parser():
     @p.state(start=True)
     def start(s):
         s.mark(eth, hdr_id=0)
-        s.smd(s.extract(eth.dst), slot=0)
+        s.smd(s.extract(eth.dst), slot=1)  # slot 0 is the system's
         ety = s.extract(eth.ethertype)
         s.advance(eth.byte_len)
         s.dispatch(ety, {ETY_VLAN: vlan_tag, ETY_IPV4: ipv4_check},
@@ -517,7 +554,7 @@ def _make_pp_parser():
     @p.state()
     def vlan_tag(s):
         s.mark(vlan, hdr_id=1)
-        s.smd(s.extract(vlan.tci), slot=3)
+        s.smd(s.extract(vlan.tci), slot=4)
         ety = s.extract(vlan.ethertype)
         s.advance(vlan.byte_len)
         s.dispatch(ety, {ETY_VLAN: vlan_tag, ETY_IPV4: ipv4_check},
@@ -540,7 +577,7 @@ def _make_pp_parser():
     @p.state()
     def udp_hdr(s):
         s.mark(udp, hdr_id=3)
-        s.smd(s.extract(udp.dport), slot=4)
+        s.smd(s.extract(udp.dport), slot=5)
         s.advance(udp.byte_len)
         s.accept()
 
@@ -600,22 +637,24 @@ def _compile_map(source: str, build_map_ir) -> str:
 
 def _run_map_packet(packet: bytes) -> str:
     """Composed run: the baked l2l3l4 parser gates, then the MAP executes
-    with the playground's demo table entries (ingress fixed at 0). Both
-    phases are traced (the PP phase against the baked rig's provenance)."""
+    with the playground's demo table entries (ingress fixed at 0 in md
+    slot 0, the nanuk_switch convention). Both phases are traced (the PP
+    phase against the baked rig's provenance)."""
     program = globals()["_LAST_MAP_PROGRAM"]
+    md_in = [0] * 8  # slot 0 = ingress port 0
     rig = _pp_rig()
     pp_events: list = []
-    pp = pp_interp(rig["ir"], packet, check=False, trace=pp_events)
-    pp_iss = run_pp_iss(rig["prog"], packet, line_map=rig["line_map"])
+    pp = pp_interp(rig["ir"], packet, md_in, check=False, trace=pp_events)
+    pp_iss = run_pp_iss(rig["prog"], packet, md_in, line_map=rig["line_map"])
     pp_trace = _build_trace(
         "parser", rig["ir"], rig["states"], pp_events, pp_iss, rig["bindings"]
     )
     _stamp_result_match(
         pp_trace,
         (pp.verdict, pp.error, pp.payload_offset, pp.steps,
-         pp.hdr_present, pp.hdr_offset, pp.smd),
+         pp.hdr_present, pp.hdr_offset, pp.md),
         (pp_iss.verdict, pp_iss.error, pp_iss.payload_offset, pp_iss.steps,
-         pp_iss.hdr_present, pp_iss.hdr_offset, pp_iss.smd),
+         pp_iss.hdr_present, pp_iss.hdr_offset, pp_iss.md),
         pp_iss.steps,
     )
     if pp.verdict != 0:
@@ -631,18 +670,18 @@ def _run_map_packet(packet: bytes) -> str:
         })
     tables = _default_tables(program)
     events: list = []
-    r = map_interp(program, packet, pp, tables, 0, check=False, trace=events)
+    r = map_interp(program, packet, pp, tables, pp.md, check=False, trace=events)
     map_asm = globals()["_LAST_MAP_ASM"]
     iss_res = run_map_iss(
-        map_asm["prog"], packet, pp, tables, 0, line_map=map_asm["line_map"]
+        map_asm["prog"], packet, pp, tables, pp.md, line_map=map_asm["line_map"]
     )
     map_trace = _build_trace(
         "map", program, _LAST_STATES, events, iss_res, map_asm["bindings"]
     )
     _stamp_result_match(
         map_trace,
-        (r.verdict, r.error, r.egress, r.delta, r.steps, r.frame),
-        (iss_res.verdict, iss_res.error, iss_res.egress, iss_res.delta,
+        (r.verdict, r.error, tuple(r.md), r.delta, r.steps, r.frame),
+        (iss_res.verdict, iss_res.error, tuple(iss_res.md), iss_res.delta,
          iss_res.steps, iss_res.frame),
         iss_res.steps,
     )
@@ -653,7 +692,8 @@ def _run_map_packet(packet: bytes) -> str:
             "gated": False,
             "verdict": r.verdict,
             "error": r.error,
-            "egress": r.egress,
+            "md": list(r.md),
+            "egress": r.md[0],
             "delta": r.delta,
             "steps": r.steps,
             "frame": r.frame.hex() if r.frame is not None else None,
@@ -761,7 +801,7 @@ def _diverged(kind, ev, trace, lo, hi):
             ("cursor", ev.cursor, rec.cursor),
             ("hdr_present", ev.hdr_present, rec.hdr_present),
             ("hdr_offset", ev.hdr_offset, rec.hdr_offset),
-            ("smd", ev.smd, rec.smd),
+            ("md", ev.md, rec.md),
         ):
             if a != b:
                 return {"step": hi - 1, "what": what}

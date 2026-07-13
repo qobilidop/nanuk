@@ -30,7 +30,7 @@ def test_compile_map_kind_and_panes():
     assert "lookup(t0, v1) miss -> flood" in out["ir_text"]
     assert "lookup  r0, 0, r0, flood" in out["asm_text"]
     names = [s["name"] for s in out["states"]]
-    assert names == ["forward", "flood"]
+    assert names == ["forward", "flood", "dark"]
     fw = out["states"][0]
     assert fw["edsl"] is not None
     # Every op maps to exactly one asm line here (no dispatch in this state).

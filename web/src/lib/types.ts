@@ -43,13 +43,14 @@ export interface ParseResultJson {
   steps: number;
   hdr_present: number[];
   hdr_offset: number[];
-  smd: number[];
+  md: number[];
 }
 export interface MapResultJson {
   gated: false;
   verdict: 0 | 1 | 2; // sent | drop | error
   error: number;
-  egress: number; // port bitmap
+  md: number[];
+  egress: number; // md[0] under the switch convention: port bitmap
   delta: number; // signed head delta
   steps: number;
   frame: string | null; // transmitted frame, hex

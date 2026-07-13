@@ -110,8 +110,8 @@ def test_run_returns_full_parse_result():
     r = out["result"]
     assert r["verdict"] == 0
     assert r["payload_offset"] == 14
-    assert r["smd"][:3] == [0xAABB, 0xCCDD, 0xEE01]
-    assert len(r["hdr_present"]) == 16 and len(r["smd"]) == 8
+    assert r["md"][:3] == [0xAABB, 0xCCDD, 0xEE01]
+    assert len(r["hdr_present"]) == 16 and len(r["md"]) == 8
 
 
 def test_pp_rig_mirrors_l2l3l4_example():
