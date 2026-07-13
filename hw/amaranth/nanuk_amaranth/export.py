@@ -1,9 +1,9 @@
 """Emit Verilog for the Nanuk core's processors.
 
 Usage:
-    uv run nanuk-export ../../demo/build/nanuk_pp.v
-    uv run nanuk-export --processor map ../../demo/build/nanuk_map.v
-    uv run nanuk-export --processor core ../../demo/build/nanuk_core.v
+    uv run nanuk-export ../../benchmarks/e2e/build/nanuk_pp.v
+    uv run nanuk-export --processor map ../../benchmarks/e2e/build/nanuk_map.v
+    uv run nanuk-export --processor core ../../benchmarks/e2e/build/nanuk_core.v
 """
 
 import argparse

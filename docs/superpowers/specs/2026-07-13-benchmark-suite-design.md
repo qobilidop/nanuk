@@ -4,7 +4,7 @@
 **Status:** Approved design. Implementation deferred (suite is designed
 up front; programs, vectors, and the ISA worklist land later).
 **Audited 2026-07-13** against all four corpora — see the
-[coverage audit](2026-07-13-benchmark-coverage-audit.md), which revises the
+[coverage audit](../../../benchmarks/coverage.md), which revises the
 parser ladder (P5 lookahead added, P4 split), settles the open items, and
 sharpens the ISA worklist. Read it alongside this doc.
 **Siblings:** [Core interface design](2026-07-12-core-interface-design.md) ·
@@ -111,20 +111,40 @@ hash, no per-flow anything — but it ends.
 Ladder axis: **the structural complexity of the parse graph.** Linear →
 branching → computed length → bounded repetition → nesting → scale.
 
-| # | Benchmark | Forces | Source |
-|---|---|---|---|
-| P1 | Fixed stack — Eth + IPv4 + TCP, no branches | `EXT`, `ADVI`, `SETHDR`, `HALT`. The floor | original |
-| P2 | Demux — ethertype → IPv4/IPv6/ARP; proto → TCP/UDP/ICMP | multi-way compare-and-branch dispatch; the dispatch cost model | p4 `basic` |
-| P3 | Variable-length header — IPv4 IHL, TCP data offset | **computed advance**: `SHL` + `ADVR`. Exists to justify `SHL` — or delete it | p4 / Gibb |
-| P4 | Bounded repetition — QinQ, then MPLS label stack (≤5, bottom-of-stack bit) | a loop with a *proved* bound; per-iteration state; termination | Gibb (service provider) |
-| P5 | Nesting — VXLAN/GRE → inner Ethernet → inner IPv4 | the **same header type twice**: header-ID space, metadata-window pressure | Gibb (datacenter) |
-| P6 | Scale — big-union graph (28 header types, 677 paths) | imem size, header slots, step budget. **Capacity, not capability** | Gibb (union) |
+Revised by the audit: no benchmark as first drafted forced a peek *past*
+the current header, but MPLS carries no next-protocol field. QinQ and MPLS
+are therefore not the same capability — one repeats with **complete**
+information, the other with **incomplete** — so P4 splits and lookahead
+becomes its own benchmark.
 
-**Result: the PP ladder forces no new instructions.** PP v0 stays frozen.
-P1–P6 are all expressible with the existing twelve. This is a real finding
-— the parser design survives its own benchmark suite — and it is why P6 is
-kept despite forcing no *capability*: it is the only place the suite
-probes sizing, and sizing is where PP can still fail.
+| # | Benchmark | Forces | Fixture |
+|---|---|---|---|
+| P1 | Fixed stack — Eth + IPv4 + TCP, no branches | `EXT`, `ADVI`, `SETHDR`, `HALT`. The floor | `l2l3l4` |
+| P2 | Demux — ethertype → IPv4/IPv6/ARP; proto → TCP/UDP/ICMP | multi-way compare-and-branch dispatch | `l2l3l4` |
+| P3 | Variable-length header — IPv4 IHL, TCP data offset | **computed advance**: `SHL` + `ADVR` | `l2l3l4` |
+| P4 | Bounded repetition — QinQ | a loop with a *proved* bound; termination | `l2l3l4` |
+| P5 | **Incomplete information** — MPLS stack → IPv4/IPv6/EoMPLS | **non-consuming lookahead past the current header** | `mpls_sp` |
+| P6 | Nesting — VXLAN/NVGRE → inner Ethernet → inner IPv4 | the **same header type twice**: header-id space, md pressure | `overlay_dc` |
+| P7 | Scale — the big-union graph (21 header types) | imem, header slots, step budget. **Capacity, not capability** | `union` |
+
+**Result, now verified rather than asserted: the PP ladder forces no new
+instructions.** PP v0 stays frozen. All seven are expressible with the
+existing twelve, and P5–P7 are implemented with 30 acceptance vectors
+against the golden model (`sw/python/tests/test_benchmarks_pp.py`). The
+union's worst path costs 155/256 steps; the program is 157/1024 imem words.
+
+Two findings from building it:
+
+- **Lookahead is free, and it is why PP survives.** `EXT` is an 11-bit
+  *bit-offset*, non-consuming read reaching 255 bytes past the cursor — so
+  P5 reads the nibble past the MPLS label while the cursor still sits on
+  it, sub-byte fields need no mask or right shift, and a peek past the
+  buffered window *traps* rather than reading garbage.
+- **The header-id space is a real resource.** `SETHDR` has a 4-bit id (16
+  slots) and the union has 21 header *types*. Aliasing mutually-exclusive
+  types is not an optimization but an arithmetic necessity — that
+  trade-off is the content of P7, which is why a capacity benchmark earns
+  a place on a capability ladder.
 
 Note what the ladder never asks for: validation, checksums, arithmetic.
 The PP has no ALU by design, and nothing in the parse corpus wants one.
@@ -286,7 +306,7 @@ Generated e2e artifacts stay under the producing subsystem
 
 Forced by the suite under the stated boundary. **PP: nothing.** MAP:
 
-Superseded in detail by the [coverage audit](2026-07-13-benchmark-coverage-audit.md);
+Superseded in detail by the [coverage audit](../../../benchmarks/coverage.md);
 the audited form is:
 
 | Demanded by | Addition | Cost |

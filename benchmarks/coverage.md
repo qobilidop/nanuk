@@ -1,8 +1,8 @@
 # Nanuk — Benchmark Coverage Audit
 
 **Date:** 2026-07-13
-**Status:** Complete. Becomes `benchmarks/coverage.md` when that tree lands.
-**Parent:** [Benchmark suite design](2026-07-13-benchmark-suite-design.md)
+**Status:** Complete and current. Lives at `benchmarks/coverage.md`.
+**Parent:** [Benchmark suite design](../docs/superpowers/specs/2026-07-13-benchmark-suite-design.md)
 
 Every program in the four reference corpora, graded against the real ISA
 (read from `spec/sail/model/{pp,map}` and `sw/python/nanuk/isa/*_iss.py`,

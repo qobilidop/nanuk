@@ -39,13 +39,15 @@ hw/amaranth/ The Nanuk core in Amaranth: PP (parser processor) + MAP
              (match-action processor), with cosim tests judging them against
              the ISS oracle and the Sail golden models.
 examples/    Example programs: hand-written asm paired with its eDSL twin
-demo/        The end-to-end SimBricks demo staging the examples on the RTL cores
+benchmarks/  The graded suite the ISA answers to: expressiveness ladders for
+             each processor, the coverage audit against four reference corpora,
+             and e2e/ — the SimBricks scenarios plus the rig that runs them
 docs/        Design docs, plans, and lab notes
 ```
 
 ## The demo
 
-`demo/build_and_run.sh` runs the end-to-end demo: two QEMU Linux
+`benchmarks/e2e/build_and_run.sh` runs the end-to-end demo: two QEMU Linux
 hosts exchange real traffic through the Verilator'd Nanuk PP
 inside SimBricks — `ping` works because the loaded parser program accepts
 the frames. Load `examples/drop_all/parse.asm` instead and the network

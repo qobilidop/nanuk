@@ -2,7 +2,7 @@
 # End-to-end smoke for the Nanuk SimBricks demo, run from the repo root on
 # the host (macOS or Linux; needs Docker + the Nanuk devcontainer):
 #
-#   demo/build_and_run.sh [path/to/prog.bin]
+#   benchmarks/e2e/build_and_run.sh [path/to/prog.bin]
 #
 # Builds the composed PP->MAP component (build_component.sh), assembles the
 # l2l3l4 parser program (or takes yours) plus the map_l2fwd MAP program, and
@@ -14,21 +14,21 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO="$PWD"
 IMG=simbricks/simbricks-local:latest
-OUT="$REPO/demo/out"
+OUT="$REPO/benchmarks/e2e/out"
 mkdir -p "$OUT"
 
-"$REPO/demo/build_component.sh"
+"$REPO/benchmarks/e2e/build_component.sh"
 
 PROG="${1:-}"
 echo "==> assembling programs"
 ./dev.sh bash -lc '
     cd sw/python && uv sync --quiet &&
-    uv run nanuk-map-asm ../../examples/map_l2fwd/fwd.asm -o ../../demo/out/map.bin
+    uv run nanuk-map-asm ../../examples/map_l2fwd/fwd.asm -o ../../benchmarks/e2e/out/map.bin
 '
 if [ -z "$PROG" ]; then
   ./dev.sh bash -lc '
       cd sw/python &&
-      uv run nanuk-pp-asm ../../examples/l2l3l4/parse.asm -o ../../demo/out/prog.bin
+      uv run nanuk-pp-asm ../../examples/l2l3l4/parse.asm -o ../../benchmarks/e2e/out/prog.bin
   '
 else
   cp "$PROG" "$OUT/prog.bin"
@@ -40,7 +40,7 @@ docker run --rm --platform linux/amd64 \
   -v "$REPO:/nanuk:ro" -v "$OUT:/out" \
   $IMG bash -ec '
     mkdir -p /simbricks/sims/net/nanuk
-    cp /out/nanuk_switch /nanuk/demo/nanuk_run.sh /nanuk/demo/nanuk_demo.py \
+    cp /out/nanuk_switch /nanuk/benchmarks/e2e/nanuk_run.sh /nanuk/benchmarks/e2e/nanuk_demo.py \
        /out/prog.bin /out/map.bin /simbricks/sims/net/nanuk/
     chmod +x /simbricks/sims/net/nanuk/nanuk_run.sh
     cd /out

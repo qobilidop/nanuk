@@ -3,7 +3,7 @@
 third_party/
 
 # Build outputs, per-subsystem (matches at any level: spec/sail/build,
-# sw/python/build, hw/amaranth/build, demo/build; sail_smt_cache
+# sw/python/build, hw/amaranth/build, benchmarks/e2e/build; sail_smt_cache
 # follows the Sail cwd)
 build/
 sail_smt_cache
@@ -23,8 +23,8 @@ web/dist/
 web/public/wheels/
 
 # SimBricks demo staging and artifacts
-demo/stage/
-demo/out/
+benchmarks/e2e/stage/
+benchmarks/e2e/out/
 
 # OS
 .DS_Store
