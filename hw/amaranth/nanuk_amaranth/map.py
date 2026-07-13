@@ -127,8 +127,15 @@ class MatchActionProcessor(wiring.Component):
     win_rd_addr: In(9)
     win_rd_data: Out(8)
 
-    def __init__(self):
+    def __init__(self, winmem=None):
+        """winmem: an amaranth.lib.memory.Memory (depth WIN_BYTES) to use as
+        the window instead of an internal one — the composed NanukCore owns
+        the window so the PP can read the same bytes in place. Ports are
+        created now (pre-elaboration), as in ParserProcessor."""
         super().__init__()
+        self._winmem = winmem
+        self._ext_wwp = None if winmem is None else winmem.write_port()
+        self._ext_wrp = None if winmem is None else winmem.read_port()
         # Architectural state, created here so simulations can peek at it.
         self.regs = [Signal(64, name=f"reg{i}") for i in range(4)]
         self.pc = Signal(16)
@@ -149,9 +156,15 @@ class MatchActionProcessor(wiring.Component):
         # --- Window: 288 x 8. One write port (driver load / ST / CSUM
         # write-back, muxed by state) and one read port (LD / CSUM reads
         # while running; frame readback when done). ---
-        m.submodules.winmem = winmem = memory.Memory(shape=8, depth=WIN_BYTES, init=[])
-        wwp = winmem.write_port()
-        wrp = winmem.read_port()
+        if self._winmem is None:
+            m.submodules.winmem = winmem = memory.Memory(
+                shape=8, depth=WIN_BYTES, init=[]
+            )
+            wwp = winmem.write_port()
+            wrp = winmem.read_port()
+        else:
+            wwp = self._ext_wwp
+            wrp = self._ext_wrp
 
         # --- Tables: 256 x 128 ({action[127:64], key[63:0]}), address =
         # {tbl_id(2), idx(6)}. Config/count registers per table. ---
