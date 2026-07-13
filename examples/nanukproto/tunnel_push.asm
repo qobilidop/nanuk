@@ -9,11 +9,12 @@
 ;   nk: magic 0x4E4B, version 1, flags 0, tenant 1, inner_ethertype 0x6558
 ;
 ; Tables (control plane): t1 = tunnel map, key = 48-bit DMAC,
-; action = egress port bitmap toward the tunnel.
+; action = egress port bitmap toward the tunnel. t3 = system flood table
+; (see map_l2fwd). md conventions: slot 0 = ingress in / egress out.
 
 .equ H_ETH 0
 .equ T_TUN 1
-.equ MD_FLOOD 9
+.equ T_SYS 3
 
     ld      r0, H_ETH, 0, 6
     lookup  r1, T_TUN, r0, plain   ; hit: r1 = tunnel egress bitmap
@@ -39,7 +40,12 @@
     st      r2, h_frame, -4, 2
     movi    r2, 0x6558             ; inner ethertype: full frame follows
     st      r2, h_frame, -2, 2
-    send    r1, 22
+    stmd    r1, 1, 0               ; md[0] = tunnel egress bitmap
+    send    22
 plain:
-    ldmd    r1, MD_FLOOD
-    send    r1, 0
+    ldmd    r2, 0                  ; ingress port id (system convention)
+    lookup  r1, T_SYS, r2, dark    ; flood bitmap from the system table
+    stmd    r1, 1, 0
+    send    0
+dark:
+    drop

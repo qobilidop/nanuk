@@ -11,7 +11,7 @@ let err_hdr_violation : bits8 = 0x01
 let err_step_budget : bits8 = 0x02
 let err_illegal : bits8 = 0x03
 let err_pc_range : bits8 = 0x04
-let err_smd_range : bits8 = 0x05
+let err_md_range : bits8 = 0x05
 
 // General-purpose registers r0-r3 (RZ reads zero, discards writes).
 register regs : vector(4, bits64)
@@ -33,8 +33,9 @@ register imem : vector(1024, bits32)
 register hdr_present : vector(16, bool)
 register hdr_offset : vector(16, bits16)
 
-// Standard metadata struct: 8 slots x 16 bits, program-written via STMD.
-register smd : vector(8, bits16)
+// The metadata window: 8 slots x 16 bits — harness-initialized
+// (pass-through default), LDMD-read, STMD-written, delivered downstream.
+register md : vector(8, bits16)
 
 // Run status.
 register halted : bool
@@ -104,10 +105,10 @@ function write_imem(idx, w) = {
     imem[idx] = w
 }
 
-val write_smd_slot : (int, bits16) -> unit
-function write_smd_slot(idx, v) = {
-    assert(0 <= idx & idx < 8, "SMD slot index out of bounds");
-    smd[idx] = v
+val write_md_slot : (int, bits16) -> unit
+function write_md_slot(idx, v) = {
+    assert(0 <= idx & idx < 8, "md slot index out of bounds");
+    md[idx] = v
 }
 
 val set_hdr : int -> unit
@@ -195,7 +196,7 @@ function reset_state() = {
     imem = init_vec_bits32_1024();
     hdr_present = init_vec_bool_16();
     hdr_offset = init_vec_bits16_16();
-    smd = init_vec_bits16_8();
+    md = init_vec_bits16_8();
     halted = false;
     verdict = verdict_accept;
     err = err_none;

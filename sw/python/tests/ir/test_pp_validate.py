@@ -28,7 +28,7 @@ def valid_program() -> ir.ParserProgram:
                 ops=[
                     ir.ParserOp(mark=ir.Mark(hdr_id=0, emit_sethdr=True)),
                     extract(1, 0, 16),
-                    ir.ParserOp(emit_smd=ir.EmitSmd(value_id=1, slot=0)),
+                    ir.ParserOp(emit_md=ir.MdStore(value_id=1, slot=0, nunits=1)),
                     ir.ParserOp(shift=ir.Shift(value_id=2, src_value_id=1, amount=2)),
                     ir.ParserOp(advance=ir.Advance(value_id=2)),
                 ],
@@ -138,7 +138,7 @@ def test_smd_slot_overflow_rejected():
         ir_version=1,
         states=[ir.ParserState(
             name="a",
-            ops=[extract(1, 0, 48), ir.ParserOp(emit_smd=ir.EmitSmd(value_id=1, slot=6))],
+            ops=[extract(1, 0, 48), ir.ParserOp(emit_md=ir.MdStore(value_id=1, slot=6, nunits=3))],
             terminator=halt(),
         )],
     )
@@ -200,7 +200,7 @@ def test_cross_state_value_use_rejected():
             ir.ParserState(name="a", ops=[extract(1)], terminator=goto("b")),
             ir.ParserState(
                 name="b",
-                ops=[ir.ParserOp(emit_smd=ir.EmitSmd(value_id=1, slot=0))],
+                ops=[ir.ParserOp(emit_md=ir.MdStore(value_id=1, slot=0, nunits=1))],
                 terminator=halt(),
             ),
         ],

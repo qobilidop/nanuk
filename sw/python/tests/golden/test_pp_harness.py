@@ -53,7 +53,7 @@ fail:
     result = run_program(prog, bytes([0x00, 0x11, 0xAB, 0xCD]))
     assert result.verdict == VERDICT_ACCEPT, f"error={result.error}"
     assert result.hdr(2) == 2
-    assert result.smd[4] == 0xAB00
+    assert result.md[4] == 0xAB00
     assert result.payload_offset == 3
     assert result.steps == 11
 

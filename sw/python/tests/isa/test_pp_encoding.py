@@ -20,6 +20,7 @@ def test_golden_words_match_sail():
     assert pp_encoding.encode_stmd(0, "r0", 3) == 0x28400000
     assert pp_encoding.encode_halt(drop=False) == 0x2C000000
     assert pp_encoding.encode_halt(drop=True) == 0x2C000001
+    assert pp_encoding.encode_ldmd("r1", 3) == 0x30980000
 
 
 def test_rz_encodes_as_4():

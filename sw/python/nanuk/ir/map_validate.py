@@ -17,7 +17,7 @@ from .pp_validate import IR_VERSION, ValidationError
 
 _N_TABLES = 4
 _MAX_HDR_ID = 15
-_MAX_MD_FIELD = 15
+_MD_SLOTS = 8
 _MIN_OFF, _MAX_OFF = -512, 511
 _MIN_DELTA, _MAX_DELTA = -512, 511
 _MAX_IMM16 = (1 << 16) - 1
@@ -112,12 +112,41 @@ def _validate_map_state(
                 define(ld.value_id, ld.nbytes * 8, "load")
             case "load_md":
                 md = op.load_md
-                if md.field > _MAX_MD_FIELD:
+                if md.slot >= _MD_SLOTS:
                     raise ValidationError(
-                        f"{where}: load_md field {md.field} out of range "
-                        f"0..{_MAX_MD_FIELD}"
+                        f"{where}: load_md slot {md.slot} out of range "
+                        f"0..{_MD_SLOTS - 1}"
                     )
-                define(md.value_id, 64, "load_md")
+                define(md.value_id, 16, "load_md")
+            case "store_md":
+                sm = op.store_md
+                use(sm.value_id, "store_md")
+                if not 1 <= sm.nunits <= 4:
+                    raise ValidationError(
+                        f"{where}: store_md nunits {sm.nunits} out of range 1..4"
+                    )
+                if sm.slot + sm.nunits > _MD_SLOTS:
+                    raise ValidationError(
+                        f"{where}: store_md needs slots "
+                        f"{sm.slot}..{sm.slot + sm.nunits - 1}, but only slots "
+                        f"0..{_MD_SLOTS - 1} exist"
+                    )
+            case "and_imm":
+                ai = op.and_imm
+                if ai.imm > _MAX_IMM16:
+                    raise ValidationError(
+                        f"{where}: and_imm {ai.imm:#x} does not fit in 16 bits"
+                    )
+                use(ai.src_value_id, "and_imm")
+                define(ai.value_id, 16, "and_imm")
+            case "shift":
+                sh = op.shift
+                if sh.amount > 63:
+                    raise ValidationError(
+                        f"{where}: shift amount {sh.amount} out of range 0..63"
+                    )
+                use(sh.src_value_id, "shift")
+                define(sh.value_id, 64, "shift")
             case "const":
                 c = op.const
                 if c.imm > _MAX_IMM16:
@@ -147,6 +176,8 @@ def _validate_map_state(
                     raise ValidationError(
                         f"{where}: csum byte offset {cs.byte_offset} out of range"
                     )
+                use(cs.len_value_id, "csum length")
+                define(cs.value_id, 16, "csum")
             case "lookup":
                 lk = op.lookup
                 if lk.table_id not in table_ids:
@@ -173,7 +204,6 @@ def _validate_map_terminator(
     match term.WhichOneof("kind"):
         case "send":
             s = term.send
-            use(s.bitmap_value_id, "send")
             if not _MIN_DELTA <= s.delta <= _MAX_DELTA:
                 raise ValidationError(
                     f"{where}: send delta {s.delta} out of range "

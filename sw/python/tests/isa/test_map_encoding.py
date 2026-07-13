@@ -21,11 +21,16 @@ def test_golden_words():
     assert e.encode_jmp(2) == 0x20000002
     assert e.encode_lookup("r1", 0, "r0", 5) == 0x24800005
     assert e.encode_lookup("r1", 3, "r2", 4) == 0x249A0004
-    assert e.encode_csumupd(2, 0) == 0x28800000
-    assert e.encode_csumupd(e.H_FRAME, -4) == 0x2BFFC000
-    assert e.encode_send("r1", 22) == 0x2C82C000
-    assert e.encode_send("r0", -22) == 0x2C7D4000
+    assert e.encode_csum("r1", 1, 0, "r2") == 0x28880080
+    assert e.encode_csum("r3", e.H_FRAME, -4, "r0") == 0x29FFF800
+    assert e.encode_send(4) == 0x2C008000
+    assert e.encode_send(-22) == 0x2C7D4000
     assert e.encode_drop() == 0x30000000
+    assert e.encode_stmd("r1", 1, 4) == 0x34880000
+    assert e.encode_stmd("r0", 4, 0) == 0x34600000
+    assert e.encode_andi("r1", "r2", 0x00FF) == 0x38A000FF
+    assert e.encode_shli("r1", "r2", 2) == 0x3CA08000
+    assert e.encode_shli("r0", "r3", 63) == 0x3C3FC000
 
 
 def test_addi_signed_range():
@@ -48,7 +53,11 @@ def test_field_range_rejections():
     with pytest.raises(ValueError):
         e.encode_ld("r0", 16, 0, 1)  # header id > 15
     with pytest.raises(ValueError):
-        e.encode_send("r0", -513)  # below the 10-bit signed range
+        e.encode_send(-513)  # below the 10-bit signed range
+    with pytest.raises(ValueError):
+        e.encode_stmd("r0", 5, 0)  # nunits > 4
+    with pytest.raises(ValueError):
+        e.encode_shli("r0", "r0", 64)  # shift > 63
     with pytest.raises(ValueError):
         e.encode_lookup("r1", 16, "r0", 0)  # table id > 15
     with pytest.raises(ValueError):
@@ -57,5 +66,5 @@ def test_field_range_rejections():
 
 def test_signed_encoding_is_twos_complement():
     # -22 -> 1002 in 10 bits.
-    word = e.encode_send("r0", -22)
+    word = e.encode_send(-22)
     assert (word >> 13) & 0x3FF == 1002

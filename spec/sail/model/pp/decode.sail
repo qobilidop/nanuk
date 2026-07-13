@@ -64,6 +64,10 @@ mapping clause encdec = STMD(rs, nm1, slot)
 mapping clause encdec = HALT(drop)
     <-> 0b001011 @ 0b0000000000000000000000000 : bits(25) @ encdec_bool(drop)
 
+// Opcode 0x0C: LDMD rd, slot(4)
+mapping clause encdec = LDMD(rd, f)
+    <-> 0b001100 @ encdec_reg(rd) @ f @ 0b0000000000000000000 : bits(19)
+
 end encdec
 
 // Decode with total fallthrough: anything the mapping doesn't match is ILLEGAL.

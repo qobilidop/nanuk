@@ -28,6 +28,7 @@ make_ttl = load_example("map_ttl/fwd.py").make_ttl
 _ex = load_example("nanukproto/tunnel.py"); make_tunnel_pop, make_tunnel_push = _ex.make_tunnel_pop, _ex.make_tunnel_push
 from nanuk.testkit.testkit import (
     NO_TABLE,
+    demo_flood_table,
     demo_l2_table,
     demo_tun_table,
     l2l3l4_packets,
@@ -39,11 +40,13 @@ nanukproto_ir = nanukproto_parse.build_ir
 
 PARSER_PROGRAMS = {"l2l3l4": l2l3l4_ir, "nanukproto": nanukproto_ir}
 
+_FLOOD = demo_flood_table()
+
 MAP_DEMOS = {
-    "l2fwd": (make_l2fwd, [demo_l2_table()]),
-    "ttl": (make_ttl, [demo_l2_table()]),
-    "push": (make_tunnel_push, [NO_TABLE, demo_tun_table()]),
-    "pop": (make_tunnel_pop, []),
+    "l2fwd": (make_l2fwd, [demo_l2_table(), NO_TABLE, NO_TABLE, _FLOOD]),
+    "ttl": (make_ttl, [demo_l2_table(), NO_TABLE, NO_TABLE, _FLOOD]),
+    "push": (make_tunnel_push, [NO_TABLE, demo_tun_table(), NO_TABLE, _FLOOD]),
+    "pop": (make_tunnel_pop, [NO_TABLE, NO_TABLE, NO_TABLE, _FLOOD]),
 }
 
 
@@ -62,16 +65,16 @@ def check_parser(program, pkt: bytes, label: str) -> None:
     rs = run_pp_iss(binary, pkt, line_map=lines)
     assert (
         ri.verdict, ri.error, ri.payload_offset, ri.steps,
-        ri.hdr_present, ri.hdr_offset, ri.smd,
+        ri.hdr_present, ri.hdr_offset, ri.md,
     ) == (
         rs.verdict, rs.error, rs.payload_offset, rs.steps,
-        rs.hdr_present, rs.hdr_offset, rs.smd,
+        rs.hdr_present, rs.hdr_offset, rs.md,
     ), label
     assert ri.steps == rs.steps == len(rs.trace), label
     for ev in events:
         step = rs.trace[ev.steps_after - 1]
-        assert (ev.cursor, ev.hdr_present, ev.hdr_offset, ev.smd) == (
-            step.cursor, step.hdr_present, step.hdr_offset, step.smd,
+        assert (ev.cursor, ev.hdr_present, ev.hdr_offset, ev.md) == (
+            step.cursor, step.hdr_present, step.hdr_offset, step.md,
         ), (label, ev.state, ev.kind, ev.index)
 
 
@@ -82,13 +85,13 @@ def test_parser_iss_interp_parity(name):
         check_parser(program, pkt, f"{name}/{pname}")
 
 
-def check_map(program, pkt: bytes, pp, tables, ingress: int, label: str) -> None:
+def check_map(program, pkt: bytes, pp, tables, md_in, label: str) -> None:
     events = []
-    ri = map_interp(program, pkt, pp, tables, ingress, trace=events)
+    ri = map_interp(program, pkt, pp, tables, md_in, trace=events)
     binary, lines = map_assemble_with_lines(to_map_asm(program))
-    rs = run_map_iss(binary, pkt, pp, tables, ingress, line_map=lines)
-    assert (ri.verdict, ri.error, ri.egress, ri.delta, ri.steps, ri.frame) == (
-        rs.verdict, rs.error, rs.egress, rs.delta, rs.steps, rs.frame,
+    rs = run_map_iss(binary, pkt, pp, tables, md_in, line_map=lines)
+    assert (ri.verdict, ri.error, tuple(ri.md), ri.delta, ri.steps, ri.frame) == (
+        rs.verdict, rs.error, tuple(rs.md), rs.delta, rs.steps, rs.frame,
     ), label
     assert ri.steps == rs.steps == len(rs.trace), label
     prev = 0
@@ -119,7 +122,8 @@ def test_map_iss_interp_parity(name):
         if pp.verdict != 0:
             continue  # the pipeline gates non-accepted parses
         for ingress in (0, 2):
-            check_map(program, pkt, pp, tables, ingress, f"{name}/{pname}/in{ingress}")
+            check_map(program, pkt, pp, tables, [ingress],
+                      f"{name}/{pname}/in{ingress}")
             checked += 1
     assert checked > 0
 
@@ -130,7 +134,7 @@ def _tunnel_frame() -> bytes:
     assert pp.verdict == 0
     pushed = map_interp(
         make_tunnel_push().build_ir(), inner, pp,
-        [NO_TABLE, demo_tun_table()], 0,
+        [NO_TABLE, demo_tun_table(), NO_TABLE, _FLOOD], [0],
     )
     assert pushed.verdict == 0 and pushed.frame is not None
     return pushed.frame

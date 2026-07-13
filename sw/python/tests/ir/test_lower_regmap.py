@@ -44,11 +44,12 @@ def map_reuse_prog() -> ir.MatchActionProgram:
                                               debug_name=f"c{i}")))
         ops.append(ir.MatchActionOp(store=ir.MapStore(value_id=i, hdr_id=15,
                                               byte_offset=i, nbytes=1)))
-    ops.append(ir.MatchActionOp(load_md=ir.MapLoadMd(value_id=9, field=9,
-                                             debug_name="flood")))
+    ops.append(ir.MatchActionOp(load_md=ir.MdLoad(value_id=9, slot=0,
+                                            debug_name="flood")))
+    ops.append(ir.MatchActionOp(store_md=ir.MdStore(value_id=9, slot=0, nunits=1)))
     return ir.MatchActionProgram(ir_version=1, states=[
         ir.MatchActionState(name="start", ops=ops,
-                    terminator=ir.Terminator(send=ir.MapSend(bitmap_value_id=9))),
+                    terminator=ir.Terminator(send=ir.MapSend())),
     ])
 
 

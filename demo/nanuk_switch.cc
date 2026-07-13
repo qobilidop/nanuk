@@ -1,14 +1,18 @@
 /*
  * nanuk_switch: SimBricks network component wrapping the Verilator'd Nanuk
- * parser + match-action cores (composed PP->MAP pipeline).
+ * core (the composed PP->MAP datapath behind its streaming face).
  *
  * Structure follows SimBricks' sims/net/switch/net_switch.cc (ports, argv,
  * connection setup) combined with sims/net/menshen/menshen_hw.cc (clocked
- * Verilator main loop). M2 forwarding: each frame is parsed by the PP core,
- * then (on accept) processed by the MAP — the composed PP->MAP
- * pipeline. The MAP's egress bitmap and head delta decide where the
- * (possibly rewritten) frame goes; the TABLE is the forwarding policy,
- * loaded from a file and hot-reloaded on mtime change.
+ * Verilator main loop). The switch is pure periphery now: it streams each
+ * frame into the core with the ingress port id stamped into metadata slot
+ * 0, collects the (possibly rewritten) output stream, and fans it out to
+ * the ports in the egress bitmap the program left in metadata slot 0 —
+ * the nanuk_switch slot conventions. Programs and tables load through the
+ * core's control port; the TABLE is the forwarding policy, loaded from a
+ * file and hot-reloaded on mtime change. The system flood table (t3:
+ * {ingress -> every port but ingress}) is installed by this switch at
+ * boot — flooding is the periphery's policy, not the core's semantics.
  *
  * Usage: nanuk_switch [-S SYNC-PERIOD] [-E ETH-LATENCY] [-u] -f PP_PROG.BIN \
  *            -m MAP_PROG.BIN [-t TABLES.TXT] \
@@ -32,15 +36,14 @@ extern "C" {
 #include <simbricks/network/if.h>
 }
 
-#include "Vnanuk_pp.h"
-#include "Vnanuk_map.h"
+#include "Vnanuk_core.h"
 
 #include <sys/stat.h>
 
 #include <set>
 
 #define MAX_PKT_SIZE 2048
-#define CORE_BUF_BYTES 256
+#define N_PORTS 4
 
 static struct SimbricksBaseIfParams netParams;
 
@@ -235,10 +238,13 @@ static void sigusr1_handler(int dummy) {
   fprintf(stderr, "nanuk_switch: main_time = %lu\n", cur_ts);
 }
 
-/* ------------------ Composed PP -> MAP pipeline controller ------------------ */
+/* --------------------- Core control-plane loading ---------------------- */
 
-#define MAP_HEADROOM 32
-#define MAP_WIN_BYTES 288
+/* ctrl_sel values (the core's control port decode). */
+#define CTRL_PP_IMEM 0
+#define CTRL_MAP_IMEM 1
+#define CTRL_TBL_CFG 2
+#define CTRL_TBL_ADD 3
 
 /* Table state loaded from -t FILE (M1 ctx.txt `table`/`entry` lines). */
 struct TableEntry {
@@ -296,63 +302,84 @@ static bool parse_tables(const char *path, Tables &out) {
   return true;
 }
 
-/* Clocked poke of the table config into the MAP model (own clock toggles;
- * only called outside the main loop or while the controller is idle). */
-static void program_tables(Vnanuk_map &map, const Tables &t) {
-  auto tick = [&]() {
-    map.clk = 0;
-    map.eval();
-    map.clk = 1;
-    map.eval();
-  };
-  for (const auto &c : t.configs) {
-    map.tbl_cfg_we = 1;
-    map.tbl_cfg_id = c.id & 3;
-    map.tbl_cfg_kw = c.kw;
-    map.tbl_cfg_aw = c.aw;
-    tick();
+/* Clocked write on the core's control port (own clock toggles; only called
+ * outside the main loop or while the controller is idle). */
+static void ctrl_write(Vnanuk_core &core, uint8_t sel, uint16_t addr,
+                       uint64_t data) {
+  core.ctrl_sel = sel;
+  core.ctrl_addr = addr;
+  core.ctrl_data = data;
+  core.ctrl_we = 1;
+  core.clk = 0;
+  core.eval();
+  core.clk = 1;
+  core.eval();
+  core.ctrl_we = 0;
+}
+
+static bool load_program(Vnanuk_core &core, uint8_t sel, const char *path,
+                         const char *what) {
+  FILE *f = fopen(path, "rb");
+  if (!f) {
+    fprintf(stderr, "nanuk_switch: cannot open %s program %s\n", what, path);
+    return false;
   }
-  map.tbl_cfg_we = 0;
+  uint8_t word[4];
+  uint16_t addr = 0;
+  while (fread(word, 1, 4, f) == 4) {
+    uint32_t w = ((uint32_t)word[0] << 24) | ((uint32_t)word[1] << 16) |
+                 ((uint32_t)word[2] << 8) | (uint32_t)word[3];
+    ctrl_write(core, sel, addr++, w);
+  }
+  fclose(f);
+  fprintf(stderr, "nanuk_switch: loaded %u %s program words from %s\n", addr,
+          what, path);
+  return addr > 0;
+}
+
+/* The system flood table: t3 = {ingress port -> every port but ingress},
+ * the nanuk_switch convention. Installed at boot; a -t file that configures
+ * t3 itself replaces it (file programming runs after this). */
+static void program_flood_table(Vnanuk_core &core) {
+  ctrl_write(core, CTRL_TBL_CFG, 3, (16ULL << 8) | 16ULL);  // kw=16, aw=16
+  unsigned all = (1u << N_PORTS) - 1;
+  for (unsigned i = 0; i < N_PORTS; i++) {
+    ctrl_write(core, CTRL_TBL_ADD, 3, i);                      // key
+    ctrl_write(core, CTRL_TBL_ADD, (1u << 15) | 3, all & ~(1u << i));  // action
+  }
+  fprintf(stderr, "nanuk_switch: system flood table installed (t3)\n");
+}
+
+static void program_tables(Vnanuk_core &core, const Tables &t) {
   /* Widths for masking adds (mirror emu_map_table_add). */
   uint64_t kws[4] = {0, 0, 0, 0}, aws[4] = {0, 0, 0, 0};
   for (const auto &c : t.configs) {
     kws[c.id & 3] = c.kw;
     aws[c.id & 3] = c.aw;
+    ctrl_write(core, CTRL_TBL_CFG, c.id & 3, (c.aw << 8) | (c.kw & 0xFF));
   }
   for (const auto &e : t.entries) {
-    map.tbl_add_we = 1;
-    map.tbl_add_id = e.table & 3;
-    map.tbl_add_key = mask_width(e.key, kws[e.table & 3]);
-    map.tbl_add_action = mask_width(e.action, aws[e.table & 3]);
-    tick();
+    ctrl_write(core, CTRL_TBL_ADD, e.table & 3,
+               mask_width(e.key, kws[e.table & 3]));
+    ctrl_write(core, CTRL_TBL_ADD, (1u << 15) | (e.table & 3),
+               mask_width(e.action, aws[e.table & 3]));
   }
-  map.tbl_add_we = 0;
-  tick();
   fprintf(stderr, "nanuk_switch: tables programmed (%zu configs, %zu entries)\n",
           t.configs.size(), t.entries.size());
 }
 
-class Controller {
-  enum State {
-    kIdle,
-    kLoad,
-    kStart,
-    kWait,
-    kMapLoad,
-    kMapStart,
-    kMapWait,
-    kMapRead
-  };
+/* ---------------------- Streaming-face controller ----------------------- */
 
-  Vnanuk_pp &pp;
-  Vnanuk_map &map;
+class Controller {
+  enum State { kIdle, kStream, kRun };
+
+  Vnanuk_core &core;
   State state = kIdle;
-  size_t load_idx = 0;
-  int64_t map_delta = 0;
-  size_t rb_len = 0, rb_i = 0;
-  uint8_t tx_buf[MAX_PKT_SIZE + MAP_HEADROOM];
-  uint64_t frames_in = 0, frames_sent = 0, frames_drop = 0, map_err = 0;
-  uint64_t flooded = 0, delta_pos = 0, delta_neg = 0;
+  size_t tx_i = 0;          /* next input byte index */
+  uint8_t rx_buf[MAX_PKT_SIZE];
+  size_t rx_len = 0;
+  uint64_t frames_in = 0, frames_sent = 0, frames_drop = 0, core_err = 0;
+  uint64_t flooded = 0, grew = 0, shrunk = 0;
   std::set<uint64_t> seen_dmacs;
 
  public:
@@ -360,7 +387,7 @@ class Controller {
     return state == kIdle && rx_queue.empty();
   }
 
-  Controller(Vnanuk_pp &pp_, Vnanuk_map &map_) : pp(pp_), map(map_) {
+  explicit Controller(Vnanuk_core &core_) : core(core_) {
   }
 
   void log_dmac(const Frame &f) {
@@ -377,154 +404,103 @@ class Controller {
     }
   }
 
+  /* Called between the falling and rising edge, with combinational state
+   * settled: drive this cycle's inputs, re-settle, then judge the beat the
+   * coming edge will commit from the same pre-edge snapshot the core sees
+   * (drive-then-sample; the state updates feed the NEXT cycle's drive). */
   void step() {
-    pp.pkt_we = 0;
-    pp.start = 0;
-    map.win_we = 0;
-    map.start = 0;
+    core.in_tvalid = 0;
+    core.out_tready = 1;  /* the switch never backpressures the core */
 
     switch (state) {
       case kIdle:
         if (!rx_queue.empty()) {
           frames_in++;
           log_dmac(rx_queue.front());
-          load_idx = 0;
-          state = kLoad;
-        }
-        break;
-
-      case kLoad: {
-        Frame &f = rx_queue.front();
-        size_t n = f.len < CORE_BUF_BYTES ? f.len : CORE_BUF_BYTES;
-        if (load_idx < CORE_BUF_BYTES) {
-          /* Full buffer: frame bytes then zero padding (stale bytes from the
-           * previous frame must not leak into short packets). */
-          pp.pkt_we = 1;
-          pp.pkt_addr = load_idx;
-          pp.pkt_data = load_idx < n ? f.data[load_idx] : 0;
-          load_idx++;
-        } else {
-          pp.plen = f.len < 0xFFFF ? f.len : 0xFFFF;
-          pp.start = 1;
-          state = kStart;
-        }
-        break;
-      }
-
-      case kStart:
-        state = kWait;
-        break;
-
-      case kWait:
-        if (pp.done) {
-          if (pp.verdict == 0) {
-            load_idx = 0;
-            state = kMapLoad;
-          } else {
-            frames_drop++;
-            rx_queue.pop_front();
-            state = kIdle;
-          }
-        }
-        break;
-
-      case kMapLoad: {
-        Frame &f = rx_queue.front();
-        size_t n = f.len < CORE_BUF_BYTES ? f.len : CORE_BUF_BYTES;
-        if (load_idx < MAP_WIN_BYTES) {
-          map.win_we = 1;
-          map.win_addr = load_idx;
-          size_t fo = load_idx - MAP_HEADROOM;
-          map.win_data =
-              (load_idx >= MAP_HEADROOM && fo < n) ? f.data[fo] : 0;
-          load_idx++;
-        } else {
-          /* Wire the PP's outbound contract into the MAP's inbound one. */
-          map.plen = f.len < 0xFFFF ? f.len : 0xFFFF;
-          map.ingress = f.port;
-          map.hdr_present_in = pp.hdr_present;
-          for (int i = 0; i < 8; i++)  /* 256-bit: 8 x 32-bit words */
-            map.hdr_offset_in[i] = pp.hdr_offset[i];
-          for (int i = 0; i < 4; i++)  /* 128-bit: 4 x 32-bit words */
-            map.smd_in[i] = pp.smd[i];
-          map.start = 1;
-          state = kMapStart;
-        }
-        break;
-      }
-
-      case kMapStart:
-        state = kMapWait;
-        break;
-
-      case kMapWait:
-        if (map.done) {
           Frame &f = rx_queue.front();
-          if (map.verdict == 0) {
-            map_delta = (int16_t)map.delta;
-            size_t win_pl = f.len < CORE_BUF_BYTES ? f.len : CORE_BUF_BYTES;
-            rb_len = win_pl + map_delta; /* window part of the tx frame */
-            rb_i = 0;
-            map.win_rd_addr = MAP_HEADROOM - map_delta;
-            state = kMapRead;
-          } else if (map.verdict == 1) {
-            frames_drop++;
-            rx_queue.pop_front();
-            state = kIdle;
-          } else {
-            map_err++;
-            frames_drop++;
-            rx_queue.pop_front();
-            state = kIdle;
-          }
-        }
-        break;
-
-      case kMapRead: {
-        /* Sync read: win_rd_data reflects the addr set in the previous
-         * step (kMapWait set the first address): capture, then advance. */
-        Frame &f = rx_queue.front();
-        if (rb_i < rb_len) {
-          tx_buf[rb_i] = map.win_rd_data;
-          map.win_rd_addr = MAP_HEADROOM - map_delta + rb_i + 1;
-          rb_i++;
+          /* md_in slot 0 = ingress port id (nanuk_switch convention). */
+          core.md_in[0] = (uint32_t)f.port;
+          core.md_in[1] = 0;
+          core.md_in[2] = 0;
+          core.md_in[3] = 0;
+          tx_i = 0;
+          rx_len = 0;
+          state = kStream;
+          /* fall through to offer the first byte this cycle */
         } else {
-          /* Tail passthrough for frames beyond the 256B window. */
-          size_t tx_len = rb_len;
-          if (f.len > CORE_BUF_BYTES) {
-            size_t tail = f.len - CORE_BUF_BYTES;
-            if (tx_len + tail > sizeof(tx_buf))
-              tail = sizeof(tx_buf) - tx_len;
-            memcpy(tx_buf + tx_len, f.data + CORE_BUF_BYTES, tail);
-            tx_len += tail;
-          }
-          unsigned egress = map.egress & 0xF;
-          unsigned popcount = __builtin_popcount(egress);
-          if (popcount > 1)
-            flooded++;
-          if (map_delta > 0)
-            delta_pos++;
-          else if (map_delta < 0)
-            delta_neg++;
-          for (size_t ep = 0; ep < ports.size() && ep < 4; ep++) {
-            if (egress & (1u << ep))
-              ports[ep]->TxPacket(tx_buf, tx_len, cur_ts);
-          }
-          frames_sent++;
-          rx_queue.pop_front();
-          state = kIdle;
+          break;
+        }
+        [[fallthrough]];
+
+      case kStream: {
+        Frame &f = rx_queue.front();
+        if (tx_i < f.len) {
+          core.in_tvalid = 1;
+          core.in_tdata = f.data[tx_i];
+          core.in_tlast = (tx_i == f.len - 1) ? 1 : 0;
         }
         break;
       }
+
+      case kRun:
+        break;
+    }
+
+    core.eval();  /* settle comb outputs against this cycle's inputs */
+
+    if (state == kStream && core.in_tvalid && core.in_tready) {
+      Frame &f = rx_queue.front();
+      tx_i++;
+      if (tx_i == f.len)
+        state = kRun;
+    }
+
+    /* Output stream beat (out_tready is constant 1). */
+    if (core.out_tvalid && rx_len < sizeof(rx_buf)) {
+      rx_buf[rx_len++] = core.out_tdata;
+    }
+
+    if (core.result_valid) {
+      Frame &f = rx_queue.front();
+      unsigned verdict = core.result_verdict;
+      if (verdict == 0) {
+        /* Sent: fan out per md_out slot 0 (the egress bitmap under the
+         * nanuk_switch convention). */
+        unsigned egress = core.md_out[0] & 0xF;
+        unsigned popcount = __builtin_popcount(egress);
+        if (popcount > 1)
+          flooded++;
+        /* Length changes observed at the periphery: encap grows the
+         * frame, decap shrinks it (the head delta itself is the core's
+         * internal business now). */
+        if (rx_len > f.len)
+          grew++;
+        else if (rx_len < f.len)
+          shrunk++;
+        for (size_t ep = 0; ep < ports.size() && ep < N_PORTS; ep++) {
+          if (egress & (1u << ep))
+            ports[ep]->TxPacket(rx_buf, rx_len, cur_ts);
+        }
+        frames_sent++;
+      } else if (verdict == 1) {
+        frames_drop++;
+      } else {
+        core_err++;
+        frames_drop++;
+        fprintf(stderr, "nanuk_switch: core error %#04x (frame on port %zu)\n",
+                (unsigned)core.result_error, f.port);
+      }
+      rx_queue.pop_front();
+      state = kIdle;
     }
   }
 
   void stats(const char *tag) {
     fprintf(stderr,
-            "nanuk_switch[%s]: frames in=%lu sent=%lu dropped=%lu map_err=%lu "
-            "flooded=%lu delta_pos=%lu delta_neg=%lu\n",
-            tag, frames_in, frames_sent, frames_drop, map_err, flooded,
-            delta_pos, delta_neg);
+            "nanuk_switch[%s]: frames in=%lu sent=%lu dropped=%lu "
+            "core_err=%lu flooded=%lu grew=%lu shrunk=%lu\n",
+            tag, frames_in, frames_sent, frames_drop, core_err, flooded,
+            grew, shrunk);
   }
 };
 
@@ -552,57 +528,6 @@ static void poll_ports() {
 }
 
 /* ------------------------------- main ---------------------------------- */
-
-static bool load_program(Vnanuk_pp &top, const char *path) {
-  FILE *f = fopen(path, "rb");
-  if (!f) {
-    fprintf(stderr, "nanuk_switch: cannot open program %s\n", path);
-    return false;
-  }
-  uint8_t word[4];
-  uint16_t addr = 0;
-  while (fread(word, 1, 4, f) == 4) {
-    uint32_t w = ((uint32_t)word[0] << 24) | ((uint32_t)word[1] << 16) |
-                 ((uint32_t)word[2] << 8) | (uint32_t)word[3];
-    top.prog_we = 1;
-    top.prog_addr = addr++;
-    top.prog_data = w;
-    top.clk = 0;
-    top.eval();
-    top.clk = 1;
-    top.eval();
-  }
-  top.prog_we = 0;
-  fclose(f);
-  fprintf(stderr, "nanuk_switch: loaded %u PP program words from %s\n", addr, path);
-  return addr > 0;
-}
-
-static bool load_map_program(Vnanuk_map &top, const char *path) {
-  FILE *f = fopen(path, "rb");
-  if (!f) {
-    fprintf(stderr, "nanuk_switch: cannot open MAP program %s\n", path);
-    return false;
-  }
-  uint8_t word[4];
-  uint16_t addr = 0;
-  while (fread(word, 1, 4, f) == 4) {
-    uint32_t w = ((uint32_t)word[0] << 24) | ((uint32_t)word[1] << 16) |
-                 ((uint32_t)word[2] << 8) | (uint32_t)word[3];
-    top.prog_we = 1;
-    top.prog_addr = addr++;
-    top.prog_data = w;
-    top.clk = 0;
-    top.eval();
-    top.clk = 1;
-    top.eval();
-  }
-  top.prog_we = 0;
-  fclose(f);
-  fprintf(stderr, "nanuk_switch: loaded %u MAP program words from %s\n", addr,
-          path);
-  return addr > 0;
-}
 
 static time_t tables_mtime(const char *path) {
   struct stat st;
@@ -670,45 +595,41 @@ int main(int argc, char *argv[]) {
 
   char *vargs[2] = {argv[0], NULL};
   Verilated::commandArgs(1, vargs);
-  Vnanuk_pp *pp = new Vnanuk_pp;
-  Vnanuk_map *map = new Vnanuk_map;
+  Vnanuk_core *core = new Vnanuk_core;
 
-  /* reset both processors */
-  pp->rst = 1;
-  map->rst = 1;
+  /* reset */
+  core->rst = 1;
   for (int i = 0; i < 8; i++) {
-    pp->clk = 0;
-    map->clk = 0;
-    pp->eval();
-    map->eval();
-    pp->clk = 1;
-    map->clk = 1;
-    pp->eval();
-    map->eval();
+    core->clk = 0;
+    core->eval();
+    core->clk = 1;
+    core->eval();
   }
-  pp->rst = 0;
-  map->rst = 0;
+  core->rst = 0;
 
-  if (!load_program(*pp, prog_path))
+  if (!load_program(*core, CTRL_PP_IMEM, prog_path, "PP"))
     return EXIT_FAILURE;
-  if (!load_map_program(*map, map_prog_path))
+  if (!load_program(*core, CTRL_MAP_IMEM, map_prog_path, "MAP"))
     return EXIT_FAILURE;
+
+  program_flood_table(*core);
 
   Tables tables;
   time_t tables_seen = 0;
   if (tables_path) {
     if (!parse_tables(tables_path, tables))
       return EXIT_FAILURE;
-    program_tables(*map, tables);
+    program_tables(*core, tables);
     tables_seen = tables_mtime(tables_path);
   } else {
-    fprintf(stderr, "nanuk_switch: no tables file; all lookups miss\n");
+    fprintf(stderr,
+            "nanuk_switch: no tables file; FDB lookups miss (flood only)\n");
   }
 
   if (!ConnectAll(ports))
     return EXIT_FAILURE;
 
-  Controller ctrl(*pp, *map);
+  Controller ctrl(*core);
   fprintf(stderr, "nanuk_switch: start polling\n");
 
   uint64_t iter = 0;
@@ -718,19 +639,14 @@ int main(int argc, char *argv[]) {
 
     poll_ports();
 
-    /* falling edge */
-    pp->clk = 0;
-    map->clk = 0;
-    pp->eval();
-    map->eval();
-
+    /* falling edge, then drive-and-sample this cycle's pre-edge state */
+    core->clk = 0;
+    core->eval();
     ctrl.step();
 
-    /* rising edge */
-    pp->clk = 1;
-    map->clk = 1;
-    pp->eval();
-    map->eval();
+    /* rising edge: the core commits the beats step() judged */
+    core->clk = 1;
+    core->eval();
 
     cur_ts += clock_period;
 
@@ -741,7 +657,7 @@ int main(int argc, char *argv[]) {
       if (mt != 0 && mt != tables_seen) {
         tables_seen = mt;
         if (parse_tables(tables_path, tables)) {
-          program_tables(*map, tables);
+          program_tables(*core, tables);
           fprintf(stderr, "nanuk_switch: tables reloaded\n");
         }
       }

@@ -101,16 +101,32 @@ def _validate_state(state: ir.ParserState, state_names: set[str], seen_ids: set[
                     raise ValidationError(
                         f"{where}: hdr_id {op.mark.hdr_id} out of range 0..{_MAX_HDR_ID}"
                     )
-            case "emit_smd":
-                smd = op.emit_smd
-                width = use(smd.value_id, "emit_smd")
-                nunits = (width + 15) // 16
-                if smd.slot + nunits > _SMD_SLOTS:
+            case "emit_md":
+                emd = op.emit_md
+                width = use(emd.value_id, "emit_md")
+                if not 1 <= emd.nunits <= 4:
                     raise ValidationError(
-                        f"{where}: emit_smd of a {width}-bit value needs slots "
-                        f"{smd.slot}..{smd.slot + nunits - 1}, but only slots "
+                        f"{where}: emit_md nunits {emd.nunits} out of range 1..4"
+                    )
+                if emd.nunits < (width + 15) // 16:
+                    raise ValidationError(
+                        f"{where}: emit_md of a {width}-bit value needs at least "
+                        f"{(width + 15) // 16} units, got {emd.nunits}"
+                    )
+                if emd.slot + emd.nunits > _SMD_SLOTS:
+                    raise ValidationError(
+                        f"{where}: emit_md needs slots "
+                        f"{emd.slot}..{emd.slot + emd.nunits - 1}, but only slots "
                         f"0..{_SMD_SLOTS - 1} exist"
                     )
+            case "load_md":
+                lmd = op.load_md
+                if lmd.slot >= _SMD_SLOTS:
+                    raise ValidationError(
+                        f"{where}: load_md slot {lmd.slot} out of range "
+                        f"0..{_SMD_SLOTS - 1}"
+                    )
+                define(lmd.value_id, 16, "load_md")
             case None:
                 raise ValidationError(f"{where}: empty Op (no oneof member set)")
 

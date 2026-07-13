@@ -15,7 +15,7 @@ from scapy.packet import Raw
 from nanuk.isa.pp_asm import assemble as pp_assemble
 from nanuk.isa.map_asm import assemble as map_assemble
 from nanuk.testkit.map_harness import run_pipeline
-from nanuk.testkit.testkit import DMAC, DMAC2, demo_l2_table
+from nanuk.testkit.testkit import DMAC, DMAC2, demo_flood_table, demo_l2_table, NO_TABLE
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 PP_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"
@@ -25,6 +25,7 @@ DMAC_PORT2 = DMAC   # -> port 2
 DMAC_PORT3 = DMAC2  # -> port 3
 
 L2_TABLE = demo_l2_table(both=True)
+TABLES = [L2_TABLE, NO_TABLE, NO_TABLE, demo_flood_table()]
 
 
 @pytest.fixture(scope="module")
@@ -38,7 +39,7 @@ def map_prog() -> bytes:
 
 
 def forward(pp_prog, map_prog, pkt, ingress=0):
-    return run_pipeline(pp_prog, map_prog, bytes(pkt), [L2_TABLE], ingress=ingress)
+    return run_pipeline(pp_prog, map_prog, bytes(pkt), TABLES, [ingress])
 
 
 @pytest.mark.parametrize(
@@ -56,7 +57,7 @@ def test_known_dmacs_unicast(pp_prog, map_prog, pkt_builder):
         pp, mp = forward(pp_prog, map_prog, pkt, ingress=0)
         assert pp.accepted
         assert mp is not None and mp.sent
-        assert mp.egress == bitmap
+        assert mp.md[0] == bitmap
         assert mp.frame == bytes(pkt), "L2 forward must not modify the frame"
 
 
@@ -65,7 +66,7 @@ def test_unknown_dmac_floods_all_but_ingress(pp_prog, map_prog):
     for ingress in range(4):
         pp, mp = forward(pp_prog, map_prog, pkt, ingress=ingress)
         assert mp is not None and mp.sent
-        assert mp.egress == (0xF & ~(1 << ingress))
+        assert mp.md[0] == (0xF & ~(1 << ingress))
         assert mp.frame == bytes(pkt)
 
 
@@ -78,10 +79,11 @@ def test_pp_drop_short_circuits(pp_prog, map_prog):
 
 
 def test_map_steps_are_tiny(pp_prog, map_prog):
-    # Hit path: LD, LOOKUP, SEND = 3 steps. Miss path: 4 steps.
+    # Hit path: ld, lookup, stmd, send = 4 steps.
+    # Miss path adds the flood-table sequence: 6 steps.
     hit_pkt = Ether(dst=DMAC_PORT2) / IP() / UDP()
     _, mp = forward(pp_prog, map_prog, hit_pkt)
-    assert mp is not None and mp.steps == 3
+    assert mp is not None and mp.steps == 4
     miss_pkt = Ether(dst="02:00:00:00:00:99") / IP() / UDP()
     _, mp = forward(pp_prog, map_prog, miss_pkt)
-    assert mp is not None and mp.steps == 4
+    assert mp is not None and mp.steps == 6

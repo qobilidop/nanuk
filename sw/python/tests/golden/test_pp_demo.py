@@ -24,7 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 DEMO_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"
 
 H_ETH, H_VLAN, H_IPV4, H_UDP = 0, 1, 2, 3
-DMAC_SMD = [0xAABB, 0xCCDD, 0xEE01]
+DMAC_MD = [0xAABB, 0xCCDD, 0xEE01]
 
 
 @pytest.fixture(scope="module")
@@ -49,8 +49,8 @@ def test_plain_ipv4_udp(prog, tmp_path):
     assert r.hdr(H_IPV4) == 14
     assert r.hdr(H_UDP) == 34
     assert r.payload_offset == 42
-    assert r.smd[0:3] == DMAC_SMD
-    assert r.smd[4] == 53
+    assert r.md[1:4] == DMAC_MD
+    assert r.md[5] == 53
 
 
 def test_single_vlan(prog, tmp_path):
@@ -61,8 +61,8 @@ def test_single_vlan(prog, tmp_path):
     assert r.hdr(H_IPV4) == 18
     assert r.hdr(H_UDP) == 38
     assert r.payload_offset == 46
-    assert r.smd[3] == 100  # TCI with priority 0 = VID
-    assert r.smd[4] == 4789
+    assert r.md[4] == 100  # TCI with priority 0 = VID
+    assert r.md[5] == 4789
 
 
 def test_qinq_records_last_tag(prog, tmp_path):
@@ -72,7 +72,7 @@ def test_qinq_records_last_tag(prog, tmp_path):
     assert r.hdr(H_VLAN) == 18  # last tag
     assert r.hdr(H_IPV4) == 22
     assert r.hdr(H_UDP) == 42
-    assert r.smd[3] == 300
+    assert r.md[4] == 300
 
 
 def test_ipv4_with_options(prog, tmp_path):

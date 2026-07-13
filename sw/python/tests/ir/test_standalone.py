@@ -28,7 +28,7 @@ def hand_built_program() -> ir.ParserProgram:
                     ir.ParserOp(mark=ir.Mark(hdr_id=0, emit_sethdr=True, debug_name="tlv")),
                     ir.ParserOp(extract=ir.Extract(
                         value_id=1, bit_offset=0, width=16, debug_name="tlv.magic")),
-                    ir.ParserOp(emit_smd=ir.EmitSmd(value_id=1, slot=0)),
+                    ir.ParserOp(emit_md=ir.MdStore(value_id=1, slot=0, nunits=1)),
                     ir.ParserOp(advance=ir.Advance(const_bytes=2)),
                 ],
                 terminator=ir.Terminator(dispatch=ir.Dispatch(
@@ -79,7 +79,7 @@ class TestOnEmulator:
         assert r.hdr(0) == 0
         assert r.hdr(1) == 3  # after magic + len byte
         assert r.payload_offset == 7  # 3 + 2*2
-        assert r.smd[0] == 0xBEEF
+        assert r.md[0] == 0xBEEF
 
     def test_drop_path(self):
         from nanuk.isa.pp_asm import assemble

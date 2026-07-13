@@ -45,7 +45,7 @@ def assert_contract_matches(name: str, golden, rtl):
         )
         assert rtl.hdr_offset[i] == golden.hdr_offset[i], f"{name}: hdr_offset[{i}]"
     for i in range(8):
-        assert rtl.smd[i] == golden.smd[i], f"{name}: smd[{i}]"
+        assert rtl.md[i] == golden.md[i], f"{name}: md[{i}]"
 
 
 def test_demo_corpus_cosim(prog):

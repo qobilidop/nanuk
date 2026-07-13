@@ -65,22 +65,32 @@ function clause execute(SETHDR(h)) = {
     set_hdr(unsigned(h))
 }
 
-// STMD rs, nm1, slot: write low (nm1+1)*16 bits of rs into SMD slots
-// slot..slot+nm1, MSB-first. Out-of-range slots are an SMD range error.
+// STMD rs, nm1, slot: write low (nm1+1)*16 bits of rs into md slots
+// slot..slot+nm1, MSB-first. Out-of-range slots are an md range error.
 function clause execute(STMD(rs, nm1, slot)) = {
     let n = unsigned(nm1) + 1;
     let s = unsigned(slot);
-    if s + n > smd_slots then {
-        raise_err(err_smd_range)
+    if s + n > md_slots then {
+        raise_err(err_md_range)
     } else {
         let v = read_reg(rs);
         var i : int = 0;
         while i < n do {
             let sh = (n - 1 - i) * 16;
             let chunk = sail_shiftright(v, sh);
-            write_smd_slot(s + i, chunk[15 .. 0]);
+            write_md_slot(s + i, chunk[15 .. 0]);
             i = i + 1
         }
+    }
+}
+
+// LDMD rd, f: rd = md slot f (zero-extended). Slots >= md_slots are ILLEGAL.
+function clause execute(LDMD(rd, f)) = {
+    let fi = unsigned(f);
+    if fi >= 8 then raise_err(err_illegal)
+    else {
+        assert(0 <= fi & fi < 8, "md slot index out of bounds");
+        write_reg(rd, sail_zero_extend(md[fi], 64))
     }
 }
 

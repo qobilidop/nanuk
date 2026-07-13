@@ -24,6 +24,7 @@ from nanuk.testkit.map_harness import run_map
 from nanuk.testkit.testkit import (
     DMAC,
     NO_TABLE,
+    demo_flood_table,
     demo_l2_table,
     demo_tun_table,
     map_packets,
@@ -39,17 +40,22 @@ EXAMPLES = REPO_ROOT / "examples"
 
 L2_TABLE = demo_l2_table()
 TUN_TABLE = demo_tun_table()
+FLOOD_TABLE = demo_flood_table()
 
 DEMOS = {
-    "l2fwd": (make_l2fwd, "map_l2fwd/fwd.asm", [L2_TABLE], "l2l3l4/parse.asm"),
-    "ttl": (make_ttl, "map_ttl/fwd.asm", [L2_TABLE], "l2l3l4/parse.asm"),
+    "l2fwd": (make_l2fwd, "map_l2fwd/fwd.asm",
+              [L2_TABLE, NO_TABLE, NO_TABLE, FLOOD_TABLE], "l2l3l4/parse.asm"),
+    "ttl": (make_ttl, "map_ttl/fwd.asm",
+            [L2_TABLE, NO_TABLE, NO_TABLE, FLOOD_TABLE], "l2l3l4/parse.asm"),
     "push": (
         make_tunnel_push,
         "nanukproto/tunnel_push.asm",
-        [NO_TABLE, TUN_TABLE],
+        [NO_TABLE, TUN_TABLE, NO_TABLE, FLOOD_TABLE],
         "l2l3l4/parse.asm",
     ),
-    "pop": (make_tunnel_pop, "nanukproto/tunnel_pop.asm", [], "nanukproto/parse_tunnel.asm"),
+    "pop": (make_tunnel_pop, "nanukproto/tunnel_pop.asm",
+            [NO_TABLE, NO_TABLE, NO_TABLE, FLOOD_TABLE],
+            "nanukproto/parse_tunnel.asm"),
 }
 
 
@@ -58,7 +64,7 @@ def tunnel_frames() -> list[tuple[str, bytes]]:
     pp = run_program(pp_assemble((EXAMPLES / "l2l3l4" / "parse.asm").read_text()), inner)
     pushed = run_map(
         map_assemble((EXAMPLES / "nanukproto" / "tunnel_push.asm").read_text()),
-        inner, pp, [NO_TABLE, TUN_TABLE], 0,
+        inner, pp, [NO_TABLE, TUN_TABLE, NO_TABLE, FLOOD_TABLE], pp.md,
     )
     assert pushed.sent and pushed.delta == 22
     return [("tunnel_frame", pushed.frame), ("plain_frame", inner)]
@@ -73,13 +79,13 @@ def test_edsl_matches_hand_asm(name):
     packets = map_packets() if name != "pop" else map_packets() + tunnel_frames()
     compared = 0
     for pname, pkt in packets:
-        pp = run_program(pp_prog, pkt)
-        if pp.verdict != VERDICT_ACCEPT:
-            continue
         for ingress in (0, 2):
-            g = run_map(hand, pkt, pp, tables, ingress)
-            e = run_map(edsl, pkt, pp, tables, ingress)
-            for field in ("verdict", "error", "egress", "delta", "frame"):
+            pp = run_program(pp_prog, pkt, [ingress])
+            if pp.verdict != VERDICT_ACCEPT:
+                continue
+            g = run_map(hand, pkt, pp, tables, pp.md)
+            e = run_map(edsl, pkt, pp, tables, pp.md)
+            for field in ("verdict", "error", "md", "delta", "frame"):
                 assert getattr(g, field) == getattr(e, field), (
                     f"{name}/{pname}/in{ingress}: {field} "
                     f"hand={getattr(g, field)} edsl={getattr(e, field)}"
@@ -97,13 +103,15 @@ def test_interp_map_matches_own_lowering(name):
     pp_prog = pp_assemble((EXAMPLES / pp_path).read_text())
     packets = map_packets() if name != "pop" else map_packets() + tunnel_frames()
     for pname, pkt in packets:
-        pp = run_program(pp_prog, pkt)
+        pp = run_program(pp_prog, pkt, [1])
         if pp.verdict != VERDICT_ACCEPT:
             continue
-        g = run_map(binary, pkt, pp, tables, 1)
-        i = map_interp(program, pkt, pp, tables, 1)
-        for field in ("verdict", "error", "egress", "delta", "steps", "frame"):
-            assert getattr(g, field) == getattr(i, field), (
-                f"{name}/{pname}: {field} emu={getattr(g, field)} "
-                f"pp_interp={getattr(i, field)}"
+        g = run_map(binary, pkt, pp, tables, pp.md)
+        i = map_interp(program, pkt, pp, tables, pp.md)
+        for field in ("verdict", "error", "md", "delta", "steps", "frame"):
+            g_v, i_v = getattr(g, field), getattr(i, field)
+            if field == "md":
+                g_v, i_v = tuple(g_v), tuple(i_v)
+            assert g_v == i_v, (
+                f"{name}/{pname}: {field} emu={g_v} map_interp={i_v}"
             )

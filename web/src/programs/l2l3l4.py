@@ -16,7 +16,7 @@ ipv4 = Header(
 udp = Header("udp", sport=16, dport=16, length=16, csum=16)
 
 H_ETH, H_VLAN, H_IPV4, H_UDP = 0, 1, 2, 3
-SMD_DMAC, SMD_VLAN_TCI, SMD_L4_DPORT = 0, 3, 4
+SMD_DMAC, SMD_VLAN_TCI, SMD_L4_DPORT = 1, 4, 5  # slot 0 is the system's
 ETY_VLAN, ETY_IPV4 = 0x8100, 0x0800
 PROTO_UDP = 17
 

@@ -20,6 +20,7 @@ OP_JMP = 0x08
 OP_SETHDR = 0x09
 OP_STMD = 0x0A
 OP_HALT = 0x0B
+OP_LDMD = 0x0C
 
 
 def _check(value: int, width: int, what: str) -> int:
@@ -106,3 +107,7 @@ def encode_stmd(slot: int, rs: str, nunits: int) -> int:
 
 def encode_halt(drop: bool) -> int:
     return (OP_HALT << 26) | (1 if drop else 0)
+
+
+def encode_ldmd(rd: str, field: int) -> int:
+    return (OP_LDMD << 26) | (_reg(rd) << 23) | (_check(field, 4, "md slot") << 19)

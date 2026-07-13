@@ -140,14 +140,18 @@ def _lower_state(state: ir.ParserState) -> "_StateLowering":
                         comment=op.mark.debug_name or None,
                     )
                 # emit_sethdr=False is a frontend re-anchor: lowers to nothing.
-            case "emit_smd":
-                smd = op.emit_smd
-                reg = lo.reg_of(smd.value_id, "emit_smd")
-                nunits = (lo.widths[smd.value_id] + 15) // 16
+            case "emit_md":
+                emd = op.emit_md
+                reg = lo.reg_of(emd.value_id, "emit_md")
                 lo.emit(
-                    f"stmd    {smd.slot}, {reg}, {nunits}",
-                    comment=lo.names[smd.value_id],
+                    f"stmd    {emd.slot}, {reg}, {emd.nunits}",
+                    comment=lo.names[emd.value_id],
                 )
+            case "load_md":
+                lmd = op.load_md
+                name = lmd.debug_name or f"md{lmd.slot}"
+                reg = lo.alloc(lmd.value_id, 16, name)
+                lo.emit(f"ldmd    {reg}, {lmd.slot}", comment=name)
     _lower_terminator(lo, state.terminator)
     return lo
 

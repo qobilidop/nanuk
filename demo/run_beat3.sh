@@ -6,8 +6,8 @@
 #                    flood end to end; harvest host1's MAC from sw_encap's
 #                    dmac debug (unicast dmac arriving on encap port 0).
 #   Phase B (tunnel): tunnel table maps host1's MAC -> encap port 1;
-#                    ping must pass AND sw_encap stats show delta_pos>0
-#                    (frames encapsulated) AND sw_decap delta_neg>0
+#                    ping must pass AND sw_encap stats show grew>0
+#                    (frames encapsulated) AND sw_decap shrunk>0
 #                    (frames decapsulated).
 #
 # Run from anywhere: demo/run_beat3.sh
@@ -75,12 +75,14 @@ entry 1 0x${HOST1_MAC//:/} 0x2
 EOF
 run_phase B
 ping_ok B || { echo "TUNNEL PHASE B FAILED: no clean ping through the tunnel"; exit 1; }
-# Encap is the only producer of delta_pos, decap the only one of delta_neg,
-# so the max across both switches' stats lines attributes correctly.
-ENC=$(max_stat B delta_pos)
-DEC=$(max_stat B delta_neg)
-[ "${ENC:-0}" -gt 0 ] || { echo "TUNNEL PHASE B FAILED: sw_encap never encapsulated (delta_pos=${ENC:-?})"; exit 1; }
-[ "${DEC:-0}" -gt 0 ] || { echo "TUNNEL PHASE B FAILED: sw_decap never decapsulated (delta_neg=${DEC:-?})"; exit 1; }
-echo "phase B ok: ping rode the tunnel (encap delta_pos=$ENC, decap delta_neg=$DEC)"
+# Encap is the only switch that grows frames, decap the only one that
+# shrinks them, so the max across both switches' stats lines attributes
+# correctly. (The head delta itself is the core's internal business; the
+# periphery observes the length change.)
+ENC=$(max_stat B grew || true)
+DEC=$(max_stat B shrunk || true)
+[ "${ENC:-0}" -gt 0 ] || { echo "TUNNEL PHASE B FAILED: sw_encap never encapsulated (grew=${ENC:-?})"; exit 1; }
+[ "${DEC:-0}" -gt 0 ] || { echo "TUNNEL PHASE B FAILED: sw_decap never decapsulated (shrunk=${DEC:-?})"; exit 1; }
+echo "phase B ok: ping rode the tunnel (encap grew=$ENC, decap shrunk=$DEC)"
 
 echo "BEAT 3 PASSED"

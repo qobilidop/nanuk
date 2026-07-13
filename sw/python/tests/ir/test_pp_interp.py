@@ -86,7 +86,7 @@ def test_start_state_is_states_zero_not_name():
 def test_outputs_are_fresh_per_run():
     p = prog(ir.ParserState(name="s", terminator=halt()))
     a, b = pp_interp(p, b""), pp_interp(p, b"")
-    assert a.hdr_present == [0] * 16 and a.smd == [0] * 8
+    assert a.hdr_present == [0] * 16 and a.md == [0] * 8
     assert a.hdr_present is not b.hdr_present  # no shared mutable state
 
 
@@ -100,20 +100,20 @@ def ext(vid: int, boff: int, width: int) -> ir.ParserOp:
     return ir.ParserOp(extract=ir.Extract(value_id=vid, bit_offset=boff, width=width))
 
 
-def smd_op(vid: int, slot: int) -> ir.ParserOp:
-    return ir.ParserOp(emit_smd=ir.EmitSmd(value_id=vid, slot=slot))
+def md_op(vid: int, slot: int, nunits: int = 1) -> ir.ParserOp:
+    return ir.ParserOp(emit_md=ir.MdStore(value_id=vid, slot=slot, nunits=nunits))
 
 
 def test_extract_crossing_byte_boundary():
     # bits 4..11 of 0xAB,0xCD = 0xBC (network order, bit 0 = MSB)
-    p = one_state([ext(1, 4, 8), smd_op(1, 0)])
-    assert pp_interp(p, b"\xab\xcd").smd[0] == 0xBC
+    p = one_state([ext(1, 4, 8), md_op(1, 0)])
+    assert pp_interp(p, b"\xab\xcd").md[0] == 0xBC
 
 
 def test_extract_sub_byte_ihl():
     # low nibble of 0x45 (IPv4 version/IHL byte) = 5
-    p = one_state([ext(1, 4, 4), smd_op(1, 0)])
-    assert pp_interp(p, b"\x45").smd[0] == 5
+    p = one_state([ext(1, 4, 4), md_op(1, 0)])
+    assert pp_interp(p, b"\x45").md[0] == 5
 
 
 def test_extract_past_hdr_limit_is_error_1_and_counted():
@@ -148,10 +148,10 @@ def test_shift_widens_and_truncates_at_64():
     body = [
         ext(1, 0, 60),
         ir.ParserOp(shift=ir.Shift(value_id=2, src_value_id=1, amount=8)),
-        smd_op(2, 0),  # 64-bit value -> 4 slots
+        md_op(2, 0, 4),  # 64-bit value -> 4 slots
     ]
     r = pp_interp(one_state(body), b"\xff" * 8)
-    assert r.smd[:4] == [0xFFFF, 0xFFFF, 0xFFFF, 0xFF00]
+    assert r.md[:4] == [0xFFFF, 0xFFFF, 0xFFFF, 0xFF00]
 
 
 def test_mark_records_cursor_and_reanchor_is_free():
@@ -166,11 +166,20 @@ def test_mark_records_cursor_and_reanchor_is_free():
     assert r.steps == 3  # advi + sethdr + halt; the re-anchor cost nothing
 
 
-def test_emit_smd_multi_slot_msb_first():
+def test_emit_md_multi_slot_msb_first():
     # 48-bit DMAC aa:bb:cc:dd:ee:01 -> slots 0..2 MSB-first (stage-1 vector)
-    p = one_state([ext(1, 0, 48), smd_op(1, 0)])
+    p = one_state([ext(1, 0, 48), md_op(1, 0, 3)])
     r = pp_interp(p, bytes.fromhex("aabbccddee01") + b"\x00" * 8)
-    assert r.smd[:3] == [0xAABB, 0xCCDD, 0xEE01]
+    assert r.md[:3] == [0xAABB, 0xCCDD, 0xEE01]
+
+
+def test_load_md_reads_seeded_window_and_passes_through():
+    p = one_state([
+        ir.ParserOp(load_md=ir.MdLoad(value_id=1, slot=0)),
+        md_op(1, 4),
+    ])
+    r = pp_interp(p, b"\x00" * 8, md_in=[0xCAFE])
+    assert r.md == [0xCAFE, 0, 0, 0, 0xCAFE, 0, 0, 0]
 
 
 # -- dispatch and the cost model ---------------------------------------------

@@ -29,7 +29,7 @@ ERR_HDR_VIOLATION = 1
 ERR_STEP_BUDGET = 2
 ERR_ILLEGAL = 3
 ERR_PC_RANGE = 4
-ERR_SMD_RANGE = 5
+ERR_MD_RANGE = 5
 
 _MASK64 = (1 << 64) - 1
 _MASK16 = (1 << 16) - 1
@@ -46,7 +46,7 @@ class ParserIssStep:
     cursor: int
     hdr_present: tuple[int, ...]
     hdr_offset: tuple[int, ...]
-    smd: tuple[int, ...]
+    md: tuple[int, ...]
 
 
 @dataclass(frozen=True)
@@ -59,7 +59,7 @@ class ParserIssResult:
     steps: int
     hdr_present: list[int]
     hdr_offset: list[int]
-    smd: list[int]
+    md: list[int]
     trace: list[ParserIssStep]
 
 
@@ -113,12 +113,16 @@ def _decode(w: int):
             if w & 0x03FFFFFE:
                 return None
             return ("halt", w & 1)
+        case 0x0C:  # LDMD rd, slot(4)
+            if w & 0x0007FFFF or r1 > 4:
+                return None
+            return ("ldmd", r1, (w >> 19) & 0xF)
         case _:
             return None
 
 
 class _Machine:
-    def __init__(self, words: list[int], packet: bytes, line_map=None):
+    def __init__(self, words: list[int], packet: bytes, md_in=(), line_map=None):
         self.words = words
         self.packet = packet
         self.line_map = line_map
@@ -129,7 +133,8 @@ class _Machine:
         self.steps = 0
         self.hdr_present = [0] * NHDR
         self.hdr_offset = [0] * NHDR
-        self.smd = [0] * SMD_SLOTS
+        md = [v & _MASK16 for v in md_in]
+        self.md = md + [0] * (SMD_SLOTS - len(md))
         self.halted = False
         self.verdict = VERDICT_ACCEPT
         self.err = ERR_NONE
@@ -174,7 +179,7 @@ class _Machine:
                 cursor=self.cursor,
                 hdr_present=tuple(self.hdr_present),
                 hdr_offset=tuple(self.hdr_offset),
-                smd=tuple(self.smd),
+                md=tuple(self.md),
             )
         )
 
@@ -213,11 +218,16 @@ class _Machine:
                 self.hdr_offset[h] = self.cursor
             case ("stmd", rs, nunits, slot):
                 if slot + nunits > SMD_SLOTS:
-                    self.raise_err(ERR_SMD_RANGE)
+                    self.raise_err(ERR_MD_RANGE)
                     return
                 v = self.read_reg(rs)
                 for i in range(nunits):
-                    self.smd[slot + i] = (v >> (16 * (nunits - 1 - i))) & _MASK16
+                    self.md[slot + i] = (v >> (16 * (nunits - 1 - i))) & _MASK16
+            case ("ldmd", rd, f):
+                if f >= SMD_SLOTS:
+                    self.raise_err(ERR_ILLEGAL)
+                else:
+                    self.write_reg(rd, self.md[f])
             case ("halt", drop):
                 self.verdict = VERDICT_DROP if drop else VERDICT_ACCEPT
                 self.halted = True
@@ -230,17 +240,22 @@ class _Machine:
 
 
 def run_pp_iss(
-    prog: bytes, packet: bytes, *, line_map: list[int] | None = None
+    prog: bytes,
+    packet: bytes,
+    md_in=(),
+    *,
+    line_map: list[int] | None = None,
 ) -> ParserIssResult:
     """Run one packet through the ISS. Total, like the ISA.
 
-    prog: big-endian 32-bit words (the assembler's output). line_map:
-    per-word 1-based source lines, from assemble_with_lines.
+    prog: big-endian 32-bit words (the assembler's output). md_in: up to 8
+    16-bit metadata slots seeding the md window (pass-through default).
+    line_map: per-word 1-based source lines, from assemble_with_lines.
     """
     if len(prog) % 4:
         raise ValueError("program length is not a multiple of 4 bytes")
     words = [int.from_bytes(prog[i : i + 4], "big") for i in range(0, len(prog), 4)]
-    m = _Machine(words, packet, line_map)
+    m = _Machine(words, packet, md_in, line_map)
     while not m.halted:
         m.step()
     return ParserIssResult(
@@ -250,6 +265,6 @@ def run_pp_iss(
         steps=m.steps,
         hdr_present=m.hdr_present,
         hdr_offset=m.hdr_offset,
-        smd=m.smd,
+        md=m.md,
         trace=m.trace,
     )

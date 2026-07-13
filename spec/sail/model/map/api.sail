@@ -16,14 +16,18 @@ function emu_map_poke_pkt(idx, b) = write_win_byte(headroom_bytes + unsigned(idx
 val emu_map_set_plen : bits16 -> unit
 function emu_map_set_plen(l) = plen = l
 
-val emu_map_set_ingress : bits8 -> unit
-function emu_map_set_ingress(p) = ingress = p
-
-val emu_map_set_smd : (bits8, bits16) -> unit
-function emu_map_set_smd(s, v) = {
+val emu_map_set_md : (bits8, bits16) -> unit
+function emu_map_set_md(s, v) = {
     let i = unsigned(s);
-    assert(0 <= i & i < 8, "SMD slot index out of bounds");
-    smd_in[i] = v
+    assert(0 <= i & i < 8, "md slot index out of bounds");
+    md[i] = v
+}
+
+val emu_map_get_md : bits8 -> bits16
+function emu_map_get_md(s) = {
+    let i = unsigned(s);
+    assert(0 <= i & i < 8, "md slot index out of bounds");
+    md[i]
 }
 
 // Mark header h present at frame offset off (present = 0 clears).
@@ -70,9 +74,6 @@ function emu_map_get_verdict() = verdict
 
 val emu_map_get_error : unit -> bits8
 function emu_map_get_error() = err
-
-val emu_map_get_egress : unit -> bits8
-function emu_map_get_egress() = egress
 
 val emu_map_get_steps : unit -> bits32
 function emu_map_get_steps() = get_slice_int(32, steps, 0)

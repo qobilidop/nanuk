@@ -67,7 +67,7 @@ def test_parity(hand_prog, edsl_prog, pkt):
     assert edsl.payload_offset == hand.payload_offset
     assert edsl.hdr_present == hand.hdr_present
     assert edsl.hdr_offset == hand.hdr_offset
-    assert edsl.smd == hand.smd
+    assert edsl.md == hand.md
     # Instruction counts may differ between the two programs; both must
     # simply stay inside the step budget.
     assert hand.steps < 256

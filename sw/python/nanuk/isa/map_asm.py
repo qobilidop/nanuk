@@ -6,15 +6,18 @@ Syntax:
     label:                   ; word address of the next instruction
     ld    rd, hdr, off, n    ; hdr base id, signed byte offset, size in bytes
     st    rs, hdr, off, n
-    ldmd  rd, field          ; inbound-SMD field id
+    ldmd  rd, slot           ; metadata window slot (0..7)
+    stmd  rs, nunits, slot   ; nunits 16-bit units of rs -> md, MSB-first
     movi  rd, imm16
     addi  rd, rs, imm        ; imm may be negative (sign-extended)
+    andi  rd, rs, imm16      ; imm zero-extended
+    shli  rd, rs, sh         ; shift left immediate (0..63)
     beq   rs, rt, label
     bne   rs, rt, label
     jmp   label
     lookup rd, table, rs, label   ; miss branches to label
-    csumupd hdr, off
-    send  rs, delta          ; delta may be negative (strip)
+    csum  rd, hdr, off, rl   ; ones-complement checksum of [off, off+r[rl])
+    send  delta              ; delta may be negative (strip)
     drop
 
 Mnemonics and registers are case-insensitive. Integers are decimal or 0x-hex.
@@ -97,15 +100,26 @@ def _assemble_words(text: str):
                     word = encoding.encode_lookup(
                         reg(ops[0]), val(ops[1]), reg(ops[2]), val(ops[3])
                     )
-                case "csumupd":
-                    expect(line, 2)
-                    word = encoding.encode_csumupd(val(ops[0]), val(ops[1]))
+                case "csum":
+                    expect(line, 4)
+                    word = encoding.encode_csum(
+                        reg(ops[0]), val(ops[1]), val(ops[2]), reg(ops[3])
+                    )
                 case "send":
-                    expect(line, 2)
-                    word = encoding.encode_send(reg(ops[0]), val(ops[1]))
+                    expect(line, 1)
+                    word = encoding.encode_send(val(ops[0]))
                 case "drop":
                     expect(line, 0)
                     word = encoding.encode_drop()
+                case "stmd":
+                    expect(line, 3)
+                    word = encoding.encode_stmd(reg(ops[0]), val(ops[1]), val(ops[2]))
+                case "andi":
+                    expect(line, 3)
+                    word = encoding.encode_andi(reg(ops[0]), reg(ops[1]), val(ops[2]))
+                case "shli":
+                    expect(line, 3)
+                    word = encoding.encode_shli(reg(ops[0]), reg(ops[1]), val(ops[2]))
                 case _:
                     raise AsmError(ln, f"unknown mnemonic {line.mnemonic!r}")
         except ValueError as e:

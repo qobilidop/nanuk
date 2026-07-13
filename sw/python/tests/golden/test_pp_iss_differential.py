@@ -30,7 +30,7 @@ def fields(r):
         r.steps,
         list(r.hdr_present),
         list(r.hdr_offset),
-        list(r.smd),
+        list(r.md),
     )
 
 
@@ -50,6 +50,25 @@ def test_iss_matches_emulator_random_packets():
     for i in range(60):
         pkt = bytes(rng.randrange(256) for _ in range(rng.randrange(0, 300)))
         assert fields(run_pp_iss(binary, pkt)) == fields(run_program(binary, pkt)), i
+
+
+def test_pp_iss_matches_emulator_md_window():
+    # LDMD/STMD round-trip with a seeded metadata window, and the slot-8
+    # illegal edge — same result on both implementations.
+    from nanuk.isa.pp_asm import assemble
+
+    md_in = [3, 0, 0, 0, 0xBEEF, 0, 0, 0]
+    programs = [
+        "    ldmd r0, 0\n    stmd 6, r0, 1\n    halt accept\n",
+        "    ldmd r0, 4\n    stmd 0, r0, 1\n    halt accept\n",
+        "    ldmd r0, 8\n    halt accept\n",
+    ]
+    pkt = b"\x00" * 32
+    for i, src in enumerate(programs):
+        prog = assemble(src)
+        got = run_pp_iss(prog, pkt, md_in)
+        want = run_program(prog, pkt, md_in)
+        assert fields(got) == fields(want), i
 
 
 def test_iss_matches_emulator_random_words():

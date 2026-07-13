@@ -14,6 +14,7 @@ Syntax:
     jmp   label
     sethdr id
     stmd  slot, rs, nunits   ; write low nunits*16 bits of rs, MSB-first
+    ldmd  rd, slot           ; metadata window slot (0..7)
     halt  accept|drop
 
 Mnemonics and registers are case-insensitive. Integers are decimal or 0x-hex.
@@ -91,6 +92,9 @@ def _assemble_words(text: str):
                 case "sethdr":
                     expect(line, 1)
                     word = encoding.encode_sethdr(val(ops[0]))
+                case "ldmd":
+                    expect(line, 2)
+                    word = encoding.encode_ldmd(reg(ops[0]), val(ops[1]))
                 case "stmd":
                     expect(line, 3)
                     word = encoding.encode_stmd(val(ops[0]), reg(ops[1]), val(ops[2]))

@@ -15,9 +15,11 @@ Sibling of ParserProcessor (core.py) — same FETCH/EXEC FSM shape, and the same
 EXT lesson applied throughout: every window/table access is a sequential
 loop over a memory port, never a wide combinational datapath.
 
-`start` clears architectural state (regs, pc, steps, status, egress, delta)
-but NOT imem, the window, or the tables — drivers must fill the whole
-288-byte window (headroom zeros + frame + padding) per packet.
+`start` clears architectural state (regs, pc, steps, status, delta) and
+loads the metadata window from md_in, but NOT imem, the frame window, or
+the tables — drivers must fill the whole 288-byte window (headroom zeros
++ frame + padding) per packet. md_out presents the metadata window's
+live value (the output contract once done).
 """
 
 from amaranth import Array, C, Cat, Module, Mux, Signal, signed
@@ -29,10 +31,9 @@ HEADROOM_BYTES = 32
 BUF_BYTES = 256
 WIN_BYTES = 288
 IMEM_WORDS = 1024
-N_PORTS = 4
 N_TABLES = 4
 TABLE_MAX_ENTRIES = 64
-SMD_IN_SLOTS = 8
+MD_SLOTS = 8
 NHDR = 16
 STEP_BUDGET = 256
 
@@ -60,9 +61,12 @@ OP_BEQ = 0x06
 OP_BNE = 0x07
 OP_JMP = 0x08
 OP_LOOKUP = 0x09
-OP_CSUMUPD = 0x0A
+OP_CSUM = 0x0A
 OP_SEND = 0x0B
 OP_DROP = 0x0C
+OP_STMD = 0x0D
+OP_ANDI = 0x0E
+OP_SHLI = 0x0F
 
 # FSM states.
 _ST_IDLE = 0
@@ -75,8 +79,6 @@ _ST_LKP_ISSUE = 6
 _ST_LKP_SCAN = 7
 _ST_CSUM_ISSUE = 8
 _ST_CSUM_CAPTURE = 9
-_ST_CSUM_WB0 = 10
-_ST_CSUM_WB1 = 11
 
 
 class MatchActionProcessor(wiring.Component):
@@ -84,10 +86,11 @@ class MatchActionProcessor(wiring.Component):
 
     Load the program via the imem write port, the window via the window
     write port (window index 0..287 — headroom included), tables via the
-    control-plane ports, present plen/ingress/smd_in/hdr_*_in, pulse
-    ``start``, wait for ``done``, then read the outbound contract; when
-    verdict = 0 (sent), stream the frame out through win_rd_addr/win_rd_data
-    (sync read: data valid the cycle after addr).
+    control-plane ports, present plen/md_in/hdr_*_in, pulse ``start``,
+    wait for ``done``, then read the outbound contract (md_out carries the
+    metadata window); when verdict = 0 (sent), stream the frame out
+    through win_rd_addr/win_rd_data (sync read: data valid the cycle
+    after addr).
     """
 
     prog_we: In(1)
@@ -99,8 +102,7 @@ class MatchActionProcessor(wiring.Component):
     win_data: In(8)
 
     plen: In(16)
-    ingress: In(8)
-    smd_in: In(16 * SMD_IN_SLOTS)
+    md_in: In(16 * MD_SLOTS)
     hdr_present_in: In(NHDR)
     hdr_offset_in: In(16 * NHDR)
 
@@ -118,15 +120,22 @@ class MatchActionProcessor(wiring.Component):
     done: Out(1)
     verdict: Out(8)
     error: Out(8)
-    egress: Out(8)
+    md_out: Out(16 * MD_SLOTS)
     delta: Out(signed(16))
     steps: Out(32)
 
     win_rd_addr: In(9)
     win_rd_data: Out(8)
 
-    def __init__(self):
+    def __init__(self, winmem=None):
+        """winmem: an amaranth.lib.memory.Memory (depth WIN_BYTES) to use as
+        the window instead of an internal one — the composed NanukCore owns
+        the window so the PP can read the same bytes in place. Ports are
+        created now (pre-elaboration), as in ParserProcessor."""
         super().__init__()
+        self._winmem = winmem
+        self._ext_wwp = None if winmem is None else winmem.write_port()
+        self._ext_wrp = None if winmem is None else winmem.read_port()
         # Architectural state, created here so simulations can peek at it.
         self.regs = [Signal(64, name=f"reg{i}") for i in range(4)]
         self.pc = Signal(16)
@@ -147,9 +156,15 @@ class MatchActionProcessor(wiring.Component):
         # --- Window: 288 x 8. One write port (driver load / ST / CSUM
         # write-back, muxed by state) and one read port (LD / CSUM reads
         # while running; frame readback when done). ---
-        m.submodules.winmem = winmem = memory.Memory(shape=8, depth=WIN_BYTES, init=[])
-        wwp = winmem.write_port()
-        wrp = winmem.read_port()
+        if self._winmem is None:
+            m.submodules.winmem = winmem = memory.Memory(
+                shape=8, depth=WIN_BYTES, init=[]
+            )
+            wwp = winmem.write_port()
+            wrp = winmem.read_port()
+        else:
+            wwp = self._ext_wwp
+            wrp = self._ext_wrp
 
         # --- Tables: 256 x 128 ({action[127:64], key[63:0]}), address =
         # {tbl_id(2), idx(6)}. Config/count registers per table. ---
@@ -194,17 +209,22 @@ class MatchActionProcessor(wiring.Component):
         steps_r = Signal(32)
         verdict_r = Signal(8)
         err_r = Signal(8)
-        egress_r = Signal(8)
         delta_r = Signal(signed(16))
         done_r = Signal(1)
         state = Signal(4, init=_ST_IDLE)
 
+        # The metadata window: loaded from md_in at start, LDMD-read,
+        # STMD-written, presented on md_out whatever the verdict.
+        md_r = [Signal(16, name=f"md{i}") for i in range(MD_SLOTS)]
+        md_arr = Array(md_r)
+
         # Memory-op bookkeeping (LD/ST/CSUM share the byte counter).
         mem_rd_r = Signal(3)          # destination register field (LD/LOOKUP)
         mem_addr_r = Signal(9)        # current window byte address
-        mem_i_r = Signal(7)           # bytes processed
-        mem_n_r = Signal(7)           # bytes total (LD/ST <= 8; CSUM <= 60)
+        mem_i_r = Signal(9)           # bytes processed
+        mem_n_r = Signal(7)           # bytes total (LD/ST <= 8)
         mem_acc_r = Signal(64)        # LD accumulator
+        mem_len_r = Signal(16)        # CSUM byte length (from a register)
         st_val_r = Signal(64)         # ST source value
         lkp_key_r = Signal(64)        # LOOKUP masked key
         lkp_tbl_r = Signal(2)         # LOOKUP table id
@@ -212,15 +232,14 @@ class MatchActionProcessor(wiring.Component):
         lkp_i_r = Signal(7)           # LOOKUP scan index
         lkp_n_r = Signal(7)           # LOOKUP entry count snapshot
         lkp_aw_r = Signal(8)          # LOOKUP action width snapshot
-        csum_base_r = Signal(9)       # CSUM header base window address
-        csum_sum_r = Signal(24)       # CSUM running sum
-        csum_ck_r = Signal(16)        # CSUM final checksum value
+        csum_rd_r = Signal(3)         # CSUM destination register field
+        csum_sum_r = Signal(25)       # CSUM running sum (<= 144 * 0xFFFF)
 
         m.d.comb += [
             self.done.eq(done_r),
             self.verdict.eq(verdict_r),
             self.error.eq(err_r),
-            self.egress.eq(egress_r),
+            self.md_out.eq(Cat(*md_r)),
             self.delta.eq(delta_r),
             self.steps.eq(steps_r),
         ]
@@ -247,9 +266,11 @@ class MatchActionProcessor(wiring.Component):
         f_off = word[9:19]        # LD/ST byte offset (10b two's complement)
         f_nm1 = word[6:9]         # LD/ST nbytes-1
         f_tbl = word[19:23]       # LOOKUP table id at [22:19]
-        cs_hdr = word[22:26]      # CSUMUPD hdr at [25:22]
-        cs_off = word[12:22]      # CSUMUPD offset (10b two's complement)
+        cs_rl = word[6:9]         # CSUM length register at [8:6]
         sd_delta = word[13:23]    # SEND delta (10b two's complement)
+        st_nm1 = word[21:23]      # STMD nunits-1
+        st_slot = word[17:21]     # STMD slot
+        shl_sh = word[14:20]      # SHLI shift amount (6 bits)
 
         def reg_ok(f):
             return f <= 4
@@ -269,12 +290,12 @@ class MatchActionProcessor(wiring.Component):
                 state.eq(_ST_IDLE),
             ]
 
-        # --- Header-relative effective address (LD/ST and CSUMUPD) ---------
+        # --- Header-relative effective address (LD/ST/CSUM) ----------------
         # base(hdr): h_frame (15) -> 0 always; else PP hdr_offset, absent -> err 5.
         hdr_present_bit = Signal(1)
         hdr_base_val = Signal(16)
         hdr_sel = Signal(4)
-        m.d.comb += hdr_sel.eq(Mux(opcode == OP_CSUMUPD, cs_hdr, f_hdr))
+        m.d.comb += hdr_sel.eq(f_hdr)
         m.d.comb += [
             hdr_present_bit.eq(self.hdr_present_in.bit_select(hdr_sel, 1)),
             hdr_base_val.eq(
@@ -288,9 +309,7 @@ class MatchActionProcessor(wiring.Component):
             hdr_absent.eq(~hdr_is_frame & ~hdr_present_bit),
         ]
         eff_off = Signal(signed(11))
-        m.d.comb += eff_off.eq(
-            Mux(opcode == OP_CSUMUPD, cs_off, f_off).as_signed()
-        )
+        m.d.comb += eff_off.eq(f_off.as_signed())
         # addr = 32 + base + off; signed 18-bit intermediate covers all cases.
         eff_addr = Signal(signed(18))
         m.d.comb += eff_addr.eq(
@@ -308,26 +327,6 @@ class MatchActionProcessor(wiring.Component):
             (sd_val > HEADROOM_BYTES) | (sd_val <= neg_plen)
         )
 
-        # --- LDMD field value -------------------------------------------------
-        flood = Signal(4)
-        with m.If(self.ingress < N_PORTS):
-            m.d.comb += flood.eq(C(0xF, 4) & ~(C(1, 4) << self.ingress[0:2]))
-        with m.Else():
-            m.d.comb += flood.eq(0xF)
-
-        ldmd_val = Signal(64)
-        with m.Switch(f_hdr):
-            for f in range(8):
-                with m.Case(f):
-                    m.d.comb += ldmd_val.eq(self.smd_in.word_select(C(f, 3), 16))
-            with m.Case(8):
-                m.d.comb += ldmd_val.eq(self.ingress)
-            with m.Case(9):
-                m.d.comb += ldmd_val.eq(flood)
-            with m.Case(10):
-                m.d.comb += ldmd_val.eq(self.hdr_present_in)
-            with m.Default():
-                m.d.comb += ldmd_val.eq(0)
 
         # --- Window write/read port muxing -----------------------------------
         # Write port: driver load (any state), ST bytes, CSUM write-back.
@@ -347,18 +346,6 @@ class MatchActionProcessor(wiring.Component):
             m.d.comb += [
                 wwp.addr.eq(mem_addr_r),
                 wwp.data.eq(st_byte),
-                wwp.en.eq(1),
-            ]
-        with m.Elif(state == _ST_CSUM_WB0):
-            m.d.comb += [
-                wwp.addr.eq(csum_base_r + 10),
-                wwp.data.eq(csum_ck_r[8:16]),
-                wwp.en.eq(1),
-            ]
-        with m.Elif(state == _ST_CSUM_WB1):
-            m.d.comb += [
-                wwp.addr.eq(csum_base_r + 11),
-                wwp.data.eq(csum_ck_r[0:8]),
                 wwp.en.eq(1),
             ]
 
@@ -382,11 +369,14 @@ class MatchActionProcessor(wiring.Component):
         with m.If(self.start):
             m.d.sync += [r.eq(0) for r in self.regs]
             m.d.sync += [
+                md_r[i].eq(self.md_in.word_select(C(i, 3), 16))
+                for i in range(MD_SLOTS)
+            ]
+            m.d.sync += [
                 pc.eq(0),
                 steps_r.eq(0),
                 verdict_r.eq(VERDICT_SENT),
                 err_r.eq(ERR_NONE),
-                egress_r.eq(0),
                 delta_r.eq(0),
                 done_r.eq(0),
                 plen_r.eq(self.plen),
@@ -444,7 +434,39 @@ class MatchActionProcessor(wiring.Component):
                 with m.Case(OP_LDMD):
                     with m.If((word[0:19] == 0) & reg_ok(f_ra)):
                         m.d.comb += illegal.eq(0)
-                        reg_write(f_ra, ldmd_val)
+                        with m.If(f_hdr >= MD_SLOTS):
+                            halt_error(ERR_ILLEGAL)
+                        with m.Else():
+                            reg_write(f_ra, md_arr[f_hdr[0:3]])
+
+                with m.Case(OP_STMD):
+                    with m.If((word[0:17] == 0) & reg_ok(f_ra)):
+                        m.d.comb += illegal.eq(0)
+                        with m.If(st_slot + st_nm1 + 1 > MD_SLOTS):
+                            halt_error(ERR_ILLEGAL)
+                        with m.Else():
+                            value = reg_read(f_ra)
+                            with m.Switch(st_nm1):
+                                for nm1 in range(4):
+                                    with m.Case(nm1):
+                                        n = nm1 + 1
+                                        for i in range(n):
+                                            # MSB-first across the slots.
+                                            lo = (n - 1 - i) * 16
+                                            m.d.sync += md_arr[
+                                                st_slot + i
+                                            ].eq(value[lo:lo + 16])
+
+                with m.Case(OP_ANDI):
+                    with m.If((word[16:20] == 0) & reg_ok(f_ra) & reg_ok(f_rb)):
+                        m.d.comb += illegal.eq(0)
+                        reg_write(f_ra, reg_read(f_rb) & imm16)
+
+                with m.Case(OP_SHLI):
+                    with m.If((word[0:14] == 0) & reg_ok(f_ra) & reg_ok(f_rb)):
+                        m.d.comb += illegal.eq(0)
+                        # 64-bit left shift; assignment truncates at 64.
+                        reg_write(f_ra, reg_read(f_rb) << shl_sh)
 
                 with m.Case(OP_MOVI):
                     with m.If((word[16:23] == 0) & reg_ok(f_ra)):
@@ -517,31 +539,37 @@ class MatchActionProcessor(wiring.Component):
                                 state.eq(_ST_LKP_ISSUE),
                             ]
 
-                with m.Case(OP_CSUMUPD):
-                    with m.If(word[0:12] == 0):
+                with m.Case(OP_CSUM):
+                    with m.If((word[0:6] == 0) & reg_ok(f_ra) & reg_ok(cs_rl)):
                         m.d.comb += illegal.eq(0)
+                        csum_len = Signal(16)
+                        m.d.comb += csum_len.eq(reg_read(cs_rl)[0:16])
                         with m.If(hdr_absent):
                             halt_error(ERR_HDR_ABSENT)
-                        with m.Elif((eff_addr < 0) | (eff_addr + 20 > win_limit)):
+                        with m.Elif(
+                            (eff_addr < 0) | (eff_addr + csum_len > win_limit)
+                        ):
                             halt_error(ERR_WINDOW_VIOLATION)
+                        with m.Elif(csum_len == 0):
+                            # Empty sum: ~0 = 0xFFFF, no memory walk.
+                            reg_write(f_ra, C(0xFFFF, 64))
                         with m.Else():
                             m.d.sync += [
-                                csum_base_r.eq(eff_addr),
+                                csum_rd_r.eq(f_ra),
                                 mem_addr_r.eq(eff_addr),
                                 mem_i_r.eq(0),
-                                mem_n_r.eq(0),  # learned from IHL on byte 0
+                                mem_len_r.eq(csum_len),
                                 csum_sum_r.eq(0),
                                 state.eq(_ST_CSUM_ISSUE),
                             ]
 
                 with m.Case(OP_SEND):
-                    with m.If((word[0:13] == 0) & reg_ok(f_ra)):
+                    with m.If((word[0:13] == 0) & (word[23:26] == 0)):
                         m.d.comb += illegal.eq(0)
                         with m.If(send_bad):
                             halt_error(ERR_SEND_RANGE)
                         with m.Else():
                             m.d.sync += [
-                                egress_r.eq(reg_read(f_ra)[0:8] & C(0xF, 8)),
                                 delta_r.eq(sd_val),
                                 verdict_r.eq(VERDICT_SENT),
                                 done_r.eq(1),
@@ -618,51 +646,33 @@ class MatchActionProcessor(wiring.Component):
             with m.Else():
                 m.d.sync += [lkp_i_r.eq(lkp_i_r + 1), state.eq(_ST_LKP_ISSUE)]
 
-        # --- CSUMUPD loop ------------------------------------------------------
-        # Byte 0 carries IHL; bytes 10/11 (checksum field) count as zero.
-        # Even byte index weights <<8 (big-endian 16-bit words).
+        # --- CSUM loop -------------------------------------------------------
+        # Generic RFC 1071 range sum: one byte per issue/capture pair; even
+        # byte index weights <<8 (big-endian 16-bit words); an odd final
+        # byte is high-weighted. Fold + complement land in the destination
+        # register — no window write-back.
         with m.Elif(state == _ST_CSUM_ISSUE):
             m.d.sync += state.eq(_ST_CSUM_CAPTURE)
 
         with m.Elif(state == _ST_CSUM_CAPTURE):
-            byte_val = Signal(8)
-            is_ck = (mem_i_r == 10) | (mem_i_r == 11)
-            m.d.comb += byte_val.eq(Mux(is_ck, 0, wrp.data))
-
             contrib = Signal(16)
             m.d.comb += contrib.eq(
-                Mux(mem_i_r[0], byte_val, byte_val << 8)
+                Mux(mem_i_r[0], wrp.data, wrp.data << 8)
             )
-
-            with m.If(mem_i_r == 0):
-                # First byte: validate IHL, learn header length.
-                ihl = wrp.data[0:4]
-                hlen = Signal(7)
-                m.d.comb += hlen.eq(Cat(C(0, 2), ihl))  # ihl * 4
-                with m.If(ihl < 5):
-                    halt_error(ERR_WINDOW_VIOLATION)
-                with m.Elif(csum_base_r + hlen > win_limit):
-                    halt_error(ERR_WINDOW_VIOLATION)
-                with m.Else():
-                    m.d.sync += [
-                        mem_n_r.eq(hlen),
-                        csum_sum_r.eq(csum_sum_r + contrib),
-                        mem_i_r.eq(1),
-                        mem_addr_r.eq(mem_addr_r + 1),
-                        state.eq(_ST_CSUM_ISSUE),
-                    ]
-            with m.Elif(mem_i_r + 1 >= mem_n_r):
-                # Last byte: fold and complement combinationally, then write.
-                total = Signal(24)
+            with m.If(mem_i_r + 1 >= mem_len_r):
+                # Last byte: fold and complement combinationally, retire.
+                total = Signal(25)
                 m.d.comb += total.eq(csum_sum_r + contrib)
                 fold1 = Signal(17)
-                m.d.comb += fold1.eq(total[0:16] + total[16:24])
+                m.d.comb += fold1.eq(total[0:16] + total[16:25])
                 fold2 = Signal(16)
                 m.d.comb += fold2.eq(fold1[0:16] + fold1[16])
-                m.d.sync += [
-                    csum_ck_r.eq(~fold2),
-                    state.eq(_ST_CSUM_WB0),
-                ]
+                with m.Switch(csum_rd_r):
+                    for r in range(4):
+                        with m.Case(r):
+                            m.d.sync += self.regs[r].eq(~fold2)
+                    # RZ (0b100): write discarded.
+                m.d.sync += state.eq(_ST_FETCH)
             with m.Else():
                 m.d.sync += [
                     csum_sum_r.eq(csum_sum_r + contrib),
@@ -670,11 +680,5 @@ class MatchActionProcessor(wiring.Component):
                     mem_addr_r.eq(mem_addr_r + 1),
                     state.eq(_ST_CSUM_ISSUE),
                 ]
-
-        with m.Elif(state == _ST_CSUM_WB0):
-            m.d.sync += state.eq(_ST_CSUM_WB1)
-
-        with m.Elif(state == _ST_CSUM_WB1):
-            m.d.sync += state.eq(_ST_FETCH)
 
         return m

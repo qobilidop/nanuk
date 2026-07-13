@@ -60,12 +60,12 @@ def test_mark_lowers_to_sethdr_only_when_emit_sethdr():
     assert "ghost" not in asm
 
 
-def test_smd_units_follow_value_width():
+def test_smd_units_are_explicit_in_the_ir():
     asm = to_pp_asm(one_state([
         extract(1, 0, 48),
-        ir.ParserOp(emit_smd=ir.EmitSmd(value_id=1, slot=0)),
+        ir.ParserOp(emit_md=ir.MdStore(value_id=1, slot=0, nunits=3)),
         extract(2, 48, 16),
-        ir.ParserOp(emit_smd=ir.EmitSmd(value_id=2, slot=3)),
+        ir.ParserOp(emit_md=ir.MdStore(value_id=2, slot=3, nunits=1)),
     ]))
     stmds = [i for i in instrs(asm) if i[0] == "stmd"]
     assert stmds[0][1][0] == "0" and stmds[0][1][2] == "3"

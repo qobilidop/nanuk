@@ -2,11 +2,14 @@
 tunnel_push.asm / tunnel_pop.asm).
 
 Table ids follow the examples' control-plane layout: the push uses t1 as
-the tunnel map (t0 left unused, as the M1 tests do). Header ids follow
-l2l3l4/parse.asm: h_eth=0.
+the tunnel map (t0 left unused, as the M1 tests do); t3 is the system
+flood table (see ../map_l2fwd/fwd.py). md slot conventions per
+nanuk_switch: slot 0 = ingress in / egress out; slots 4-7 are the
+program pair's private range (the PP's tunnel flag lives in slot 5).
+Header ids follow l2l3l4/parse.asm: h_eth=0.
 """
 
-from nanuk.lang import MD_FLOOD, Header, MatchActionProgram
+from nanuk.lang import Header, MatchActionProgram
 
 eth = Header("eth", dst=48, src=48, ethertype=16)
 
@@ -23,13 +26,14 @@ _OUTER_WORDS = [
 ]
 
 NK_MAGIC = 0x4E4B
-SMD_TENANT = 5  # parse_tunnel.asm: SMD slot 5 = magic when a tunnel was parsed
+MD_TUN = 5  # parse_tunnel.asm: md slot 5 = magic when a tunnel was parsed
 
 
 def make_tunnel_push() -> MatchActionProgram:
     mp = MatchActionProgram()
     mp.table("l2", key_width=48, action_width=8)  # t0: unused placeholder
     tun = mp.table("tun", key_width=48, action_width=8)  # t1
+    flood_tbl = mp.table("flood", key_width=16, action_width=16, table_id=3)
     ethh = mp.header(eth, hdr_id=H_ETH)
 
     @mp.state(start=True)
@@ -37,29 +41,44 @@ def make_tunnel_push() -> MatchActionProgram:
         act = s.lookup(tun, s.load(ethh.dst), miss=plain)
         for off, imm in _OUTER_WORDS:
             s.store(s.const(imm), hdr=15, byte_offset=off, nbytes=2)
-        s.send(act, delta=22)
+        s.send(egress=act, delta=22)
 
     @mp.state()
     def plain(s):
-        s.send(s.load_md(MD_FLOOD))
+        ing = s.load_md(0)
+        fl = s.lookup(flood_tbl, ing, miss=dark)
+        s.send(egress=fl)
+
+    @mp.state()
+    def dark(s):
+        s.drop()
 
     return mp
 
 
 def make_tunnel_pop() -> MatchActionProgram:
     mp = MatchActionProgram()
+    flood_tbl = mp.table("flood", key_width=16, action_width=16, table_id=3)
 
     @mp.state(start=True)
     def check(s):
-        tag = s.load_md(SMD_TENANT)
+        tag = s.load_md(MD_TUN)
         s.dispatch(tag, {NK_MAGIC: strip}, default=plain)
 
     @mp.state()
     def strip(s):
-        s.send(s.load_md(MD_FLOOD), delta=-22)
+        ing = s.load_md(0)
+        fl = s.lookup(flood_tbl, ing, miss=dark)
+        s.send(egress=fl, delta=-22)
 
     @mp.state()
     def plain(s):
-        s.send(s.load_md(MD_FLOOD))
+        ing = s.load_md(0)
+        fl = s.lookup(flood_tbl, ing, miss=dark)
+        s.send(egress=fl)
+
+    @mp.state()
+    def dark(s):
+        s.drop()
 
     return mp

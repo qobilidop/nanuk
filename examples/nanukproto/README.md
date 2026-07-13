@@ -13,7 +13,7 @@ this kind of use):
 | magic            | 16   | `0x4E4B` ("NK"); mismatch ⇒ drop          |
 | version          | 4    | `1`; anything else ⇒ drop                 |
 | flags            | 4    | reserved, ignored in v1                   |
-| tenant_id        | 24   | recorded to SMD slots 5–6 (MSB-first)     |
+| tenant_id        | 24   | recorded to md slots 6–7 (MSB-first; slot 0 is the system's)     |
 | inner_ethertype  | 16   | dispatched like an outer EtherType        |
 
 8 bytes total; the inner packet (e.g. IPv4/UDP, or even a VLAN tag) follows

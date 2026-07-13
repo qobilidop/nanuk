@@ -3,7 +3,7 @@
   let { result }: { result: ParseResultJson } = $props();
 
   const VERDICTS = ['accept', 'drop', 'error'] as const;
-  const ERRORS = ['none', 'header violation', 'step budget', 'illegal', 'pc range', 'smd range'];
+  const ERRORS = ['none', 'header violation', 'step budget', 'illegal', 'pc range', 'md range'];
   const hex = (v: number) => '0x' + v.toString(16).padStart(4, '0');
 </script>
 
@@ -24,9 +24,9 @@
     </tbody>
   </table>
   <table>
-    <caption>SMD</caption>
+    <caption>metadata window</caption>
     <tbody>
-      {#each result.smd as slot, i}
+      {#each result.md as slot, i}
         <tr class:zero={slot === 0}><td>[{i}]</td><td>{hex(slot)}</td></tr>
       {/each}
     </tbody>

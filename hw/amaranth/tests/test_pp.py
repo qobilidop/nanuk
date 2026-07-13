@@ -16,7 +16,7 @@ from nanuk_amaranth.pp import (
     ERR_HDR_VIOLATION,
     ERR_ILLEGAL,
     ERR_PC_RANGE,
-    ERR_SMD_RANGE,
+    ERR_MD_RANGE,
     ERR_STEP_BUDGET,
     IMEM_WORDS,
     STEP_BUDGET,
@@ -318,7 +318,8 @@ def test_illegal_words():
     # Mirrors test_decode.sail test_illegal_words: unassigned opcodes,
     # nonzero reserved bits, bad register codes.
     bad_words = [
-        0x30000000,  # opcode 0x0C unassigned
+        0x34000000,  # opcode 0x0D unassigned
+        0x30980001,  # LDMD with reserved bit set
         0xFFFFFFFF,  # all-ones
         0x2C000002,  # HALT with reserved bit set
         0x0801000E,  # ADVI with reserved bit [16] set
@@ -377,10 +378,10 @@ def test_stmd_multislot():
         ],
         pkt,
     )
-    assert r.smd[0] == 0x0102  # bits [47:32]
-    assert r.smd[1] == 0x0304  # bits [31:16]
-    assert r.smd[2] == 0x0506  # bits [15:0]
-    assert r.smd[4] == 0xBEEF
+    assert r.md[0] == 0x0102  # bits [47:32]
+    assert r.md[1] == 0x0304  # bits [31:16]
+    assert r.md[2] == 0x0506  # bits [15:0]
+    assert r.md[4] == 0xBEEF
 
 
 def test_stmd_range_error():
@@ -394,7 +395,7 @@ def test_stmd_range_error():
     )
     r = run_pp_one([word, HALT_ACCEPT], b"")
     assert r.verdict == VERDICT_ERROR
-    assert r.error == ERR_SMD_RANGE
+    assert r.error == ERR_MD_RANGE
     assert r.steps == 1
 
 
@@ -427,11 +428,73 @@ def test_start_clears_arch_state_not_imem():
     ]
     # Program loaded once; two packets through the same core instance.
     r1, r2 = run_pp(prog, [b"\xaa\xbb", b"\x55"])
-    assert (r1.regs[0], r1.smd[2], r1.payload_offset) == (0xAA, 0xAA, 1)
+    assert (r1.regs[0], r1.md[2], r1.payload_offset) == (0xAA, 0xAA, 1)
     assert r1.hdr_present[5] == 1
     # Second run reproduces from a clean slate (regs/smd/hdr/steps cleared,
     # program persisted in imem).
-    assert (r2.regs[0], r2.smd[2], r2.payload_offset) == (0x55, 0x55, 1)
+    assert (r2.regs[0], r2.md[2], r2.payload_offset) == (0x55, 0x55, 1)
     assert r2.steps == r1.steps == 5
-    assert r2.smd[0] == 0  # no leakage from run 1
+    assert r2.md[0] == 0  # no leakage from run 1
     assert r2.hdr_present == r1.hdr_present
+
+
+# --- Metadata window (core-interface redesign) --------------------------------
+
+
+def test_ldmd_reads_md_in_and_round_trips():
+    prog = [
+        enc.encode_ldmd("r0", 0),
+        enc.encode_stmd(6, "r0", 1),
+        enc.encode_ldmd("r1", 6),
+        HALT_ACCEPT,
+    ]
+    r = run_pp_one(prog, b"", md_in=[0xCAFE])
+    assert r.regs[0] == 0xCAFE and r.regs[1] == 0xCAFE
+    # Pass-through: untouched inbound slots survive to md_out.
+    assert r.md == [0xCAFE, 0, 0, 0, 0, 0, 0xCAFE, 0]
+
+
+def test_ldmd_slot_bounds_illegal():
+    r = run_pp_one([enc.encode_ldmd("r0", 8), HALT_ACCEPT], b"")
+    assert (r.verdict, r.error) == (VERDICT_ERROR, ERR_ILLEGAL)
+
+
+def test_shared_pktmem_and_pkt_base():
+    """The composed core's window mode: PP reads a shared memory at +base."""
+    from amaranth import Module
+    from amaranth.lib import memory
+    from amaranth.sim import Simulator
+    from nanuk_amaranth.pp import ParserProcessor
+
+    base = 32
+    frame = bytes(range(16))
+    init = list(bytes(base) + frame) + [0] * (256 - len(frame))
+    shared = memory.Memory(shape=8, depth=base + 256, init=init)
+    dut = ParserProcessor(pktmem=shared, pkt_base=base)
+    prog_words = [enc.encode_ext("r0", 0, 16), HALT_ACCEPT]
+
+    async def bench(ctx):
+        ctx.set(dut.prog_we, 1)
+        for addr, w in enumerate(prog_words):
+            ctx.set(dut.prog_addr, addr)
+            ctx.set(dut.prog_data, w)
+            await ctx.tick()
+        ctx.set(dut.prog_we, 0)
+        ctx.set(dut.plen, len(frame))
+        ctx.set(dut.start, 1)
+        await ctx.tick()
+        ctx.set(dut.start, 0)
+        for _ in range(64):
+            if ctx.get(dut.done):
+                break
+            await ctx.tick()
+        assert ctx.get(dut.verdict) == 0
+        assert ctx.get(dut.regs[0]) == 0x0001  # frame[0:2] read at +base
+
+    m = Module()
+    m.submodules.winmem = shared
+    m.submodules.dut = dut
+    sim = Simulator(m)
+    sim.add_clock(1e-6)
+    sim.add_testbench(bench)
+    sim.run()

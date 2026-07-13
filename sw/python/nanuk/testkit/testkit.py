@@ -33,6 +33,23 @@ def demo_tun_table() -> Table:
     return Table(key_width=48, action_width=8, entries={DMAC_INT: 0x2})
 
 
+def demo_flood_table(n_ports: int = 4) -> Table:
+    """The system flood table (t3 by nanuk_switch convention):
+    {ingress port id -> flood bitmap}, installed by the control plane."""
+    all_ports = (1 << n_ports) - 1
+    return Table(
+        key_width=16,
+        action_width=16,
+        entries={i: all_ports & ~(1 << i) for i in range(n_ports)},
+    )
+
+
+def demo_tables(l2_both: bool = False) -> list[Table]:
+    """The standard demo table plane: t0 = L2 FDB, t1 = tunnel map,
+    t2 unconfigured, t3 = system flood table."""
+    return [demo_l2_table(both=l2_both), demo_tun_table(), NO_TABLE, demo_flood_table()]
+
+
 def l2l3l4_packets() -> list[tuple[str, bytes]]:
     """The stage-1 demo corpus: one named packet per parser behavior."""
     return [

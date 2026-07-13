@@ -30,7 +30,11 @@ def test_ttl_shaped_program_passes():
                             value_id=2, hdr_id=2, byte_offset=8, nbytes=1
                         )
                     ),
-                    ir.MatchActionOp(csum=ir.CsumUpdate(hdr_id=2, byte_offset=0)),
+                    ir.MatchActionOp(const=ir.MapConst(value_id=3, imm=20)),
+                    ir.MatchActionOp(
+                        csum=ir.Csum(value_id=4, hdr_id=2, byte_offset=0,
+                                     len_value_id=3)
+                    ),
                 ],
                 terminator=drop(),
             ),
@@ -51,14 +55,16 @@ def test_ttl_shaped_program_passes():
         (lambda p: setattr(p.states[0].ops[1].lookup, "miss_state", "nope"), "miss"),
         (lambda p: setattr(p.states[0].ops[1].lookup, "table_id", 2), "undeclared"),
         (lambda p: setattr(p.states[0].ops[1].lookup, "key_value_id", 9), "before"),
-        (lambda p: setattr(p.states[1].ops[0].load_md, "field", 16), "field"),
+        (lambda p: setattr(p.states[1].ops[0].load_md, "slot", 8), "slot"),
         (lambda p: setattr(p.states[0].terminator.send, "delta", 999), "delta"),
         (lambda p: setattr(p.states[1], "name", "forward"), "duplicate"),
-        # Cross-state value use: flood's send uses forward's value 2.
+        # Cross-state value use: flood's store_md uses forward's value 2.
         (
-            lambda p: setattr(p.states[1].terminator.send, "bitmap_value_id", 2),
+            lambda p: setattr(p.states[1].ops[2].store_md, "value_id", 2),
             "before it is defined",
         ),
+        # store_md unit overflow past the top of the window.
+        (lambda p: setattr(p.states[0].ops[2].store_md, "slot", 8), "slots"),
         # Value id reuse across states.
         (lambda p: setattr(p.states[1].ops[0].load_md, "value_id", 1), "reused"),
     ],

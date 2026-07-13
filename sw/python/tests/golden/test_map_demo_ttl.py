@@ -19,13 +19,14 @@ from nanuk.testkit.map_harness import (
     VERDICT_ERROR,
     run_pipeline,
 )
-from nanuk.testkit.testkit import DMAC, demo_l2_table
+from nanuk.testkit.testkit import DMAC, demo_flood_table, demo_l2_table, NO_TABLE
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 PP_ASM = REPO_ROOT / "examples" / "l2l3l4" / "parse.asm"
 MAP_ASM = REPO_ROOT / "examples" / "map_ttl" / "fwd.asm"
 
 L2_TABLE = demo_l2_table()
+TABLES = [L2_TABLE, NO_TABLE, NO_TABLE, demo_flood_table()]
 
 
 @pytest.fixture(scope="module")
@@ -39,14 +40,14 @@ def map_prog() -> bytes:
 
 
 def forward(pp_prog, map_prog, pkt):
-    return run_pipeline(pp_prog, map_prog, bytes(pkt), [L2_TABLE], ingress=0)
+    return run_pipeline(pp_prog, map_prog, bytes(pkt), TABLES, [0])
 
 
 @pytest.mark.parametrize("ttl", [2, 64, 255])
 def test_ttl_decrement_with_scapy_checksum_oracle(pp_prog, map_prog, ttl):
     pkt = Ether(dst=DMAC) / IP(dst="10.0.0.1", src="10.0.0.2", ttl=ttl) / UDP(dport=53)
     pp, mp = forward(pp_prog, map_prog, pkt)
-    assert mp is not None and mp.sent and mp.egress == 0x4
+    assert mp is not None and mp.sent and mp.md[0] == 0x4
     out = Ether(mp.frame)
     assert out[IP].ttl == ttl - 1
     # Oracle: scapy recomputes the checksum for the decremented packet.

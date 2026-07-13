@@ -22,7 +22,6 @@ _SCRATCH_REG = "r3"
 
 _MAX_IMM16 = (1 << 16) - 1
 
-_MD_NAMES = {8: "ingress", 9: "flood", 10: "hdr_present"}
 
 
 def to_map_asm(program: ir.MatchActionProgram, *, check: bool = True) -> str:
@@ -61,15 +60,21 @@ def _last_uses(state: ir.MatchActionState) -> dict[int, int]:
         match op.WhichOneof("op"):
             case "add":
                 note(op.add.src_value_id, idx)
+            case "and_imm":
+                note(op.and_imm.src_value_id, idx)
+            case "shift":
+                note(op.shift.src_value_id, idx)
             case "store":
                 note(op.store.value_id, idx)
+            case "store_md":
+                note(op.store_md.value_id, idx)
+            case "csum":
+                note(op.csum.len_value_id, idx)
             case "lookup":
                 note(op.lookup.key_value_id, idx)
     term = state.terminator
     t_idx = len(state.ops)
     match term.WhichOneof("kind"):
-        case "send":
-            note(term.send.bitmap_value_id, t_idx)
         case "dispatch":
             note(term.dispatch.value_id, t_idx)
     return last
@@ -138,10 +143,10 @@ def _lower_state(state: ir.MatchActionState) -> "_StateLowering":
                 )
             case "load_md":
                 md = op.load_md
-                name = md.debug_name or _MD_NAMES.get(md.field, f"md{md.field}")
+                name = md.debug_name or f"md{md.slot}"
                 lo.free_dead(idx)
                 reg = lo.alloc(md.value_id, name)
-                lo.emit(f"ldmd    {reg}, {md.field}", comment=name)
+                lo.emit(f"ldmd    {reg}, {md.slot}", comment=name)
             case "const":
                 c = op.const
                 name = c.debug_name or f"{c.imm:#x}"
@@ -165,8 +170,36 @@ def _lower_state(state: ir.MatchActionState) -> "_StateLowering":
                 lo.free_dead(idx)
             case "csum":
                 cs = op.csum
-                lo.emit(f"csumupd {cs.hdr_id}, {cs.byte_offset}")
+                len_reg = lo.reg_of(cs.len_value_id, "csum")
+                name = f"csum over {lo.names[cs.len_value_id]}"
                 lo.free_dead(idx)
+                reg = lo.alloc(cs.value_id, name)
+                lo.emit(
+                    f"csum    {reg}, {cs.hdr_id}, {cs.byte_offset}, {len_reg}",
+                    comment=name,
+                )
+            case "store_md":
+                sm = op.store_md
+                reg = lo.reg_of(sm.value_id, "store_md")
+                lo.emit(
+                    f"stmd    {reg}, {sm.nunits}, {sm.slot}",
+                    comment=lo.names[sm.value_id],
+                )
+                lo.free_dead(idx)
+            case "and_imm":
+                ai = op.and_imm
+                src_reg = lo.reg_of(ai.src_value_id, "and_imm")
+                name = f"{lo.names[ai.src_value_id]} & {ai.imm:#x}"
+                lo.free_dead(idx)
+                reg = lo.alloc(ai.value_id, name)
+                lo.emit(f"andi    {reg}, {src_reg}, {ai.imm:#06x}", comment=name)
+            case "shift":
+                sh = op.shift
+                src_reg = lo.reg_of(sh.src_value_id, "shift")
+                name = f"{lo.names[sh.src_value_id]} << {sh.amount}"
+                lo.free_dead(idx)
+                reg = lo.alloc(sh.value_id, name)
+                lo.emit(f"shli    {reg}, {src_reg}, {sh.amount}", comment=name)
             case "lookup":
                 lk = op.lookup
                 key_reg = lo.reg_of(lk.key_value_id, "lookup")
@@ -184,9 +217,7 @@ def _lower_state(state: ir.MatchActionState) -> "_StateLowering":
 def _lower_terminator(lo: _StateLowering, term: ir.Terminator) -> None:
     match term.WhichOneof("kind"):
         case "send":
-            s = term.send
-            reg = lo.reg_of(s.bitmap_value_id, "send")
-            lo.emit(f"send    {reg}, {s.delta}", comment=lo.names[s.bitmap_value_id])
+            lo.emit(f"send    {term.send.delta}")
         case "drop":
             lo.emit("drop")
         case "goto":

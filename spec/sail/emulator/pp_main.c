@@ -1,9 +1,12 @@
 // nanuk-pp-emu: CLI driver for the Sail-generated golden model.
 //
-//   nanuk-pp-emu <prog.bin> <packet.bin>
+//   nanuk-pp-emu <prog.bin> <packet.bin> [ctx.txt]
 //
 // prog.bin:   big-endian 32-bit instruction words, loaded at word 0
 // packet.bin: raw packet bytes
+// ctx.txt:    optional inbound metadata, one record per line:
+//               md <slot> <value>
+//             (values are decimal or 0x-hex via strtoull base 0)
 //
 // Prints the run result as one JSON object on stdout (the output contract
 // consumed by the Python harness) and exits 0 on any completed run —
@@ -31,12 +34,13 @@ extern uint64_t zemu_get_cursor(sail_unit);
 extern uint64_t zemu_get_steps(sail_unit);
 extern uint64_t zemu_get_hdr_present(uint64_t h);
 extern uint64_t zemu_get_hdr_offset(uint64_t h);
-extern uint64_t zemu_get_smd(uint64_t s);
+extern uint64_t zemu_get_md(uint64_t s);
+extern sail_unit zemu_set_md(uint64_t slot, uint64_t value);
 
 #define IMEM_WORDS 1024
 #define BUF_BYTES 256
 #define NHDR 16
-#define SMD_SLOTS 8
+#define MD_SLOTS 8
 
 static unsigned char *read_file(const char *path, size_t *size_out) {
     FILE *f = fopen(path, "rb");
@@ -61,9 +65,45 @@ static unsigned char *read_file(const char *path, size_t *size_out) {
     return buf;
 }
 
+#include <string.h>
+
+static uint64_t parse_u64(const char *tok, const char *what, int lineno) {
+    if (!tok) {
+        fprintf(stderr, "nanuk-pp-emu: ctx line %d: missing %s\n", lineno, what);
+        exit(2);
+    }
+    return strtoull(tok, NULL, 0);
+}
+
+static void load_ctx(const char *path) {
+    FILE *f = fopen(path, "r");
+    if (!f) {
+        fprintf(stderr, "nanuk-pp-emu: cannot open %s\n", path);
+        exit(2);
+    }
+    char line[256];
+    int lineno = 0;
+    while (fgets(line, sizeof line, f)) {
+        lineno++;
+        char *hash = strchr(line, '#');
+        if (hash) *hash = '\0';
+        char *kw = strtok(line, " \t\r\n");
+        if (!kw) continue;
+        if (strcmp(kw, "md") == 0) {
+            uint64_t slot = parse_u64(strtok(NULL, " \t\r\n"), "slot", lineno);
+            uint64_t val = parse_u64(strtok(NULL, " \t\r\n"), "value", lineno);
+            zemu_set_md(slot, val);
+        } else {
+            fprintf(stderr, "nanuk-pp-emu: ctx line %d: unknown keyword %s\n", lineno, kw);
+            exit(2);
+        }
+    }
+    fclose(f);
+}
+
 int main(int argc, char **argv) {
-    if (argc != 3) {
-        fprintf(stderr, "usage: nanuk-pp-emu <prog.bin> <packet.bin>\n");
+    if (argc != 3 && argc != 4) {
+        fprintf(stderr, "usage: nanuk-pp-emu <prog.bin> <packet.bin> [ctx.txt]\n");
         return 2;
     }
 
@@ -96,6 +136,8 @@ int main(int argc, char **argv) {
     uint64_t plen = pkt_size < 0xFFFF ? (uint64_t)pkt_size : 0xFFFF;
     zemu_set_plen(plen);
 
+    if (argc == 4) load_ctx(argv[3]);
+
     zemu_run(SAIL_UNIT);
 
     printf("{\"verdict\": %llu, \"error\": %llu, \"payload_offset\": %llu, \"steps\": %llu",
@@ -111,9 +153,9 @@ int main(int argc, char **argv) {
     for (int h = 0; h < NHDR; h++) {
         printf("%s%llu", h ? "," : "", (unsigned long long)zemu_get_hdr_offset((uint64_t)h));
     }
-    printf("], \"smd\": [");
-    for (int s = 0; s < SMD_SLOTS; s++) {
-        printf("%s%llu", s ? "," : "", (unsigned long long)zemu_get_smd((uint64_t)s));
+    printf("], \"md\": [");
+    for (int s = 0; s < MD_SLOTS; s++) {
+        printf("%s%llu", s ? "," : "", (unsigned long long)zemu_get_md((uint64_t)s));
     }
     printf("]}\n");
 

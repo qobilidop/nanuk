@@ -25,7 +25,7 @@ def test_op_labels_and_lines():
     rendered = render_ir(build_ir())
     start = rendered.states[0]
     labels = [op.label for op in start.ops]
-    # start: mark eth, extract eth.dst, smd, extract ethertype, advance,
+    # start: mark eth, extract eth.dst, emit md, extract ethertype, advance,
     # dispatch (the dispatch is one op entry; its cases are lines within it)
     assert labels[0] == "mark eth"
     assert "eth.dst" in labels[1]

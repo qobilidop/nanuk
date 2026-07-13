@@ -56,7 +56,7 @@ class TraceEvent:
     events (re-anchor marks, the dispatch header) are not recorded.
 
     Parser events carry the architectural snapshot AFTER the event
-    (cursor/hdr/smd); MAP events carry the event's effects (window writes,
+    (cursor/hdr/md); MAP events carry the event's effects (window writes,
     lookup outcome) — the shapes the ISS traces use, for direct diffing.
     """
 
@@ -68,7 +68,7 @@ class TraceEvent:
     cursor: int | None = None
     hdr_present: tuple | None = None
     hdr_offset: tuple | None = None
-    smd: tuple | None = None
+    md: tuple | None = None
     writes: tuple | None = None
     lookup: tuple | None = None
 
@@ -83,7 +83,7 @@ class ParserInterpResult:
     steps: int
     hdr_present: list[int]
     hdr_offset: list[int]
-    smd: list[int]
+    md: list[int]
 
     @property
     def accepted(self) -> bool:
@@ -103,14 +103,15 @@ class _Halted(Exception):
 
 
 class _Machine:
-    def __init__(self, packet: bytes, trace: list | None = None):
+    def __init__(self, packet: bytes, md_in=(), trace: list | None = None):
         self.packet = packet
         self.hdr_limit = min(len(packet), BUF_BYTES)
         self.cursor = 0
         self.steps = 0
         self.hdr_present = [0] * NHDR
         self.hdr_offset = [0] * NHDR
-        self.smd = [0] * SMD_SLOTS
+        md = [v & _MASK16 for v in md_in]
+        self.md = md + [0] * (SMD_SLOTS - len(md))
         self.values: dict[int, tuple[int, int]] = {}  # value_id -> (value, width)
         self.trace = trace
         self.state_name = ""
@@ -127,7 +128,7 @@ class _Machine:
             cursor=self.cursor,
             hdr_present=tuple(self.hdr_present),
             hdr_offset=tuple(self.hdr_offset),
-            smd=tuple(self.smd),
+            md=tuple(self.md),
         ))
 
     def tick(self) -> None:
@@ -146,20 +147,22 @@ class _Machine:
 def pp_interp(
     program: ir.ParserProgram,
     packet: bytes,
+    md_in=(),
     *,
     check: bool = True,
     trace: list | None = None,
 ) -> ParserInterpResult:
     """Execute an IR program over a packet. Total, like the ISA.
 
-    With check=True (default) the program is validated first, like
+    md_in: up to 8 16-bit slots seeding the metadata window (pass-through
+    default). With check=True (default) the program is validated first, like
     lower.to_pp_asm; interpretation itself cannot fail on a valid program.
     With a trace list, records one TraceEvent per executed IR event
     (see TraceEvent); default None costs nothing.
     """
     if check:
         pp_validate(program)
-    machine = _Machine(packet, trace)
+    machine = _Machine(packet, md_in, trace)
     states = {state.name: state for state in program.states}
     state = program.states[0]
     try:
@@ -184,7 +187,7 @@ def pp_interp(
             steps=machine.steps,
             hdr_present=machine.hdr_present,
             hdr_offset=machine.hdr_offset,
-            smd=machine.smd,
+            md=machine.md,
         )
 
 
@@ -227,14 +230,19 @@ def _exec_op(m: _Machine, op: ir.ParserOp, index: int) -> None:
                 m.hdr_present[op.mark.hdr_id] = 1
                 m.hdr_offset[op.mark.hdr_id] = m.cursor
                 m.record("op", index)
-        case "emit_smd":  # STMD
-            e = op.emit_smd
+        case "emit_md":  # STMD
+            e = op.emit_md
             m.tick()
-            value, width = m.values[e.value_id]
-            nunits = (width + 15) // 16
-            for i in range(nunits):  # MSB-first; in range per pp_validate()
-                m.smd[e.slot + i] = (value >> (16 * (nunits - 1 - i))) & _MASK16
+            value, _width = m.values[e.value_id]
+            n = e.nunits
+            for i in range(n):  # MSB-first; in range per pp_validate()
+                m.md[e.slot + i] = (value >> (16 * (n - 1 - i))) & _MASK16
             m.record("op", index)
+        case "load_md":  # LDMD
+            md = op.load_md
+            m.tick()
+            m.values[md.value_id] = (m.md[md.slot], 16)
+            m.record("op", index, {md.value_id: m.md[md.slot]})
 
 
 def _exec_terminator(m: _Machine, term: ir.Terminator, default: bool = False) -> str:

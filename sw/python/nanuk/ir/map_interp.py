@@ -8,9 +8,9 @@ matches the golden model's MatchActionResult exactly. If map_lower's cost model
 changes, this file changes with it.
 
 Error codes 3 (illegal) and 4 (pc range) are structurally impossible at IR
-level. 1/2/5/6 (window violation, budget, absent header, send range) can
-all occur — the IR deliberately carries the ISA's byte-granular window
-semantics.
+level (md slot bounds are validation-time). 1/2/5/6 (window violation,
+budget, absent header, send range) can all occur — the IR deliberately
+carries the ISA's byte-granular window semantics.
 """
 
 from dataclasses import dataclass
@@ -23,7 +23,7 @@ from .map_validate import map_validate
 HEADROOM_BYTES = 32
 BUF_BYTES = 256
 WIN_BYTES = 288
-N_PORTS = 4
+MD_SLOTS = 8
 STEP_BUDGET = 256
 
 VERDICT_SENT = 0
@@ -45,7 +45,7 @@ class MatchActionInterpResult:
 
     verdict: int
     error: int
-    egress: int
+    md: tuple[int, ...]
     delta: int
     steps: int
     frame: bytes | None
@@ -56,15 +56,14 @@ class MatchActionInterpResult:
 
 
 class _Halted(Exception):
-    def __init__(self, verdict: int, error: int, egress: int = 0, delta: int = 0):
+    def __init__(self, verdict: int, error: int, delta: int = 0):
         self.verdict = verdict
         self.error = error
-        self.egress = egress
         self.delta = delta
 
 
 class _Machine:
-    def __init__(self, packet: bytes, pp, tables, ingress: int, trace=None):
+    def __init__(self, packet: bytes, pp, tables, md_in, trace=None):
         self.window = bytearray(WIN_BYTES)
         self.window[HEADROOM_BYTES : HEADROOM_BYTES + min(len(packet), BUF_BYTES)] = (
             packet[:BUF_BYTES]
@@ -73,7 +72,8 @@ class _Machine:
         self.win_limit = HEADROOM_BYTES + self.plen_min
         self.pp = pp
         self.tables = list(tables)
-        self.ingress = ingress
+        md = [v & 0xFFFF for v in md_in]
+        self.md = md + [0] * (MD_SLOTS - len(md))
         self.steps = 0
         self.values: dict[int, int] = {}
         self.trace = trace
@@ -128,21 +128,22 @@ def map_interp(
     packet: bytes,
     pp,
     tables,
-    ingress: int,
+    md_in,
     *,
     check: bool = True,
     trace: list | None = None,
 ) -> MatchActionInterpResult:
     """Execute a MAP IR program. Total, like the ISA.
 
-    pp: ParserResult-shaped (hdr_present/hdr_offset/smd). tables: list of
+    pp: ParserResult-shaped (hdr_present/hdr_offset). md_in: up to 8 16-bit
+    metadata slots (pass-through default). tables: list of
     nanuk.testkit.map_harness.Table, index = table id (entries masked to the
     declared widths, as every other implementation does). With a trace
     list, records one pp_interp.TraceEvent per executed IR event.
     """
     if check:
         map_validate(program)
-    m = _Machine(bytes(packet), pp, tables, ingress, trace)
+    m = _Machine(bytes(packet), pp, tables, md_in, trace)
     states = {state.name: state for state in program.states}
     state = program.states[0]
     try:
@@ -174,7 +175,7 @@ def map_interp(
         return MatchActionInterpResult(
             verdict=halted.verdict,
             error=halted.error,
-            egress=halted.egress,
+            md=tuple(m.md),
             delta=halted.delta,
             steps=m.steps,
             frame=frame,
@@ -203,21 +204,26 @@ def _exec_op(m: _Machine, op: ir.MatchActionOp, index: int) -> str | None:
         case "load_md":  # LDMD
             md = op.load_md
             m.tick()
-            if md.field < 8:
-                v = m.pp.smd[md.field]
-            elif md.field == 8:
-                v = m.ingress
-            elif md.field == 9:
-                all_ports = (1 << N_PORTS) - 1
-                v = all_ports & ~(1 << m.ingress) & all_ports
-            elif md.field == 10:
-                v = sum(
-                    (1 << i) for i in range(16) if m.pp.hdr_present[i]
-                )
-            else:
-                v = 0
-            m.values[md.value_id] = v & _MASK64
+            m.values[md.value_id] = m.md[md.slot]
             m.record("op", index, {md.value_id: m.values[md.value_id]})
+        case "store_md":  # STMD
+            sm = op.store_md
+            m.tick()
+            v = m.values[sm.value_id]
+            n = sm.nunits
+            for i in range(n):  # MSB-first; in range per map_validate()
+                m.md[sm.slot + i] = (v >> (16 * (n - 1 - i))) & 0xFFFF
+            m.record("op", index)
+        case "and_imm":  # ANDI
+            ai = op.and_imm
+            m.tick()
+            m.values[ai.value_id] = m.values[ai.src_value_id] & ai.imm
+            m.record("op", index, {ai.value_id: m.values[ai.value_id]})
+        case "shift":  # SHLI
+            sh = op.shift
+            m.tick()
+            m.values[sh.value_id] = (m.values[sh.src_value_id] << sh.amount) & _MASK64
+            m.record("op", index, {sh.value_id: m.values[sh.value_id]})
         case "const":  # MOVI
             m.tick()
             m.values[op.const.value_id] = op.const.imm
@@ -237,29 +243,21 @@ def _exec_op(m: _Machine, op: ir.MatchActionOp, index: int) -> str | None:
             ).to_bytes(st.nbytes, "big")
             m.window[addr : addr + st.nbytes] = data
             m.record("op", index, writes=((addr, data),))
-        case "csum":  # CSUMUPD
+        case "csum":  # CSUM — generic RFC 1071 range checksum into a value
             cs = op.csum
             m.tick()
             base = m.eff_addr(cs.hdr_id, cs.byte_offset)
-            m.check_window(base, 20)
-            ihl = m.window[base] & 0xF
-            if ihl < 5:
-                m.halt_err(ERR_WINDOW_VIOLATION)
-            hlen = ihl * 4
-            m.check_window(base, hlen)
+            length = m.values[cs.len_value_id] & 0xFFFF
+            m.check_window(base, length)
             total = 0
-            for i in range(0, hlen, 2):
-                b0 = 0 if i == 10 else m.window[base + i]
-                b1 = 0 if i == 10 else m.window[base + i + 1]
+            for i in range(0, length, 2):
+                b0 = m.window[base + i]
+                b1 = m.window[base + i + 1] if i + 1 < length else 0
                 total += (b0 << 8) | b1
             while total > 0xFFFF:
                 total = (total & 0xFFFF) + (total >> 16)
-            ck = total ^ 0xFFFF
-            m.window[base + 10] = ck >> 8
-            m.window[base + 11] = ck & 0xFF
-            m.record(
-                "op", index, writes=((base + 10, bytes([ck >> 8, ck & 0xFF])),)
-            )
+            m.values[cs.value_id] = total ^ 0xFFFF
+            m.record("op", index, {cs.value_id: m.values[cs.value_id]})
         case "lookup":  # LOOKUP (fused branch-on-miss)
             lk = op.lookup
             m.tick()
@@ -295,9 +293,8 @@ def _exec_terminator(m: _Machine, term: ir.Terminator, default: bool = False) ->
             if s.delta > HEADROOM_BYTES or s.delta <= -m.plen_min:
                 m.record(kind, 0)
                 m.halt_err(ERR_SEND_RANGE)
-            egress = m.values[s.bitmap_value_id] & ((1 << N_PORTS) - 1)
             m.record(kind, 0)
-            raise _Halted(VERDICT_SENT, ERR_NONE, egress=egress, delta=s.delta)
+            raise _Halted(VERDICT_SENT, ERR_NONE, delta=s.delta)
         case "drop":  # DROP
             m.tick()
             m.record(kind, 0)

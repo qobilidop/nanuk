@@ -26,13 +26,13 @@ function test_stmd_multislot() = {
     // 48-bit DMAC-like value into slots 0..2, MSB-first.
     write_reg(R0, 0x00000102_03040506);
     execute(STMD(R0, 0b10, 0b0000));  // 3 units at slot 0
-    assert(emu_get_smd(0x00) == 0x0102, "slot 0 = bits[47:32]");
-    assert(emu_get_smd(0x01) == 0x0304, "slot 1 = bits[31:16]");
-    assert(emu_get_smd(0x02) == 0x0506, "slot 2 = bits[15:0]");
+    assert(emu_get_md(0x00) == 0x0102, "slot 0 = bits[47:32]");
+    assert(emu_get_md(0x01) == 0x0304, "slot 1 = bits[31:16]");
+    assert(emu_get_md(0x02) == 0x0506, "slot 2 = bits[15:0]");
     // Single slot elsewhere.
     write_reg(R1, 0x00000000_0000BEEF);
     execute(STMD(R1, 0b00, 0b0100));
-    assert(emu_get_smd(0x04) == 0xBEEF, "single-unit STMD")
+    assert(emu_get_md(0x04) == 0xBEEF, "single-unit STMD")
 }
 
 val test_stmd_range_error : unit -> unit
@@ -41,7 +41,23 @@ function test_stmd_range_error() = {
     execute(STMD(R0, 0b01, 0b0111));  // 2 units at slot 7 -> slots 7,8: range
     assert(halted, "STMD out of range halts");
     assert(emu_get_verdict() == verdict_error, "STMD range verdict");
-    assert(emu_get_error() == err_smd_range, "STMD range error code")
+    assert(emu_get_error() == err_md_range, "STMD range error code")
+}
+
+val test_ldmd : unit -> unit
+function test_ldmd() = {
+    // Harness-set slot readable; STMD -> LDMD round-trips; slot 8 illegal.
+    emu_reset();
+    emu_set_md(0x05, 0xCAFE);
+    execute(LDMD(R0, 0x5));
+    assert(read_reg(R0) == 0x0000_0000_0000_CAFE, "LDMD reads a harness-set slot");
+    write_reg(R1, 0x0000_0000_0000_BEEF);
+    execute(STMD(R1, 0b00, 0b0010));
+    execute(LDMD(R2, 0x2));
+    assert(read_reg(R2) == 0x0000_0000_0000_BEEF, "LDMD/STMD round-trip");
+    emu_reset();
+    execute(LDMD(R0, 0x8));
+    assert(halted & emu_get_error() == err_illegal, "LDMD slot 8 is illegal")
 }
 
 val test_halt_verdicts : unit -> unit
@@ -118,6 +134,7 @@ function main() = {
     test_branches();
     test_stmd_multislot();
     test_stmd_range_error();
+    test_ldmd();
     test_halt_verdicts();
     test_run_loop_program();
     test_step_budget_watchdog();

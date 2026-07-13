@@ -38,7 +38,7 @@ describe.skipIf(process.env.NANUK_SKIP_PYODIDE === '1')('pyodide integration', (
       expect(run.kind).toBe('parser');
       if (run.kind === 'parser') {
         expect(run.result.verdict).toBe(0);
-        expect(run.result.smd.slice(0, 3)).toEqual([0xaabb, 0xccdd, 0xee01]);
+        expect(run.result.md.slice(1, 4)).toEqual([0xaabb, 0xccdd, 0xee01]);
         // v2 debugger trace: aligned, complete, and agreeing.
         expect(run.trace.steps).toBe(run.result.steps);
         expect(run.trace.records.length).toBe(run.trace.steps);

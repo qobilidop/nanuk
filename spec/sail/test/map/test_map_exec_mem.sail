@@ -1,5 +1,5 @@
-// Execute tests: LD/ST/LDMD/MOVI/ADDI, addressing totality (absent header,
-// window violation, headroom reach).
+// Execute tests: LD/ST/LDMD/STMD/MOVI/ADDI/ANDI/SHLI, addressing totality
+// (absent header, window violation, headroom reach), md slot bounds.
 
 // Set up a fresh state with a plen-byte frame of 0x00 and h2 present at
 // frame offset 14 (an "IPv4 after Ethernet" shape).
@@ -9,7 +9,7 @@ function setup(pl) = {
     plen = to_bits16(pl);
     hdr_present_in[2] = true;
     hdr_offset_in[2] = 0x000E;
-    ingress = 0x01
+    md[0] = 0x0001
 }
 
 val test_st_ld_roundtrip : unit -> unit
@@ -59,25 +59,38 @@ function test_addressing_totality() = {
     print_endline("test_addressing_totality passed")
 }
 
-val test_ldmd : unit -> unit
-function test_ldmd() = {
+val test_ldmd_stmd : unit -> unit
+function test_ldmd_stmd() = {
     setup(64);
-    smd_in[0] = 0x1234;
-    execute(LDMD(R0, 0x0));
-    assert(read_reg(R0) == 0x0000_0000_0000_1234, "LDMD SMD slot 0");
+    md[3] = 0x1234;
+    execute(LDMD(R0, 0x3));
+    assert(read_reg(R0) == 0x0000_0000_0000_1234, "LDMD reads a harness-set slot");
+    execute(LDMD(R1, 0x0));
+    assert(read_reg(R1) == 0x0000_0000_0000_0001, "LDMD slot 0 (pass-through)");
+    // STMD single unit: low 16 bits land in the slot.
+    write_reg(R2, 0x0000_0000_0001_000D);
+    execute(STMD(R2, 0b00, 0x0));
+    assert(md[0] == 0x000D, "STMD writes the low unit");
+    // STMD multi-unit, MSB-first: 4 units of r3 into slots 4-7.
+    write_reg(R3, 0x1111_2222_3333_4444);
+    execute(STMD(R3, 0b11, 0x4));
+    assert(md[4] == 0x1111 & md[5] == 0x2222 & md[6] == 0x3333 & md[7] == 0x4444,
+           "STMD writes MSB-first across slots");
+    // Round-trip: LDMD sees what STMD wrote.
+    execute(LDMD(R0, 0x5));
+    assert(read_reg(R0) == 0x0000_0000_0000_2222, "LDMD/STMD round-trip");
+    // Slots >= md_slots are illegal (halt is sticky: fresh setup each).
+    setup(64);
     execute(LDMD(R1, 0x8));
-    assert(read_reg(R1) == 0x0000_0000_0000_0001, "LDMD ingress");
-    // md_flood with ingress 1, n_ports 4: 0b1101.
-    execute(LDMD(R2, 0x9));
-    assert(read_reg(R2) == 0x0000_0000_0000_000D, "LDMD flood mask excludes ingress");
-    // hdr_present bitmap: only h2 set -> bit 2.
-    execute(LDMD(R3, 0xA));
-    assert(read_reg(R3) == 0x0000_0000_0000_0004, "LDMD hdr_present bitmap");
-    // Reserved fields are defined zero.
-    write_reg(R0, 0xFFFF_FFFF_FFFF_FFFF);
-    execute(LDMD(R0, 0xE));
-    assert(read_reg(R0) == sail_zeros(64), "LDMD reserved field reads zero");
-    print_endline("test_ldmd passed")
+    assert(halted & err == err_illegal, "LDMD slot 8 is illegal");
+    setup(64);
+    execute(LDMD(R1, 0xF));
+    assert(halted & err == err_illegal, "LDMD slot 15 is illegal");
+    // STMD crossing the top of the window is illegal.
+    setup(64);
+    execute(STMD(R0, 0b11, 0x6));
+    assert(halted & err == err_illegal, "STMD slots 6..9 is illegal");
+    print_endline("test_ldmd_stmd passed")
 }
 
 val test_movi_addi : unit -> unit
@@ -98,11 +111,34 @@ function test_movi_addi() = {
     print_endline("test_movi_addi passed")
 }
 
+val test_andi_shli : unit -> unit
+function test_andi_shli() = {
+    setup(64);
+    // ANDI zero-extends the immediate: high bits always cleared.
+    write_reg(R0, 0xFFFF_FFFF_FFFF_FF45);
+    execute(ANDI(R1, R0, 0x000F));
+    assert(read_reg(R1) == 0x0000_0000_0000_0005, "ANDI masks to the immediate");
+    execute(ANDI(R1, R0, 0xFFFF));
+    assert(read_reg(R1) == 0x0000_0000_0000_FF45, "ANDI immediate is zero-extended");
+    // SHLI truncates at 64 bits, PP SHL semantics.
+    execute(MOVI(R2, 0x0005));
+    execute(SHLI(R2, R2, 0b000010));
+    assert(read_reg(R2) == 0x0000_0000_0000_0014, "SHLI 5 << 2 = 20");
+    write_reg(R3, 0x8000_0000_0000_0001);
+    execute(SHLI(R3, R3, 0b000001));
+    assert(read_reg(R3) == 0x0000_0000_0000_0002, "SHLI truncates at 64 bits");
+    // Reads of RZ are zero; writes discarded.
+    execute(SHLI(RZ, R0, 0b000001));
+    assert(read_reg(RZ) == sail_zeros(64), "SHLI to RZ discarded");
+    print_endline("test_andi_shli passed")
+}
+
 val main : unit -> unit
 function main() = {
     test_st_ld_roundtrip();
     test_addressing_totality();
-    test_ldmd();
+    test_ldmd_stmd();
     test_movi_addi();
+    test_andi_shli();
     print_endline("test_map_exec_mem: all assertions passed")
 }

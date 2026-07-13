@@ -31,8 +31,9 @@ message ParserOp {
     Extract extract = 1;          // value_id = extracted bits
     Advance advance = 2;
     Mark mark = 3;                // present-bit + offset record
-    EmitSmd emit_smd = 4;
+    MdStore emit_md = 4;          // value -> metadata-window slots
     Shift shift = 5;              // value_id = src << amount
+    MdLoad load_md = 6;           // value_id = metadata-window slot
   }
 }
 
@@ -56,9 +57,23 @@ message Mark {
   string debug_name = 3;          // e.g. "eth"
 }
 
-message EmitSmd {
+// The metadata window: MD_SLOTS x 16-bit slots flowing through the core
+// like the frame does — loaded at ingress, edited in place by PP then MAP,
+// delivered at egress. Slot meanings are system conventions, not IR
+// semantics. Both program kinds share these two ops.
+
+message MdStore {
   uint32 value_id = 1;
-  uint32 slot = 2;                // occupies ceil(width/16) slots from here
+  uint32 slot = 2;
+  uint32 nunits = 3;              // 1..4 16-bit units, MSB-first from here
+                                  // (mirrors STMD; frontends set
+                                  // ceil(value width / 16))
+}
+
+message MdLoad {
+  uint32 value_id = 1;
+  uint32 slot = 2;                // 0..7 — no special fields
+  string debug_name = 3;
 }
 
 message Shift {
@@ -126,13 +141,16 @@ message MatchActionState {
 message MatchActionOp {
   oneof op {
     MapLoad load = 1;             // value_id = window bytes (hdr-relative)
-    MapLoadMd load_md = 2;        // value_id = inbound-SMD field
+    MdLoad load_md = 2;           // value_id = metadata-window slot
     MapConst const = 3;           // value_id = 16-bit immediate
     MapAdd add = 4;               // value_id = src + signed const
     MapStore store = 5;           // window bytes = low nbytes of value
-    CsumUpdate csum = 6;          // in-place IPv4 header checksum fix
+    Csum csum = 6;                // value_id = ones-complement checksum
     Lookup lookup = 7;            // the one op with control flow: hit
                                   // continues, miss transfers to miss_state
+    MdStore store_md = 8;         // value -> metadata-window slots
+    AndImm and_imm = 9;           // value_id = src & zero-extended imm
+    Shift shift = 10;             // value_id = src << amount (shared message)
   }
 }
 
@@ -142,13 +160,6 @@ message MapLoad {
   sint32 byte_offset = 3;         // -512..511
   uint32 nbytes = 4;              // 1..8
   string debug_name = 5;          // e.g. "ipv4.ttl"
-}
-
-message MapLoadMd {
-  uint32 value_id = 1;
-  uint32 field = 2;               // 0-7 SMD slots, 8 ingress, 9 flood,
-                                  // 10 hdr_present bitmap
-  string debug_name = 3;
 }
 
 message MapConst {
@@ -171,9 +182,17 @@ message MapStore {
   string debug_name = 5;
 }
 
-message CsumUpdate {
-  uint32 hdr_id = 1;
-  sint32 byte_offset = 2;
+message AndImm {
+  uint32 value_id = 1;
+  uint32 src_value_id = 2;
+  uint32 imm = 3;                 // 16-bit, zero-extended
+}
+
+message Csum {
+  uint32 value_id = 1;            // RFC 1071 checksum of the range (16-bit)
+  uint32 hdr_id = 2;
+  sint32 byte_offset = 3;
+  uint32 len_value_id = 4;        // runtime length value — no IHL parsing
 }
 
 message Lookup {
@@ -184,7 +203,8 @@ message Lookup {
 }
 
 message MapSend {
-  uint32 bitmap_value_id = 1;     // egress port bitmap
+  reserved 1;                     // was bitmap_value_id — egress meaning
+                                  // moved to the metadata window
   sint32 delta = 2;               // signed head delta (positive = prepend)
 }
 

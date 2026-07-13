@@ -197,20 +197,36 @@ class StateCompiler:
         return value
 
     def smd(self, value, *, slot: int) -> None:
-        """Emit a value into SMD slots starting at `slot` (ceil(width/16) units)."""
+        """Emit a value into metadata-window slots starting at `slot`
+        (ceil(width/16) units, MSB-first)."""
         self._check_open()
         materialized = self._materialize(value)
         nunits = (materialized.width + 15) // 16
         if not isinstance(slot, int) or slot < 0:
-            raise CompileError(f"SMD slot must be a non-negative integer, got {slot!r}")
+            raise CompileError(f"md slot must be a non-negative integer, got {slot!r}")
         if slot + nunits > _SMD_SLOTS:
             raise CompileError(
-                f"{materialized.name}: {materialized.width} bits need SMD slots "
+                f"{materialized.name}: {materialized.width} bits need md slots "
                 f"{slot}..{slot + nunits - 1}, but only slots 0..{_SMD_SLOTS - 1} exist"
             )
         self._ops.append(
-            ir.ParserOp(emit_smd=ir.EmitSmd(value_id=materialized.value_id, slot=slot))
+            ir.ParserOp(emit_md=ir.MdStore(
+                value_id=materialized.value_id, slot=slot, nunits=nunits
+            ))
         )
+
+    def load_md(self, slot: int):
+        """Load a metadata-window slot (LDMD) as a 16-bit value — parsing
+        can depend on system metadata (e.g. port-based parsing)."""
+        self._check_open()
+        if not isinstance(slot, int) or not 0 <= slot < _SMD_SLOTS:
+            raise CompileError(f"load_md slot {slot!r} out of range 0..{_SMD_SLOTS - 1}")
+        name = f"md[{slot}]"
+        value = Value(next(self._value_ids), 16, name)
+        self._ops.append(
+            ir.ParserOp(load_md=ir.MdLoad(value_id=value.value_id, slot=slot, debug_name=name))
+        )
+        return value
 
     def advance(self, amount) -> None:
         """Advance the cursor: int -> constant advance (offset tracking follows);

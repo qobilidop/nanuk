@@ -61,7 +61,8 @@ add_custom_command(
         --c-preserve emu_get_steps
         --c-preserve emu_get_hdr_present
         --c-preserve emu_get_hdr_offset
-        --c-preserve emu_get_smd
+        --c-preserve emu_get_md
+        --c-preserve emu_set_md
         ${MODEL_MAIN}
         ${CMAKE_SOURCE_DIR}/emulator/entry.sail -o ${EMU_STEM}
     DEPENDS ${MODEL_SAIL_FILES} ${CMAKE_SOURCE_DIR}/emulator/entry.sail
@@ -92,15 +93,14 @@ add_custom_command(
         --c-preserve emu_map_poke_imem
         --c-preserve emu_map_poke_pkt
         --c-preserve emu_map_set_plen
-        --c-preserve emu_map_set_ingress
-        --c-preserve emu_map_set_smd
+        --c-preserve emu_map_set_md
+        --c-preserve emu_map_get_md
         --c-preserve emu_map_set_hdr
         --c-preserve emu_map_table_config
         --c-preserve emu_map_table_add
         --c-preserve emu_map_run
         --c-preserve emu_map_get_verdict
         --c-preserve emu_map_get_error
-        --c-preserve emu_map_get_egress
         --c-preserve emu_map_get_steps
         --c-preserve emu_map_get_delta
         --c-preserve emu_map_get_win_byte
