@@ -28,7 +28,7 @@ class PPResult:
     steps: int
     hdr_present: list[int]
     hdr_offset: list[int]
-    smd: list[int]
+    md: list[int]
     regs: list[int]  # r0-r3 at halt (RTL-only observability aid)
 
 
@@ -47,7 +47,7 @@ def _to_words(prog) -> list[int]:
 def _snapshot(ctx, dut: ParserProcessor) -> PPResult:
     hp = ctx.get(dut.hdr_present)
     ho = ctx.get(dut.hdr_offset)
-    smd = ctx.get(dut.smd)
+    md = ctx.get(dut.md_out)
     return PPResult(
         verdict=ctx.get(dut.verdict),
         error=ctx.get(dut.error),
@@ -55,17 +55,19 @@ def _snapshot(ctx, dut: ParserProcessor) -> PPResult:
         steps=ctx.get(dut.steps),
         hdr_present=[(hp >> i) & 1 for i in range(16)],
         hdr_offset=[(ho >> (16 * i)) & 0xFFFF for i in range(16)],
-        smd=[(smd >> (16 * i)) & 0xFFFF for i in range(8)],
+        md=[(md >> (16 * i)) & 0xFFFF for i in range(8)],
         regs=[ctx.get(r) for r in dut.regs],
     )
 
 
-def run_pp(prog, packets, *, plens=None) -> list[PPResult]:
+def run_pp(prog, packets, md_ins=None, *, plens=None) -> list[PPResult]:
     """Run each packet through one ParserProcessor instance (program loaded once;
     `start` between packets exercises the architectural-state clear).
 
-    packets: list of byte strings. plens: optional per-packet override of the
-    `plen` input (defaults to len(packet)). Returns one PPResult per packet.
+    packets: list of byte strings. md_ins: optional per-packet metadata
+    window seeds (up to 8 16-bit slots each; default all-zero). plens:
+    optional per-packet override of the `plen` input (defaults to
+    len(packet)). Returns one PPResult per packet.
     """
     words = _to_words(prog)
     if len(words) > IMEM_WORDS:
@@ -73,6 +75,8 @@ def run_pp(prog, packets, *, plens=None) -> list[PPResult]:
     packets = [bytes(p) for p in packets]
     if plens is None:
         plens = [len(p) for p in packets]
+    if md_ins is None:
+        md_ins = [[0] * 8 for _ in packets]
 
     dut = ParserProcessor()
     results: list[PPResult] = []
@@ -86,7 +90,7 @@ def run_pp(prog, packets, *, plens=None) -> list[PPResult]:
             await ctx.tick()
         ctx.set(dut.prog_we, 0)
 
-        for packet, plen in zip(packets, plens):
+        for packet, plen, md_in in zip(packets, plens, md_ins):
             # Fill the whole buffer: packet bytes then zero padding, exactly
             # like the golden harness's zeroed buffer (start does not clear
             # the packet buffer, so stale bytes must be overwritten).
@@ -99,6 +103,10 @@ def run_pp(prog, packets, *, plens=None) -> list[PPResult]:
             ctx.set(dut.pkt_we, 0)
 
             ctx.set(dut.plen, plen)
+            md = 0
+            for i, v in enumerate(md_in):
+                md |= (v & 0xFFFF) << (16 * i)
+            ctx.set(dut.md_in, md)
             ctx.set(dut.start, 1)
             await ctx.tick()
             ctx.set(dut.start, 0)
@@ -118,6 +126,9 @@ def run_pp(prog, packets, *, plens=None) -> list[PPResult]:
     return results
 
 
-def run_pp_one(prog, packet=b"", *, plen=None) -> PPResult:
+def run_pp_one(prog, packet=b"", md_in=(), *, plen=None) -> PPResult:
     """Single-packet convenience wrapper around run_pp."""
-    return run_pp(prog, [packet], plens=None if plen is None else [plen])[0]
+    return run_pp(
+        prog, [packet], [list(md_in) + [0] * (8 - len(md_in))],
+        plens=None if plen is None else [plen],
+    )[0]

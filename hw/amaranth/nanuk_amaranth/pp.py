@@ -12,9 +12,13 @@ reproduces its semantics bit-for-bit:
 - steps counts *executed* instructions (including a faulting illegal one),
   and equals the budget (256) on watchdog exhaustion.
 
-Interface contract per docs/superpowers/plans/2026-07-11-stage4-rtl-simbricks.md.
-One instruction takes one EXEC cycle; a 2-state FETCH/EXEC loop covers the
-synchronous imem read port (steps counts EXEC cycles, not clock cycles).
+Interface contract per docs/superpowers/plans/2026-07-11-stage4-rtl-simbricks.md,
+extended by the core-interface redesign: the metadata window (md_in loaded
+at start, LDMD-read, STMD-written, md_out live) and the shared-window hooks
+(pktmem=..., pkt_base=...) the composed NanukCore uses so the PP reads the
+core's window in place. One instruction takes one EXEC cycle; a 2-state
+FETCH/EXEC loop covers the synchronous imem read port (steps counts EXEC
+cycles, not clock cycles).
 """
 
 from amaranth import Array, C, Cat, Module, Mux, Signal
@@ -25,7 +29,7 @@ from amaranth.lib.wiring import In, Out
 BUF_BYTES = 256
 IMEM_WORDS = 1024
 NHDR = 16
-SMD_SLOTS = 8
+MD_SLOTS = 8
 STEP_BUDGET = 256
 
 # Verdicts (mirror spec/sail/model/pp/state.sail).
@@ -39,7 +43,7 @@ ERR_HDR_VIOLATION = 0x01
 ERR_STEP_BUDGET = 0x02
 ERR_ILLEGAL = 0x03
 ERR_PC_RANGE = 0x04
-ERR_SMD_RANGE = 0x05
+ERR_MD_RANGE = 0x05
 
 # Opcodes (mirror spec/sail/model/pp/decode.sail).
 OP_EXT = 0x01
@@ -53,6 +57,7 @@ OP_JMP = 0x08
 OP_SETHDR = 0x09
 OP_STMD = 0x0A
 OP_HALT = 0x0B
+OP_LDMD = 0x0C
 
 # FSM states.
 _ST_IDLE = 0
@@ -81,6 +86,7 @@ class ParserProcessor(wiring.Component):
     pkt_data: In(8)
 
     plen: In(16)
+    md_in: In(16 * MD_SLOTS)
     start: In(1)
 
     done: Out(1)
@@ -90,10 +96,22 @@ class ParserProcessor(wiring.Component):
     steps: Out(32)
     hdr_present: Out(NHDR)
     hdr_offset: Out(16 * NHDR)
-    smd: Out(16 * SMD_SLOTS)
+    md_out: Out(16 * MD_SLOTS)
 
-    def __init__(self):
+    def __init__(self, pktmem=None, pkt_base=0):
+        """pktmem: an amaranth.lib.memory.Memory to read packet bytes from
+        (the composed core's shared window) instead of the private buffer;
+        pkt_base: byte offset added to every packet read (the core passes
+        HEADROOM). Standalone default is bit-identical to the classic PP;
+        in shared mode the pkt_we/pkt_addr/pkt_data load ports are unused
+        (tie them off)."""
         super().__init__()
+        self._pktmem = pktmem
+        # The read port is created NOW (pre-elaboration): the shared memory
+        # may elaborate before this component does, and ports cannot be
+        # added after that.
+        self._ext_prp = None if pktmem is None else pktmem.read_port()
+        self._pkt_base = pkt_base
         # Architectural state, created here so simulations can peek at it.
         self.regs = [Signal(64, name=f"reg{i}") for i in range(4)]
         self.cursor = Signal(16)
@@ -118,16 +136,19 @@ class ParserProcessor(wiring.Component):
         # byte per read cycle (the Sail read_pkt_bits algorithm laid out in
         # time) — a combinational 2048-bit extraction datapath is both
         # unrealistic hardware and pathological for Verilator's C output. ---
-        m.submodules.pktmem = pktmem = memory.Memory(
-            shape=8, depth=BUF_BYTES, init=[]
-        )
-        pwp = pktmem.write_port()
-        prp = pktmem.read_port()
-        m.d.comb += [
-            pwp.addr.eq(self.pkt_addr),
-            pwp.data.eq(self.pkt_data),
-            pwp.en.eq(self.pkt_we),
-        ]
+        if self._pktmem is None:
+            m.submodules.pktmem = pktmem = memory.Memory(
+                shape=8, depth=BUF_BYTES, init=[]
+            )
+            pwp = pktmem.write_port()
+            m.d.comb += [
+                pwp.addr.eq(self.pkt_addr),
+                pwp.data.eq(self.pkt_data),
+                pwp.en.eq(self.pkt_we),
+            ]
+            prp = pktmem.read_port()
+        else:
+            prp = self._ext_prp
 
         # --- Architectural state ------------------------------------------
         regs_arr = Array(self.regs)
@@ -137,8 +158,8 @@ class ParserProcessor(wiring.Component):
         hdr_present_r = Signal(NHDR)
         hdr_off = [Signal(16, name=f"hdr_off{i}") for i in range(NHDR)]
         hdr_off_arr = Array(hdr_off)
-        smd_r = [Signal(16, name=f"smd{i}") for i in range(SMD_SLOTS)]
-        smd_arr = Array(smd_r)
+        md_r = [Signal(16, name=f"md{i}") for i in range(MD_SLOTS)]
+        md_arr = Array(md_r)
         steps_r = Signal(32)
         verdict_r = Signal(8)
         err_r = Signal(8)
@@ -162,7 +183,7 @@ class ParserProcessor(wiring.Component):
             self.steps.eq(steps_r),
             self.hdr_present.eq(hdr_present_r),
             self.hdr_offset.eq(Cat(*hdr_off)),
-            self.smd.eq(Cat(*smd_r)),
+            self.md_out.eq(Cat(*md_r)),
         ]
 
         # Header parse boundary: hdr_limit = min(plen, BUF_BYTES).
@@ -186,6 +207,7 @@ class ParserProcessor(wiring.Component):
         hdr_id = word[0:4]      # SETHDR header id
         stmd_nm1 = word[21:23]  # STMD nunits-1
         stmd_slot = word[17:21] # STMD slot
+        hdr_id_md = word[19:23] # LDMD md slot at [22:19]
 
         def reg_ok(f):
             # Register codes 0-4 decode (4 = RZ); 5-7 are ILLEGAL.
@@ -238,7 +260,10 @@ class ParserProcessor(wiring.Component):
             # Clear architectural state; imem and packet buffer persist.
             m.d.sync += [r.eq(0) for r in self.regs]
             m.d.sync += [h.eq(0) for h in hdr_off]
-            m.d.sync += [s.eq(0) for s in smd_r]
+            m.d.sync += [
+                md_r[i].eq(self.md_in.word_select(C(i, 3), 16))
+                for i in range(MD_SLOTS)
+            ]
             m.d.sync += [
                 cursor.eq(0),
                 pc.eq(0),
@@ -349,9 +374,9 @@ class ParserProcessor(wiring.Component):
                     with m.If((word[0:17] == 0) & reg_ok(f_ra)):
                         m.d.comb += illegal.eq(0)
                         with m.If(
-                            stmd_slot + stmd_nm1 + 1 > SMD_SLOTS
+                            stmd_slot + stmd_nm1 + 1 > MD_SLOTS
                         ):
-                            halt_error(ERR_SMD_RANGE)
+                            halt_error(ERR_MD_RANGE)
                         with m.Else():
                             value = reg_read(f_ra)
                             with m.Switch(stmd_nm1):
@@ -361,7 +386,7 @@ class ParserProcessor(wiring.Component):
                                         for i in range(n):
                                             # MSB-first across the slots.
                                             lo = (n - 1 - i) * 16
-                                            m.d.sync += smd_arr[
+                                            m.d.sync += md_arr[
                                                 stmd_slot + i
                                             ].eq(value[lo:lo + 16])
 
@@ -376,6 +401,14 @@ class ParserProcessor(wiring.Component):
                             state.eq(_ST_IDLE),
                         ]
 
+                with m.Case(OP_LDMD):
+                    with m.If((word[0:19] == 0) & reg_ok(f_ra)):
+                        m.d.comb += illegal.eq(0)
+                        with m.If(hdr_id_md >= MD_SLOTS):
+                            halt_error(ERR_ILLEGAL)
+                        with m.Else():
+                            reg_write(f_ra, md_arr[hdr_id_md[0:3]])
+
             with m.If(illegal):
                 # Any unassigned pattern, nonzero required-zero field, or
                 # register code 5-7 (including the all-zeros word).
@@ -383,7 +416,7 @@ class ParserProcessor(wiring.Component):
 
         with m.Elif(state == _ST_EXT_ISSUE):
             m.d.comb += [
-                prp.addr.eq(ext_base_r + ext_i_r),
+                prp.addr.eq(self._pkt_base + ext_base_r + ext_i_r),
                 prp.en.eq(1),
             ]
             m.d.sync += state.eq(_ST_EXT_CAPTURE)
