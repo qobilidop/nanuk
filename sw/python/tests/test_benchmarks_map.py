@@ -50,7 +50,7 @@ def ones_csum(data: bytes) -> int:
 
 SR_MAC = b"\xaa\xbb\xcc\xdd\xee\x01" + b"\xaa\xbb\xcc\xdd\xee\x02"
 SR_PAYLOAD = b"PAYLOAD-" * 3
-ET_SRCROUTE = 0x1234
+ET_SRCROUTE = 0x88B5
 ET_IPV4 = 0x0800
 
 
@@ -194,3 +194,80 @@ def test_e1_end_around_carry_actually_fires():
         if old + 0x0800 > 0xFFFF:
             hit_carry = True
     assert hit_carry, "the sweep must include at least one end-around carry"
+
+
+# --------------------------------------------------------------------------
+# E3 — compute on packet-carried operands.
+#
+# The benchmark that changed the ISA. It appears in TWO independent corpora
+# (p4 `calc`, xISA `network-calculator`) and Nanuk could not run it at all:
+# the whole MAP ALU was immediate-only, so there was nowhere to put a second
+# operand that came off the wire. v0.1 adds ADD/SUB/AND/OR/XOR reg-reg.
+# --------------------------------------------------------------------------
+
+C_DST = b"\xaa\xbb\xcc\xdd\xee\xff"
+C_SRC = b"\x00\x11\x22\x33\x44\x55"
+ET_CALC = 0x1234
+CALC_OFF = 14
+MASK32 = 0xFFFFFFFF
+
+
+def calc_frame(op: bytes, a: int, b: int, version: int = 1) -> bytes:
+    body = b"P4" + bytes([version]) + op + struct.pack("!III", a, b, 0)
+    return C_DST + C_SRC + struct.pack("!H", ET_CALC) + body
+
+
+def calc_result(frame: bytes) -> int:
+    return struct.unpack("!I", frame[CALC_OFF + 12 : CALC_OFF + 16])[0]
+
+
+@pytest.mark.parametrize(
+    "op,a,b,want",
+    [
+        (b"+", 7, 5, 12),
+        (b"+", 0xFFFFFFFF, 1, 0),  # 32-bit wraparound, via the truncating store
+        (b"-", 100, 58, 42),
+        (b"-", 0, 1, MASK32),  # borrow: 64-bit wrap truncated to 32
+        (b"&", 0xF0F0F0F0, 0xFF00FF00, 0xF000F000),
+        (b"|", 0xF0F0F0F0, 0x0F0F0F0F, 0xFFFFFFFF),
+        (b"^", 0xDEADBEEF, 0xFFFFFFFF, 0x21524110),
+        (b"^", 0x12345678, 0x12345678, 0),
+    ],
+)
+def test_e3_the_network_does_the_math(op, a, b, want):
+    pp, mp = programs("calc", "calc.asm")
+    _, r = map_harness.run_pipeline(
+        pp, mp, calc_frame(op, a, b), tables=[reflect_table()], md_in=(2,) + (0,) * 7
+    )
+    assert (r.verdict, r.error) == (VERDICT_SENT, 0)
+    assert calc_result(r.frame) == want, f"{a} {op.decode()} {b}"
+    # The answer goes back to whoever asked.
+    assert r.frame[0:6] == C_SRC and r.frame[6:12] == C_DST, "MACs swapped"
+    assert r.md[0] == 1 << 2, "reflected out the ingress port"
+    assert r.delta == 0, "a reply is the same length as the request"
+
+
+def test_e3_unknown_opcode_is_dropped():
+    pp, mp = programs("calc", "calc.asm")
+    _, r = map_harness.run_pipeline(
+        pp, mp, calc_frame(b"*", 6, 7), tables=[reflect_table()], md_in=(0,) * 8
+    )
+    assert r.verdict == VERDICT_DROPPED, "multiply is not implemented -- refuse it"
+    assert r.error == 0, "a decision, not an error"
+
+
+@pytest.mark.parametrize(
+    "name,frame",
+    [
+        ("bad magic", b"\x00" * 12 + struct.pack("!H", ET_CALC) + b"XX\x01+" + b"\x00" * 12),
+        ("bad version", calc_frame(b"+", 1, 2, version=9)),
+    ],
+)
+def test_e3_parser_rejects_malformed_headers(name, frame):
+    """Magic and version are checked in the PARSER, so MAP can assume a
+    well-formed header and spend its instructions on arithmetic."""
+    pp, mp = programs("calc", "calc.asm")
+    r_pp, _ = map_harness.run_pipeline(
+        pp, mp, frame, tables=[reflect_table()], md_in=(0,) * 8
+    )
+    assert r_pp.verdict == 1, name

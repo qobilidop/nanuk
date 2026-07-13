@@ -29,6 +29,22 @@ OP_STMD = 0x0D
 OP_ANDI = 0x0E
 OP_SHLI = 0x0F
 
+# v0.1: register-register ALU. The immediate-only ALU could not compute on two
+# operands that both came off the wire; the calculator benchmark demands it.
+OP_ADD = 0x10
+OP_SUB = 0x11
+OP_AND = 0x12
+OP_OR = 0x13
+OP_XOR = 0x14
+
+ALU_OPS = {
+    "add": OP_ADD,
+    "sub": OP_SUB,
+    "and": OP_AND,
+    "or": OP_OR,
+    "xor": OP_XOR,
+}
+
 
 def _check(value: int, width: int, what: str) -> int:
     if not 0 <= value < (1 << width):
@@ -163,3 +179,11 @@ def encode_shli(rd: str, rs: str, sh: int) -> int:
         | (_reg(rs) << 20)
         | (_check(sh, 6, "shift amount") << 14)
     )
+
+
+def encode_alu(mnemonic: str, rd: str, rs: str, rt: str) -> int:
+    """Register-register ALU: rd [25:23], rs [22:20], rt [19:17], rest zero."""
+    op = ALU_OPS.get(mnemonic)
+    if op is None:
+        raise ValueError(f"unknown ALU op {mnemonic!r}")
+    return (op << 26) | (_reg(rd) << 23) | (_reg(rs) << 20) | (_reg(rt) << 17)

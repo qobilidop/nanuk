@@ -36,6 +36,17 @@ ERR_SEND_RANGE = 6
 H_FRAME = 15
 
 _MASK64 = (1 << 64) - 1
+
+# Register-register ALU (opcodes 0x10-0x14). SUB relies on write_reg's 64-bit
+# mask for two's-complement wraparound, exactly as the Sail sub_bits does.
+_ALU_MNEMONIC = {0x10: "add", 0x11: "sub", 0x12: "and", 0x13: "or", 0x14: "xor"}
+_ALU_FN = {
+    "add": lambda a, b: a + b,
+    "sub": lambda a, b: a - b,
+    "and": lambda a, b: a & b,
+    "or": lambda a, b: a | b,
+    "xor": lambda a, b: a ^ b,
+}
 _MASK16 = (1 << 16) - 1
 _RZ = 4
 
@@ -144,6 +155,11 @@ def _decode(w: int):
             if w & 0x3FFF or r1 > 4 or r2 > 4:
                 return None
             return ("shli", r1, r2, (w >> 14) & 0x3F)
+        case 0x10 | 0x11 | 0x12 | 0x13 | 0x14:  # reg-reg ALU: rd, rs, rt
+            r3 = (w >> 17) & 7
+            if w & 0x1FFFF or r1 > 4 or r2 > 4 or r3 > 4:
+                return None
+            return (_ALU_MNEMONIC[op], r1, r2, r3)
         case _:
             return None
 
@@ -264,6 +280,10 @@ class _Machine:
                     v = self.read_reg(rs)
                     for i in range(n):
                         self.md[slot + i] = (v >> (16 * (n - 1 - i))) & _MASK16
+            case (("add" | "sub" | "and" | "or" | "xor") as mn, rd, rs, rt):
+                # Total by construction: every 64-bit pair has a result. ADD/SUB
+                # wrap (write_reg masks to 64 bits); no flags, no traps.
+                self.write_reg(rd, _ALU_FN[mn](self.read_reg(rs), self.read_reg(rt)))
             case ("andi", rd, rs, imm):
                 self.write_reg(rd, self.read_reg(rs) & imm)
             case ("shli", rd, rs, sh):

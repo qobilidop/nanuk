@@ -27,6 +27,12 @@ overload operator == = {eq_regidx}
 //   LOOKUP   rd, table id (4b), key rs, miss target (absolute word address)
 //   CSUM     rd, hdr base id, byte offset (10b two's complement), length reg
 //   SEND     head delta (10b two's complement) — egress meaning lives in md
+//   ADD/SUB/AND/OR/XOR
+//            rd, rs, rt — register-register, [16:0] reserved. The immediate-only
+//            ALU could not compute on two operands that both came off the wire;
+//            the calculator benchmark (p4 `calc`, xISA `network-calculator`)
+//            demands it. No MUL: shift-and-add is expressible, and 64-bit
+//            registers make xISA's carry-propagation dance unnecessary.
 union instr = {
     LD      : (regidx, bits4, bits10, bits3),
     ST      : (regidx, bits4, bits10, bits3),
@@ -43,5 +49,10 @@ union instr = {
     STMD    : (regidx, bits2, bits4),
     ANDI    : (regidx, regidx, bits16),
     SHLI    : (regidx, regidx, bits6),
+    ADD     : (regidx, regidx, regidx),
+    SUB     : (regidx, regidx, regidx),
+    AND     : (regidx, regidx, regidx),
+    OR      : (regidx, regidx, regidx),
+    XOR     : (regidx, regidx, regidx),
     ILLEGAL : unit,
 }

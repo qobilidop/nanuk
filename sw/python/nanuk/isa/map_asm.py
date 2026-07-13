@@ -12,6 +12,7 @@ Syntax:
     addi  rd, rs, imm        ; imm may be negative (sign-extended)
     andi  rd, rs, imm16      ; imm zero-extended
     shli  rd, rs, sh         ; shift left immediate (0..63)
+    add|sub|and|or|xor rd, rs, rt   ; register-register ALU (v0.1)
     beq   rs, rt, label
     bne   rs, rt, label
     jmp   label
@@ -120,6 +121,11 @@ def _assemble_words(text: str):
                 case "shli":
                     expect(line, 3)
                     word = encoding.encode_shli(reg(ops[0]), reg(ops[1]), val(ops[2]))
+                case "add" | "sub" | "and" | "or" | "xor":
+                    expect(line, 3)
+                    word = encoding.encode_alu(
+                        line.mnemonic, reg(ops[0]), reg(ops[1]), reg(ops[2])
+                    )
                 case _:
                     raise AsmError(ln, f"unknown mnemonic {line.mnemonic!r}")
         except ValueError as e:

@@ -67,6 +67,12 @@ OP_DROP = 0x0C
 OP_STMD = 0x0D
 OP_ANDI = 0x0E
 OP_SHLI = 0x0F
+# v0.1: register-register ALU (the calculator benchmark).
+OP_ADD = 0x10
+OP_SUB = 0x11
+OP_AND = 0x12
+OP_OR = 0x13
+OP_XOR = 0x14
 
 # FSM states.
 _ST_IDLE = 0
@@ -271,6 +277,7 @@ class MatchActionProcessor(wiring.Component):
         st_nm1 = word[21:23]      # STMD nunits-1
         st_slot = word[17:21]     # STMD slot
         shl_sh = word[14:20]      # SHLI shift amount (6 bits)
+        f_rt = word[17:20]        # reg-reg ALU third register at [19:17]
 
         def reg_ok(f):
             return f <= 4
@@ -467,6 +474,33 @@ class MatchActionProcessor(wiring.Component):
                         m.d.comb += illegal.eq(0)
                         # 64-bit left shift; assignment truncates at 64.
                         reg_write(f_ra, reg_read(f_rb) << shl_sh)
+
+                with m.Case(OP_ADD, OP_SUB, OP_AND, OP_OR, OP_XOR):
+                    # rd [25:23], rs [22:20], rt [19:17]; [16:0] reserved.
+                    # Total: every 64-bit pair has a result, so the only way to
+                    # be illegal is a bad register code or dirty reserved bits.
+                    with m.If(
+                        (word[0:17] == 0)
+                        & reg_ok(f_ra)
+                        & reg_ok(f_rb)
+                        & reg_ok(f_rt)
+                    ):
+                        m.d.comb += illegal.eq(0)
+                        a = reg_read(f_rb)
+                        b = reg_read(f_rt)
+                        alu = Signal(64)
+                        with m.Switch(opcode):
+                            with m.Case(OP_ADD):
+                                m.d.comb += alu.eq((a + b)[0:64])
+                            with m.Case(OP_SUB):
+                                m.d.comb += alu.eq((a - b)[0:64])
+                            with m.Case(OP_AND):
+                                m.d.comb += alu.eq(a & b)
+                            with m.Case(OP_OR):
+                                m.d.comb += alu.eq(a | b)
+                            with m.Case(OP_XOR):
+                                m.d.comb += alu.eq(a ^ b)
+                        reg_write(f_ra, alu)
 
                 with m.Case(OP_MOVI):
                     with m.If((word[16:23] == 0) & reg_ok(f_ra)):

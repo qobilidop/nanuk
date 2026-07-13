@@ -31,6 +31,13 @@ def test_golden_words():
     assert e.encode_andi("r1", "r2", 0x00FF) == 0x38A000FF
     assert e.encode_shli("r1", "r2", 2) == 0x3CA08000
     assert e.encode_shli("r0", "r3", 63) == 0x3C3FC000
+    # Register-register ALU (v0.1). Same golden words as
+    # spec/sail/test/map/test_map_decode.sail -- the drift tripwire.
+    assert e.encode_alu("add", "r0", "r1", "r2") == 0x40140000
+    assert e.encode_alu("sub", "r3", "r0", "rz") == 0x45880000
+    assert e.encode_alu("and", "r1", "r2", "r3") == 0x48A60000
+    assert e.encode_alu("or", "r2", "r3", "r0") == 0x4D300000
+    assert e.encode_alu("xor", "r0", "r0", "r1") == 0x50020000
 
 
 def test_addi_signed_range():

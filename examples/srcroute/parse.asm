@@ -17,7 +17,7 @@
 .equ h_eth 0
 .equ h_sr  1
 
-.equ ET_SRCROUTE 0x1234
+.equ ET_SRCROUTE 0x88b5   ; IEEE 802 local-experimental EtherType
 
 start:
     sethdr  h_eth

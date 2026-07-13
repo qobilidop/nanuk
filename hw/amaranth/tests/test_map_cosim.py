@@ -8,6 +8,8 @@ Gated on NANUK_COSIM=1 (needs both emulator binaries from the devcontainer
 build)."""
 
 import os
+import random
+import struct
 from pathlib import Path
 
 import pytest
@@ -43,6 +45,7 @@ FLOOD = demo_flood_table()
 L2_TABLES = [L2_TABLE, NO_TABLE, NO_TABLE, FLOOD]
 PUSH_TABLES = [NO_TABLE, TUN_TABLE, NO_TABLE, FLOOD]
 POP_TABLES = [NO_TABLE, NO_TABLE, NO_TABLE, FLOOD]
+NO_TABLES = [NO_TABLE, NO_TABLE, NO_TABLE, NO_TABLE]
 
 
 def assert_map_matches(name, golden, rtl):
@@ -105,3 +108,52 @@ def test_composed_pipeline_rtl_vs_golden(progs):
         assert (rm is None) == (gm is None), f"{name}: gating"
         if gm is not None:
             assert_map_matches(f"composed/{name}", gm, rm)
+
+
+# --------------------------------------------------------------------------
+# v0.1 register-register ALU: RTL vs. the Sail golden model.
+#
+# The suite added ADD/SUB/AND/OR/XOR to close the calculator benchmark, and the
+# RTL had to grow them too. The fuzz generator does not emit these opcodes, so
+# nothing else in the suite would have noticed the drift -- this test is the
+# tripwire.
+# --------------------------------------------------------------------------
+
+_ALU_SRC = """
+start:
+    ld   r0, h_frame, 0, 8
+    ld   r1, h_frame, 8, 8
+    {op}  r2, r0, r1
+    st   r2, h_frame, 16, 8
+    movi r3, 1
+    stmd r3, 1, 0
+    send 0
+"""
+
+_ALU_EDGE_CASES = [
+    (0, 0),
+    (0, 1),  # SUB borrows: 0 - 1 wraps to 2**64 - 1
+    ((1 << 64) - 1, (1 << 64) - 1),  # ADD carries out of bit 63
+    (0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF),
+    (0xF0F0F0F0F0F0F0F0, 0xFF00FF00FF00FF00),
+]
+
+
+@pytest.mark.parametrize("op", ["add", "sub", "and", "or", "xor"])
+def test_reg_reg_alu_cosim(op):
+    from nanuk.isa import map_asm, pp_asm
+
+    prog = map_asm.assemble(_ALU_SRC.format(op=op))
+    pp_prog = pp_asm.assemble("start:\n  sethdr 0\n  halt accept\n")
+
+    rng = random.Random(f"alu-{op}")
+    cases = list(_ALU_EDGE_CASES) + [
+        (rng.getrandbits(64), rng.getrandbits(64)) for _ in range(12)
+    ]
+
+    for a, b in cases:
+        frame = struct.pack("!QQ", a, b) + b"\x00" * 8 + b"tail" * 4
+        pp = run_program(pp_prog, frame, [0])
+        gold = run_map(prog, frame, pp, NO_TABLES, pp.md)
+        rtl = run_map_one(prog, frame, pp, NO_TABLES, pp.md)
+        assert_map_matches(f"{op}({a:#x}, {b:#x})", gold, rtl)

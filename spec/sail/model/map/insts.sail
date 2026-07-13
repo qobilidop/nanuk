@@ -99,6 +99,28 @@ function clause execute(SHLI(rd, rs, sh)) = {
     write_reg(rd, sail_shiftleft(read_reg(rs), unsigned(sh)))
 }
 
+// Register-register ALU. Total by construction: every 64-bit pair has a
+// result, so none of these can fail. ADD/SUB wrap; no flags, no traps.
+function clause execute(ADD(rd, rs, rt)) = {
+    write_reg(rd, read_reg(rs) + read_reg(rt))
+}
+
+function clause execute(SUB(rd, rs, rt)) = {
+    write_reg(rd, sub_bits(read_reg(rs), read_reg(rt)))
+}
+
+function clause execute(AND(rd, rs, rt)) = {
+    write_reg(rd, read_reg(rs) & read_reg(rt))
+}
+
+function clause execute(OR(rd, rs, rt)) = {
+    write_reg(rd, read_reg(rs) | read_reg(rt))
+}
+
+function clause execute(XOR(rd, rs, rt)) = {
+    write_reg(rd, xor_vec(read_reg(rs), read_reg(rt)))
+}
+
 // MOVI rd, imm16: rd = zero-extended immediate.
 function clause execute(MOVI(rd, imm)) = {
     write_reg(rd, sail_zeros(48) @ imm)

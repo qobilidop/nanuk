@@ -77,6 +77,22 @@ mapping clause encdec = ANDI(rd, rs, imm)
 mapping clause encdec = SHLI(rd, rs, sh)
     <-> 0b001111 @ encdec_reg(rd) @ encdec_reg(rs) @ sh @ 0b00000000000000 : bits(14)
 
+// Opcodes 0x10-0x14: register-register ALU. rd, rs, rt; [16:0] reserved.
+mapping clause encdec = ADD(rd, rs, rt)
+    <-> 0b010000 @ encdec_reg(rd) @ encdec_reg(rs) @ encdec_reg(rt) @ 0b00000000000000000 : bits(17)
+
+mapping clause encdec = SUB(rd, rs, rt)
+    <-> 0b010001 @ encdec_reg(rd) @ encdec_reg(rs) @ encdec_reg(rt) @ 0b00000000000000000 : bits(17)
+
+mapping clause encdec = AND(rd, rs, rt)
+    <-> 0b010010 @ encdec_reg(rd) @ encdec_reg(rs) @ encdec_reg(rt) @ 0b00000000000000000 : bits(17)
+
+mapping clause encdec = OR(rd, rs, rt)
+    <-> 0b010011 @ encdec_reg(rd) @ encdec_reg(rs) @ encdec_reg(rt) @ 0b00000000000000000 : bits(17)
+
+mapping clause encdec = XOR(rd, rs, rt)
+    <-> 0b010100 @ encdec_reg(rd) @ encdec_reg(rs) @ encdec_reg(rt) @ 0b00000000000000000 : bits(17)
+
 end encdec
 
 // Decode with total fallthrough: anything the mapping doesn't match is ILLEGAL.

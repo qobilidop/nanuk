@@ -38,16 +38,24 @@ function test_golden_encodings() = {
     check_roundtrip(STMD(R0, 0b11, 0x0), 0x34600000, "STMD r0, 4 units, slot 0");
     check_roundtrip(ANDI(R1, R2, 0x00FF), 0x38A000FF, "ANDI r1, r2, 0x00FF");
     check_roundtrip(SHLI(R1, R2, 0b000010), 0x3CA08000, "SHLI r1, r2, 2");
-    check_roundtrip(SHLI(R0, R3, 0b111111), 0x3C3FC000, "SHLI r0, r3, 63")
+    check_roundtrip(SHLI(R0, R3, 0b111111), 0x3C3FC000, "SHLI r0, r3, 63");
+    // Register-register ALU (v0.1): rd [25:23], rs [22:20], rt [19:17].
+    check_roundtrip(ADD(R0, R1, R2), 0x40140000, "ADD r0, r1, r2");
+    check_roundtrip(SUB(R3, R0, RZ), 0x45880000, "SUB r3, r0, rz");
+    check_roundtrip(AND(R1, R2, R3), 0x48A60000, "AND r1, r2, r3");
+    check_roundtrip(OR(R2, R3, R0), 0x4D300000, "OR r2, r3, r0");
+    check_roundtrip(XOR(R0, R0, R1), 0x50020000, "XOR r0, r0, r1")
 }
 
 val test_illegal_words : unit -> unit
 function test_illegal_words() = {
     // The all-zeros word (opcode 0x00) is illegal by design.
     assert(is_illegal(decode(0x00000000)), "all-zeros word is ILLEGAL");
-    // Unassigned opcodes (0x10 and up).
-    assert(is_illegal(decode(0x40000000)), "opcode 0x10 is ILLEGAL");
+    // Unassigned opcodes (0x15 and up; 0x10-0x14 are the reg-reg ALU).
+    assert(is_illegal(decode(0x54000000)), "opcode 0x15 is ILLEGAL");
     assert(is_illegal(decode(0xFC000000)), "opcode 0x3F is ILLEGAL");
+    // Reserved bits below a reg-reg ALU op must be zero.
+    assert(is_illegal(decode(0x40140001)), "ADD with nonzero reserved bits is ILLEGAL");
     // Nonzero reserved bits do not match the mapping.
     assert(is_illegal(decode(0x04781001)), "LD with nonzero reserved bits is ILLEGAL");
     assert(is_illegal(decode(0x30000001)), "DROP with nonzero reserved bits is ILLEGAL");
