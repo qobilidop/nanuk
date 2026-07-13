@@ -16,17 +16,17 @@ not from the design docs). Verdicts: **COVERED** today ·
 |---|---|---|
 | `multicast` | P1 · E0 · T1 | **COVERED** (via the flood-table idiom, see below) |
 | `source_routing` | P4 · E2/E5 · **T0** | **COVERED** |
-| `basic` | P2 · E2 · T4 | **+ADD** LPM |
-| `basic_tunnel` | P2 · E2 · T1+T4 | **+ADD** LPM |
-| `qos` | P2 · E1/E2 · T4 | **+ADD** LPM (no meters, no queues despite the name) |
+| `basic` | P2 · E2 · T3 | **+ADD** LPM |
+| `basic_tunnel` | P2 · E2 · T1+T3 | **+ADD** LPM |
+| `qos` | P2 · E1/E2 · T3 | **+ADD** LPM (no meters, no queues despite the name) |
 | `calc` | P1 · **E3** · T1 | **+ADD** reg-reg ALU |
-| `p4runtime` (`advanced_tunnel`) | P2 · E2/E4/E5 · T1+T3+T4 | **+ADD** LPM + counters |
+| `p4runtime` (`advanced_tunnel`) | P2 · E2/E4/E5 · T1+T2+T3 | **+ADD** LPM + counters |
 | `ecn` | — | **REFUSED** — `standard_metadata.enq_qdepth` |
 | `mri` | — | **REFUSED** — `standard_metadata.deq_qdepth` |
 | `firewall` | — | **REFUSED** — `register<>` Bloom filters + `hash()` |
 | `link_monitor` | — | **REFUSED** — `register<>(MAX_PORTS)` arrays |
 | `load_balance` | — | **REFUSED** — `hash(…crc16…)` ECMP |
-| `flowcache` | — | **BLOCKED** — see Discovery 5 |
+| `flowcache` | — | **REFUSED** — per-copy processing (decided 2026-07-13; see Discovery 5) |
 
 **Match-kind census (18 tables): 9 exact, 8 LPM, 2 keyless, 0 ternary,
 0 range.** Refusing ternary costs this corpus *nothing*. LPM is the single
@@ -48,8 +48,8 @@ Beware a grep trap: `HashAlgorithm.csum16` appears in 11 of 13 inside
 | `packet03` asg1 (ICMP echo server, MAC/IP swap, TX) | E1/E2 · T0 | **COVERED** |
 | `packet03` asg2 (redirect to fixed port) | E1 · T0 | **COVERED** |
 | `packet03` asg3 (MAC→port map + devmap redirect) | **T1** · E1 | **COVERED** — both maps are control-plane written, data-plane read: table-like, not state |
-| `packet03` asg4 (`bpf_fib_lookup`) | E2 · T1+T4 | **+ADD** LPM (the helper fuses an LPM route lookup with an exact neighbor lookup) |
-| `basic03`/`basic04` (counters) | T3 | **+ADD** counters — but see Discovery 1 |
+| `packet03` asg4 (`bpf_fib_lookup`) | E2 · T1+T3 | **+ADD** LPM (the helper fuses an LPM route lookup with an exact neighbor lookup) |
+| `basic03`/`basic04` (counters) | T2 | **+ADD** counters — but see Discovery 1 |
 | `tracing01` (tracepoint + `bpf_map_update_elem`) | — | **REFUSED** — data-plane table write (learning) |
 | `tracing02` (cpumap/devmap queue telemetry) | — | **REFUSED** — queue signals |
 | `tracing04` (`bpf_perf_event_output`) | — | **REFUSED** — packet-to-host channel |
@@ -90,14 +90,14 @@ TCP `dataOffset*4`) — both power-of-two multipliers, exactly what
 | Example | Coords | Verdict |
 |---|---|---|
 | `cross-connect` | P1 · E0 · T1 | **COVERED** today (4 xISA instrs → 4 Nanuk instrs) |
-| `simple-ipv4` | P2 · E0 · T4 | **+ADD** LPM |
-| `ipv4-validation` | P2 · E2 · T4 | **+ADD** LPM |
+| `simple-ipv4` | P2 · E0 · T3 | **+ADD** LPM |
+| `ipv4-validation` | P2 · E2 · T3 | **+ADD** LPM |
 | `network-calculator` | P2 · E1+**E3** · T1 | **+ADD** reg-reg ALU (mandatory — E3 is impossible without it) |
-| `ipv4-counters` | P2 · E2 · T3+T4 | **+ADD** counters + LPM; **byte counter was BLOCKED** — see Discovery 1 |
+| `ipv4-counters` | P2 · E2 · T2+T3 | **+ADD** counters + LPM; **byte counter was BLOCKED** — see Discovery 1 |
 
 The corpus is **MAP-heavy and parser-light**: every xISA parser advances a
 *fixed* 20 bytes for IPv4 — even the one that validates IHL. Nothing in it
-exercises P3–P6, E4, E5, or T2. And **all five set `FrameDelta = 0`**:
+exercises P3–P7, E4, or E5. And **all five set `FrameDelta = 0`**:
 xISA's own examples never change frame length, so Nanuk's headroom and
 head-delta doctrine gets *zero* validation from the donor. Our
 `nanukproto` tunnel remains the only thing exercising that axis.
@@ -200,10 +200,11 @@ It also wants an indexed counter array keyed on a *packet-field slice*
 (`hdr.ipv4.dstAddr[5:0]`) — not a counter attached to a match table — plus
 table idle-timeout.
 
-**This is a new call, not an old one to cite.** Recommendation: **REFUSE**,
-with the reason stated as *no egress pipeline / no per-copy processing* —
-a first-class architectural boundary, and the honest counterpart to the
-single-ISA and no-deparser doctrines. `flowcache` is also the newest
+**DECIDED 2026-07-13: REFUSED.** Reason of record: *no egress pipeline, no
+per-copy processing.* Replication in Nanuk is an egress port bitmap, which
+fans out identical frames — this is not a gap to fill but a boundary to
+name, and it takes its place alongside the single-ISA and no-deparser
+doctrines as a first-class architectural refusal. `flowcache` is the newest
 exercise in the repo (2025) and the only one of the 13 that needs it.
 
 ### 6. `CSUM` is narrower than we thought
@@ -296,21 +297,28 @@ accidentally.
 ## Coverage and minimality
 
 **Coverage holds.** Every program in all four corpora is accounted for:
-covered, covered-with-an-accepted-addition, refused with a named reason, or
-(one case, `flowcache`) escalated to a new decision.
+covered, covered-with-an-accepted-addition, or refused with a named reason.
+No program is unaccounted for.
 
-**Minimality holds, with one cut and one addition.** Every benchmark is
-demanded by at least one corpus program. Two observations:
+**Minimality holds — after one cut.** Every surviving benchmark is demanded
+by at least one corpus program.
 
-- **T2 (exact → drop / stateless ACL)** is demanded by *no* corpus program
-  as a standalone — p4's `firewall` is refused for its Bloom filter, and no
-  xdp lesson or xISA example does a pure ACL. It survives only on the
-  strength of the deployed shape (Cloudflare L4Drop). **Under a strict
-  reading of the boundary rule, T2 should be cut.** I recommend keeping it
-  and marking it explicitly as *not corpus-demanded* — but the rule says
-  cut, and that is your call.
+- **The stateless-ACL benchmark was CUT (2026-07-13).** It was demanded by
+  *no* corpus program standalone — p4's `firewall` is refused for its Bloom
+  filter, and no xdp lesson or xISA example does a pure ACL. It survived
+  only on the strength of being a real deployed shape (Cloudflare L4Drop),
+  which is exactly the argument the boundary rule exists to reject. The
+  behavior stays expressible (a one-instruction variant of T1); it does not
+  earn a benchmark. The `map`-table ladder is now **T0 table-free · T1
+  exact · T2 counters · T3 LPM**.
 - **Ternary matching is demanded by zero programs across all four
   corpora** (0 of 18 p4 tables). The refusal is free. Strong result.
+
+The cut is worth noting as evidence the instrument works in both
+directions: on its first pass the suite added a capability we lacked
+(reg-reg `AND`), exposed a spec gap in something already built (`LOOKUP`'s
+hit path), *and* removed a benchmark we wanted for reasons that turned out
+to be taste rather than demand.
 
 ## Verdict on the three accepted additions
 

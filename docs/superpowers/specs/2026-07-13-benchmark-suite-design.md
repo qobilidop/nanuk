@@ -168,12 +168,20 @@ from the donor.
 |---|---|---|---|
 | T0 | Table-free forward — source routing (port from a header stack) | proves the machine is not table-dependent | p4 `source_routing` |
 | T1 | Exact match — L2 forward | `LOOKUP` + hit/miss control flow | existing |
-| T2 | Exact match → deny — stateless 5-tuple ACL | lookup → `DROP`. A deployed shape (Cloudflare L4Drop) | p4 `firewall`, minus its Bloom filter |
-| T3 | **Count — per-port / per-type packet and byte counters** | **counter tables**: indexed increment, control-plane readable. Hashless state | xISA `ipv4-counters` |
-| T4 | **Longest-prefix — IPv4 routing with aggregation** | **LPM tables.** /32 host routes preserve program shape but not prefix aggregation | p4 `basic`, xISA `simple-ipv4` |
+| T2 | **Count — per-port / per-type packet and byte counters** | **counter tables**: indexed increment, control-plane readable. Hashless state | xISA `ipv4-counters` |
+| T3 | **Longest-prefix — IPv4 routing with aggregation** | **LPM tables.** /32 host routes preserve program shape but not prefix aggregation | p4 `basic`, xISA `simple-ipv4` |
 
-T3 and T4 are the two benchmarks that cost real work, and both sit on the
+T2 and T3 are the two benchmarks that cost real work, and both sit on the
 axis the old razor never explored. That is not a coincidence.
+
+**Cut 2026-07-13: a stateless-ACL benchmark** (`LOOKUP` → `DROP`). The
+audit found **no corpus program demands it standalone** — p4's `firewall`
+is refused for its Bloom filter, and no xdp lesson or xISA example does a
+pure ACL. It was surviving on the strength of being a real deployed shape
+(Cloudflare L4Drop), which is exactly the argument the boundary rule
+exists to reject. Cutting it is the rule working. The *behavior* remains
+expressible (it is a one-instruction variant of T1); it simply does not
+earn a benchmark. Re-entry trigger: a corpus program that needs it.
 
 ## Track `e2e` — scenarios
 
@@ -206,9 +214,11 @@ appendix.
 | Refused | Programs | Reason |
 |---|---|---|
 | Hash + per-flow register arrays | p4 `load_balance`, `firewall` (Bloom), `link_monitor`; Katran/Maglev; Cilium; heavy hitters, flowlets, CONGA; all of Domino/Marple/Sonata | **The cliff.** Neither half is useful without the other, and together they are a different machine |
-| Data-plane learning | p4 `flowcache`; learning switch | Already parked with a trigger (MAP writing its own tables). Keep it parked |
+| Data-plane learning | learning switch | Already parked with a trigger (MAP writing its own tables). Keep it parked |
 | Queue-dependent | p4 `ecn`, `mri`/INT | Nanuk has no traffic manager — a queue-depth signal would be **fictional** |
-| Ternary / TCAM | switch.p4-class wildcard ACLs | Cost. T2 covers the deployed exact-match case. (Note: p4lang's 13 exercises use 20 exact + 18 LPM matches and **zero** ternary) |
+| **Per-copy processing** *(added 2026-07-13)* | p4 `flowcache` | **A divergently-edited clone.** `flowcache` clones to a CPU port and prepends a `packet_in` header **to the copy but not the original**. Replication in Nanuk is an egress port *bitmap*, which fans out identical frames — this is not a gap to fill but a boundary to name: **no egress pipeline, no per-copy processing.** A first-class architectural refusal, alongside the single-ISA and no-deparser doctrines. (`flowcache` also wants a counter array keyed on a packet-field slice, and table idle-timeout.) |
+| Ternary / TCAM | switch.p4-class wildcard ACLs | Cost — and **demanded by zero programs across all four corpora** (p4lang's 18 tables: 9 exact, 8 LPM, 0 ternary, 0 range). The refusal is free |
+| *(cut, not refused)* stateless ACL | — | No corpus program demands it standalone. See the `map`-table ladder |
 
 Consequence worth recording: the per-hop-telemetry demo idea dies in its
 INT form (it needs queue depth). A hop-ID-only variant survives and stays
@@ -311,16 +321,14 @@ four corpora** — the refusal is free).
    carries no next-protocol field). P4 splits; P5 (incomplete information)
    is new; P5 + P6 together *are* the edge graph.
 
-**One decision escalated:** `flowcache` (p4) needs clone-to-CPU where the
-copy is edited differently from the original — which replication-as-bitmap
-structurally cannot express. Recommendation: **REFUSE**, reason = *no
-egress pipeline / no per-copy processing*, as a first-class architectural
-boundary alongside the single-ISA and no-deparser doctrines.
+Both escalated decisions were made 2026-07-13:
 
-**One minimality wrinkle:** **T2** (stateless ACL) is demanded by *no*
-corpus program standalone. Under a strict reading of the boundary rule it
-should be cut; it survives on the strength of the deployed shape
-(Cloudflare L4Drop). Flagged, not decided.
+- **`flowcache` — REFUSED.** Per-copy processing is now a named
+  architectural boundary in the negative set: no egress pipeline, no
+  divergently-edited clones. Replication is a bitmap.
+- **Stateless ACL — CUT.** No corpus program demanded it standalone, so
+  the boundary rule cuts it. The behavior stays expressible; it does not
+  earn a benchmark. The `map`-table ladder is now T0/T1/T2/T3.
 
 ## Tail delta — investigated, out of scope
 
