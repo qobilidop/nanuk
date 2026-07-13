@@ -75,7 +75,7 @@ devcontainer up --workspace-folder .
 ```
 
 The first thing Nanuk ever parsed: `examples/l2l3l4/parse.asm` — Ethernet,
-802.1Q (incl. QinQ), IPv4 (incl. options), and UDP parsed by an
+802.1Q (incl. QinQ), IPv4 (incl. options), and UDP parsed by a
 12-instruction ISA, verified against a scapy-generated pcap corpus on the
 Sail golden model.
 
