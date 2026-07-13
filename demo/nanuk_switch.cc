@@ -379,7 +379,7 @@ class Controller {
   uint8_t rx_buf[MAX_PKT_SIZE];
   size_t rx_len = 0;
   uint64_t frames_in = 0, frames_sent = 0, frames_drop = 0, core_err = 0;
-  uint64_t flooded = 0;
+  uint64_t flooded = 0, grew = 0, shrunk = 0;
   std::set<uint64_t> seen_dmacs;
 
  public:
@@ -470,6 +470,13 @@ class Controller {
         unsigned popcount = __builtin_popcount(egress);
         if (popcount > 1)
           flooded++;
+        /* Length changes observed at the periphery: encap grows the
+         * frame, decap shrinks it (the head delta itself is the core's
+         * internal business now). */
+        if (rx_len > f.len)
+          grew++;
+        else if (rx_len < f.len)
+          shrunk++;
         for (size_t ep = 0; ep < ports.size() && ep < N_PORTS; ep++) {
           if (egress & (1u << ep))
             ports[ep]->TxPacket(rx_buf, rx_len, cur_ts);
@@ -491,8 +498,9 @@ class Controller {
   void stats(const char *tag) {
     fprintf(stderr,
             "nanuk_switch[%s]: frames in=%lu sent=%lu dropped=%lu "
-            "core_err=%lu flooded=%lu\n",
-            tag, frames_in, frames_sent, frames_drop, core_err, flooded);
+            "core_err=%lu flooded=%lu grew=%lu shrunk=%lu\n",
+            tag, frames_in, frames_sent, frames_drop, core_err, flooded,
+            grew, shrunk);
   }
 };
 
