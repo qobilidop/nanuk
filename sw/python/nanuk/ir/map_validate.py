@@ -139,6 +139,13 @@ def _validate_map_state(
                     )
                 use(ai.src_value_id, "and_imm")
                 define(ai.value_id, 16, "and_imm")
+            case "bin_op":
+                b = op.bin_op
+                if b.kind == 0:  # KIND_UNSPECIFIED
+                    raise ValidationError(f"{where}: bin_op kind is unspecified")
+                use(b.lhs_value_id, "bin_op")
+                use(b.rhs_value_id, "bin_op")
+                define(b.value_id, 64, "bin_op")
             case "shift":
                 sh = op.shift
                 if sh.amount > 63:

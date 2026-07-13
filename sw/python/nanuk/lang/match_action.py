@@ -35,6 +35,7 @@ H_FRAME = 15
 _N_TABLES = 4
 _MD_SLOTS = 8
 _MIN_OFF, _MAX_OFF = -512, 511
+_BIN_KINDS = {"add": 1, "sub": 2, "and": 3, "or": 4, "xor": 5}
 _MAX_IMM16 = (1 << 16) - 1
 _MIN_SIMM16, _MAX_SIMM16 = -(1 << 15), (1 << 15) - 1
 
@@ -265,6 +266,35 @@ class MatchActionStateCompiler:
         v = MatchActionValue(next(self._value_ids), f"{value.name} & {imm:#x}")
         self._ops.append(
             ir.MatchActionOp(and_imm=ir.AndImm(value_id=v.value_id, src_value_id=value.value_id, imm=imm))
+        )
+        return v
+
+    def bin_op(
+        self, kind: str, lhs: MatchActionValue, rhs: MatchActionValue
+    ) -> MatchActionValue:
+        """lhs <kind> rhs, both values (ISA v0.1 reg-reg ALU).
+
+        The immediate-only forms above cannot compute on two operands that both
+        came off the wire. Kinds: add, sub, and, or, xor. ADD/SUB wrap at 64
+        bits; all five are total."""
+        self._check_open()
+        k = _BIN_KINDS.get(kind)
+        if k is None:
+            raise CompileError(
+                f"unknown binary op {kind!r}; expected one of {sorted(_BIN_KINDS)}"
+            )
+        self._require_value(lhs, "bin_op")
+        self._require_value(rhs, "bin_op")
+        v = MatchActionValue(next(self._value_ids), f"{lhs.name} {kind} {rhs.name}")
+        self._ops.append(
+            ir.MatchActionOp(
+                bin_op=ir.MapBinOp(
+                    value_id=v.value_id,
+                    kind=k,
+                    lhs_value_id=lhs.value_id,
+                    rhs_value_id=rhs.value_id,
+                )
+            )
         )
         return v
 

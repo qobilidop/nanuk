@@ -24,6 +24,13 @@ _MAX_IMM16 = (1 << 16) - 1
 
 
 
+# MapBinOp.Kind -> mnemonic. One IR op, five opcodes: the ISA keeps them flat
+# (opcodes 0x10-0x14) so decode stays uniform, while the IR keeps them one
+# message so the frontend has one shape to build.
+_BIN_MNEMONIC = {1: "add", 2: "sub", 3: "and", 4: "or", 5: "xor"}
+
+
+
 def to_map_asm(program: ir.MatchActionProgram, *, check: bool = True) -> str:
     """Lower a MatchActionProgram to assembly text for nanuk.isa's map assembler."""
     return to_map_asm_annotated(program, check=check)[0]
@@ -62,6 +69,9 @@ def _last_uses(state: ir.MatchActionState) -> dict[int, int]:
                 note(op.add.src_value_id, idx)
             case "and_imm":
                 note(op.and_imm.src_value_id, idx)
+            case "bin_op":
+                note(op.bin_op.lhs_value_id, idx)
+                note(op.bin_op.rhs_value_id, idx)
             case "shift":
                 note(op.shift.src_value_id, idx)
             case "store":
@@ -193,6 +203,15 @@ def _lower_state(state: ir.MatchActionState) -> "_StateLowering":
                 lo.free_dead(idx)
                 reg = lo.alloc(ai.value_id, name)
                 lo.emit(f"andi    {reg}, {src_reg}, {ai.imm:#06x}", comment=name)
+            case "bin_op":
+                b = op.bin_op
+                mn = _BIN_MNEMONIC[b.kind]
+                lhs_reg = lo.reg_of(b.lhs_value_id, "bin_op")
+                rhs_reg = lo.reg_of(b.rhs_value_id, "bin_op")
+                name = f"{lo.names[b.lhs_value_id]} {mn} {lo.names[b.rhs_value_id]}"
+                lo.free_dead(idx)
+                reg = lo.alloc(b.value_id, name)
+                lo.emit(f"{mn:<7} {reg}, {lhs_reg}, {rhs_reg}", comment=name)
             case "shift":
                 sh = op.shift
                 src_reg = lo.reg_of(sh.src_value_id, "shift")

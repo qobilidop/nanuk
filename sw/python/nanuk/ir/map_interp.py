@@ -38,6 +38,16 @@ ERR_SEND_RANGE = 6
 
 _MASK64 = (1 << 64) - 1
 
+# MapBinOp.Kind -> the operation. Mirrors the ISA's five reg-reg ALU opcodes;
+# ADD/SUB wrap, and the caller masks to 64 bits.
+_BIN_FN = {
+    1: lambda a, b: a + b,   # KIND_ADD
+    2: lambda a, b: a - b,   # KIND_SUB
+    3: lambda a, b: a & b,   # KIND_AND
+    4: lambda a, b: a | b,   # KIND_OR
+    5: lambda a, b: a ^ b,   # KIND_XOR
+}
+
 
 @dataclass(frozen=True)
 class MatchActionInterpResult:
@@ -219,6 +229,12 @@ def _exec_op(m: _Machine, op: ir.MatchActionOp, index: int) -> str | None:
             m.tick()
             m.values[ai.value_id] = m.values[ai.src_value_id] & ai.imm
             m.record("op", index, {ai.value_id: m.values[ai.value_id]})
+        case "bin_op":  # ADD/SUB/AND/OR/XOR (reg-reg)
+            b = op.bin_op
+            m.tick()
+            lhs, rhs = m.values[b.lhs_value_id], m.values[b.rhs_value_id]
+            m.values[b.value_id] = _BIN_FN[b.kind](lhs, rhs) & _MASK64
+            m.record("op", index, {b.value_id: m.values[b.value_id]})
         case "shift":  # SHLI
             sh = op.shift
             m.tick()
