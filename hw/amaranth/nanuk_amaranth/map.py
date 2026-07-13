@@ -266,7 +266,6 @@ class MatchActionProcessor(wiring.Component):
         f_off = word[9:19]        # LD/ST byte offset (10b two's complement)
         f_nm1 = word[6:9]         # LD/ST nbytes-1
         f_tbl = word[19:23]       # LOOKUP table id at [22:19]
-        cs_off = word[9:19]       # CSUM offset shares the LD/ST position
         cs_rl = word[6:9]         # CSUM length register at [8:6]
         sd_delta = word[13:23]    # SEND delta (10b two's complement)
         st_nm1 = word[21:23]      # STMD nunits-1
