@@ -178,6 +178,27 @@ def _edge_group() -> list[dict]:
         verdict="sent",
     ))
 
+    # IHL 11 (44B) / 12 (48B): the v4->v6 Ethernet relocation's new frame
+    # start is h_frame + IHL - 40, which lands inside [8,12) of the source
+    # MAC for exactly these two IHLs -- the one region where a load-after-
+    # store bug would clobber src-MAC bytes before they're copied. Distinct,
+    # non-repeating MAC bytes (no shared prefix, unlike the demo DMAC/DMAC2
+    # pair) so any such corruption shows up byte-for-byte rather than
+    # cancelling out against a look-alike value.
+    edge_eth = Ether(dst="de:ad:be:ef:00:11", src="c0:ff:ee:12:34:56")
+    v.append(_vec(
+        "edge_ipv4_options_ihl11_46", "7915-4.1-options", "46",
+        edge_eth / IP(src=SRC4, dst=DST4, ttl=64, options=b"\x01\x02\x03\x04" * 6)
+        / UDP(**UDP_PORTS) / Raw(_payload(4)),
+        verdict="sent",
+    ))
+    v.append(_vec(
+        "edge_ipv4_options_ihl12_46", "7915-4.1-options", "46",
+        edge_eth / IP(src=SRC4, dst=DST4, ttl=64, options=b"\x01\x02\x03\x04" * 7)
+        / UDP(**UDP_PORTS) / Raw(_payload(4)),
+        verdict="sent",
+    ))
+
     v.append(_vec(
         "edge_tos_nonzero_46", "7915-4.1-tos", "46",
         _eth(IP(src=SRC4, dst=DST4, ttl=64, tos=0xB8) / UDP(**UDP_PORTS) / Raw(_payload(4))),

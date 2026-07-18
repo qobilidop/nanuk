@@ -23,10 +23,16 @@
 ;     full IHL 20..60 chain is at `send46`).
 ;   v6 -> v4 shrinks the head: new frame = old start + 20, all offsets are
 ;     frame-absolute (the v6 header is fixed 40B).  SEND -20.
-;   The Ethernet relocation is hazard-free in both directions: the moves
-;   are +/-20 bytes and the header is 14, so source and destination never
-;   overlap (contrast srcroute's 2-byte pop, where the copy direction
-;   mattered).  Only the EtherType changes; MACs pass through.
+;   The Ethernet relocation is safe in both directions, but not for the same
+;   reason.  v6 -> v4 moves by a fixed +20, strictly past the 14-byte header,
+;   so source and destination never overlap.  v4 -> v6 moves by 40 - IHL,
+;   which is NOT always past 14 -- for IHL 11/12 (44/48-byte v4 header) the
+;   destination lands inside [8,12) of the source, i.e. inside the still-
+;   unread second half of the source MAC.  That arm is made safe instead by
+;   ordering: both loads happen before either store, so no store can ever
+;   clobber bytes the other load still needs (contrast srcroute's 2-byte
+;   pop, where the copy direction mattered).  Only the EtherType changes;
+;   MACs pass through.
 ;
 ; Register budget (4 GPRs): r0 = the value being decided on (bitmap, then
 ; addresses, then checksum accumulator); r1/r2 = immediates and staging;
@@ -133,9 +139,15 @@ chk_ttl4:
     csum    r2, H_IPV4, 12, r1
     stmd    r2, 1, 4           ; md[4] = A = ~sum(old addresses)
     ; --- relocate Ethernet: it must end where the v6 header begins --------
-    ld      r1, h_frame, 0, 8
-    st      r1, H_L4, -54, 8
+    ; new frame start = H_L4 - 54 = h_frame + IHL - 40; for IHL 11/12 that
+    ; lands inside [8,12), i.e. the store below would clobber the second
+    ; load's source before it's read.  r0/r1 are both dead here (their last
+    ; writes -- the L4 dispatch and the address-checksum immediate -- are
+    ; already spilled to md), so both loads land before either store and no
+    ; IHL can ever see a stale byte.
+    ld      r0, h_frame, 0, 8
     ld      r1, h_frame, 8, 4
+    st      r0, H_L4, -54, 8
     st      r1, H_L4, -46, 4
     movi    r1, 0x86DD
     st      r1, H_L4, -42, 2   ; the only L2 edit: the EtherType
