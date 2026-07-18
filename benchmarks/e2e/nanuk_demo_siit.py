@@ -118,6 +118,10 @@ v6_idle = _run_responder + ["sleep infinity"]
 _wait_up = (
     "i=0; until ping -c1 -W1 192.0.2.1 >/dev/null 2>&1; do "
     "i=$((i+1)); [ $i -ge 45 ] && break; done; "
+    # +1 corrects for the successful ping (untried in `i`) on the happy path;
+    # in the exhausted-45-attempts path (no v6 responder ever answers) it
+    # over-reports the actual attempt count by 1 -- harmless: that path only
+    # feeds a beat that fails on the connectivity check anyway.
     "echo SIIT_WARMUP_PINGS=$((i+1))"
 )
 

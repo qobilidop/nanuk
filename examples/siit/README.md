@@ -49,17 +49,23 @@ customer.
 ## Scope and oracles
 
 The program's contract is the committed conformance corpus
-`benchmarks/siit/vectors/` — 68 vectors generated from the executable
+`benchmarks/siit/vectors/` — 70 vectors generated from the executable
 spec `nanuk.testkit.siit_ref` and replayed byte-for-byte on the golden
-emulators by `sw/python/tests/test_siit_program.py`. One vector
-(`edge_min_frame_46`, Ethernet minimum-frame padding) is provably
-inexpressible on the core — stripping L2 padding requires the physical
-frame length, which neither ISA exposes — and is a documented strict
-xfail there.
+emulators by `sw/python/tests/test_siit_program.py`. Trailing frame bytes
+beyond the IP datagram (e.g. Ethernet minimum-frame padding) pass through
+to the output verbatim, unchanged — the reference was amended to this
+after an earlier version wrongly stripped them; see disposition
+`7915-framing-trailer` in
+[`benchmarks/siit/audit.md`](../../benchmarks/siit/audit.md) and the lead
+section of
+[the lab notes](../../docs/notes/2026-07-18-siit-core-lab-notes.md). The
+`edge_min_frame_46` vector exercises it and passes.
 
 What's deliberately out of scope (each dispositioned in
 [`benchmarks/siit/audit.md`](../../benchmarks/siit/audit.md)): fragment
-translation, ICMP error translation, IPv6 extension headers, VLAN tags,
-general-prefix EAMT. Design and staging:
+translation, ICMP error translation, IPv6 extension headers,
+general-prefix EAMT. VLAN tags are outside this arc's framing convention
+(the parser handles untagged frames only) — a design-time scope decision
+in the demo design spec, not an audit disposition. Design and staging:
 [the SIIT demo design spec](../../docs/superpowers/specs/2026-07-18-siit-demo-design.md)
 and [the part-A plan](../../docs/superpowers/plans/2026-07-18-siit-a-core.md).

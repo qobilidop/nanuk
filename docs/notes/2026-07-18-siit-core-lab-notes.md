@@ -7,7 +7,8 @@ things that were supposed to be authoritative: the reference oracle, the
 program, and the language.
 
 The shape of the work: an executable reference translator
-(`siit_ref.py`, 9bdbb6b), a 94-clause RFC audit, 70 deterministic vectors
+(`siit_ref.py`, 9bdbb6b), a 94-clause RFC audit (95 after Part B's
+`7757-hairpin` row), 70 deterministic vectors
 generated from the reference (546a7a2), a hand-written PP+MAP program pair
 (6d34e79), eDSL twins of both (f8e5bd8), and every vector driven through all
 four software levels plus the Amaranth RTL (d4077ff). All green. What follows is
@@ -170,6 +171,15 @@ out-of-range immediate passes validate, passes interp, passes symex, and fails
 only at lower — the three-way disagreement on what "valid IR" means. Harmless
 for well-formed programs; a trap for anyone generating parser IR by hand.
 Parked with the choice of doctrine, not the fix.
+
+**The MAP eDSL twin writes `md[2]` before the total<IHL refuse; the hand asm
+writes it after.** `translate.py`'s `v4_len` state computes `plen` and stores
+it to `md[2]` (`s.store_md(plen, MD_PLEN)`), *then* dispatches to `refuse` on
+underflow; `translate.asm`'s equivalent block computes `plen` into a register,
+branches to `refuse` on the same underflow check, and only stores `md[2]`
+after that branch is not taken. Both drop the packet either way — `md[2]` on
+a refused packet is dead state no verdict ever reads — so it's unobservable
+on the committed corpus. Parked (T5-m3).
 
 ---
 

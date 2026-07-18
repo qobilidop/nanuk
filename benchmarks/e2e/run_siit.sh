@@ -58,6 +58,15 @@ echo "==> assembling SIIT programs"
 #   t1: v4 addr (32b) -> EAMT v6 addr low 64                -> ...::c001
 #   t2: v6 addr low 64 -> EAMT v4 addr (32b)     ::c001    -> 192.0.2.1
 # (t3 flood is installed by the switch at boot; -x floods all-but-ingress.)
+# This block hand-mirrors testkit.siit_tables() (DEMO_SIIT) rather than
+# calling it -- this script is pure bash with no Python table-plane writer of
+# its own. That's tolerable only because drift is loud, not silent: this
+# path is exercised solely by a manual e2e run (never CI), so a stale
+# mirror fails a beat immediately and visibly, not in a way that a future
+# reader could miss. sw/python/tests/test_siit_vectors.py has a tripwire
+# (test_e2e_tables_heredoc_matches_siit_tables) that parses this exact
+# heredoc and diffs it against siit_tables() on every test run -- keep the
+# two in lockstep, or that test is the one that will tell you first.
 echo "==> writing SIIT tables.txt"
 cat > "$OUT/tables.txt" <<'EOF'
 table 0 32 64

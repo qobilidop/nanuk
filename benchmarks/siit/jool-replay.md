@@ -9,6 +9,8 @@ Every `.pkt` is read from the gitignored clone at run time; nothing below reprod
 
 The Nanuk **program** (hand asm + twins) implements RFC 6052 /96 + EAMT-exact only; these replay claims are at the **reference** level, where RFC 6052 all-six-prefix-lengths and RFC 7757 prefix EAMT are implemented, so the reference expresses Jool's actual /40 pool6 + /24<->/120 EAMT config. See [`README.md`](README.md) leg 4 for the program-vs-reference scope split.
 
+Jool's own graybox suite has no `tcp46` group (no v4->v6 TCP fixtures at all), so this replay contributes zero oracle coverage for that direction -- our own committed `tcp46` vectors (`benchmarks/siit/vectors/tcp46.json`) are the only TCP v4->v6 coverage this repo has, in-house rather than cross-checked against Jool.
+
 ## Counts by classification
 
 | classification | count |

@@ -353,6 +353,14 @@ def render_report(report: Report) -> str:
         "scope split."
     )
     L.append("")
+    L.append(
+        "Jool's own graybox suite has no `tcp46` group (no v4->v6 TCP fixtures at "
+        "all), so this replay contributes zero oracle coverage for that direction "
+        "-- our own committed `tcp46` vectors (`benchmarks/siit/vectors/tcp46.json`) "
+        "are the only TCP v4->v6 coverage this repo has, in-house rather than "
+        "cross-checked against Jool."
+    )
+    L.append("")
 
     L.append("## Counts by classification")
     L.append("")

@@ -11,6 +11,12 @@ Three checks, each catching a different failure mode:
   - vectors-cite-real-audit-anchors: every vector's `rfc` field names a real
     disposition ID from benchmarks/siit/audit.md, not a typo or a stale
     heading anchor.
+
+A fourth check lives here too, though it isn't about the vector JSON:
+  - e2e-tables-heredoc-matches-siit-tables: benchmarks/e2e/run_siit.sh
+    hand-mirrors testkit.siit_tables() in a bash heredoc (that script has no
+    Python table-plane writer of its own). This is the tripwire the
+    heredoc's comment points back to.
 """
 
 import importlib.util
@@ -18,12 +24,14 @@ import re
 from pathlib import Path
 
 from nanuk.testkit.siit_ref import VECTOR_GROUPS, load_vectors, translate
+from nanuk.testkit.testkit import siit_tables
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _SIIT_DIR = _REPO_ROOT / "benchmarks" / "siit"
 _GEN_VECTORS_PATH = _SIIT_DIR / "gen_vectors.py"
 _VECTORS_DIR = _SIIT_DIR / "vectors"
 _AUDIT_PATH = _SIIT_DIR / "audit.md"
+_RUN_SIIT_PATH = _REPO_ROOT / "benchmarks" / "e2e" / "run_siit.sh"
 
 # Every disposition ID in the audit is backtick-quoted and starts with one of
 # these three prefixes (7915-* for RFC 7915 clauses, 6052-*/7757-* for the
@@ -73,3 +81,35 @@ def test_vectors_cite_real_audit_anchors():
         assert v["rfc"] in disposition_ids, (
             f"{v['name']}: rfc={v['rfc']!r} is not a disposition ID in audit.md"
         )
+
+
+def _extract_tables_heredoc(script_text: str) -> list[str]:
+    """Pull the `cat > "$OUT/tables.txt" <<'EOF' ... EOF` block's content lines
+    out of run_siit.sh, tolerant of surrounding comments/blank lines but
+    strict about the content lines themselves (no reformatting allowed)."""
+    lines = script_text.splitlines()
+    start = next(
+        i for i, line in enumerate(lines) if "<<'EOF'" in line and "tables.txt" in line
+    )
+    end = next(i for i in range(start + 1, len(lines)) if lines[i] == "EOF")
+    body = lines[start + 1 : end]
+    return [line for line in body if line.strip() and not line.strip().startswith("#")]
+
+
+def test_e2e_tables_heredoc_matches_siit_tables():
+    """benchmarks/e2e/run_siit.sh hand-writes a tables.txt heredoc mirroring
+    testkit.siit_tables() (see the comment above that heredoc). This is the
+    tripwire: if DEMO_SIIT or siit_tables()'s format ever changes, this test
+    fails loudly instead of the drift being caught only by a manual e2e run."""
+    heredoc_lines = _extract_tables_heredoc(_RUN_SIIT_PATH.read_text())
+
+    expected_lines = []
+    for tid, table in enumerate(siit_tables()):
+        expected_lines.append(f"table {tid} {table.key_width} {table.action_width}")
+        for key, action in table.entries.items():
+            expected_lines.append(f"entry {tid} {key:#x} {action:#x}")
+
+    assert heredoc_lines == expected_lines, (
+        "benchmarks/e2e/run_siit.sh's tables.txt heredoc has drifted from "
+        "testkit.siit_tables() -- regenerate the heredoc by hand to match"
+    )
