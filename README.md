@@ -45,13 +45,20 @@ benchmarks/  The graded suite the ISA answers to: expressiveness ladders for
 docs/        Design docs, plans, and lab notes
 ```
 
-## The demo
+## The demos
 
 `benchmarks/e2e/build_and_run.sh` runs the end-to-end demo: two QEMU Linux
 hosts exchange real traffic through the Verilator'd Nanuk PP
 inside SimBricks — `ping` works because the loaded parser program accepts
 the frames. Load `examples/drop_all/parse.asm` instead and the network
 goes dark: the parser program is the switch's forwarding policy.
+
+The second application is SIIT ([`benchmarks/siit/`](benchmarks/siit/)): a
+stateless IPv4↔IPv6 translator (RFC 7915/6052/7757) on the same core — the
+CLAT half of 464XLAT, the translator quietly running in every phone on a
+v6-only network. Try it live in the
+[playground](https://qobilidop.github.io/nanuk/play/?program=siit), or
+two guests across address families via `benchmarks/e2e/run_siit.sh`.
 
 ## Quickstart
 

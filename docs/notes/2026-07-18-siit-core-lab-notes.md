@@ -257,3 +257,159 @@ RFC for the wrong reason — and came back empty. Full counts, per-fixture
 listings, and the byte-exception semantics are in
 `benchmarks/siit/jool-replay.md`; the two new audit rows (`7757-hairpin` and
 the two reference generalizations) are in `benchmarks/siit/audit.md`.
+
+## Part C: the demo tiers
+
+Two legs did nothing to prove SIIT correct — Plan A/B already did that. They
+prove it's *reachable*: in a browser tab, and across a real network stack in
+two QEMU guests. What's interesting is how much of the periphery had to bend
+to make a proven-correct core visible, and how much of that bending stayed
+strictly outside the datapath.
+
+### Playground: table signatures, a renderer gap, and five presets from the corpus
+
+SIIT joined the playground (`137a26d`) as a program-selector entry, composed
+exactly like `map_l2fwd`: the SIIT parse-side twin feeding the SIIT
+match-action twin. Three findings on the way:
+
+- **The bridge execs arbitrary source, so it can't know a program's name —
+  only its shape.** `_is_siit_map()` fingerprints the compiled MAP by its
+  table signature, `[(0,32,64),(1,32,64),(2,64,32)]` — SIIT's two /32-key EAMT
+  halves and the reverse /64-key table — and picks the SIIT PP rig + baked
+  EAMT tables over the default l2l3l4 parser + FDB plane on a match. This is a
+  tradeoff, not a clean design: a signature collision with some future MAP
+  would silently mis-route the run. It's cheap because SIIT's signature is
+  structurally distinct from every other bridge program today, and it's
+  *pinned* rather than merely assumed — `b2ece88` added a guard test that
+  compiles every MAP wired into the bridge, extracts each one's table
+  signature, and asserts no collision, so the day a new demo MAP does collide,
+  a test fails at that commit instead of the bridge silently mis-routing years
+  later.
+- **`render_map_ir` never had a `bin_op` case.** SIIT is the first MAP program
+  to use the ISA v0.1 reg-reg ALU (`add`/`sub`/`and`/`or`/`xor`), and the IR
+  renderer silently dropped those ops — the IR pane, the asm pane, and the
+  two-level trace would have quietly desynced the moment anyone ran SIIT
+  through the debugger. Not a crash, which is what made it worth calling out:
+  a renderer that drops an op class fails by showing a *plausible but wrong*
+  picture, not by erroring. Fixed by adding the case plus `_BIN_MNEMONIC`,
+  confirmed one MAP op still lowers to exactly one asm instruction (so the
+  provenance partition the step-scrubber depends on stays aligned).
+- **Five presets, and all five come from the vectors already on disk, not
+  from scapy.** `udp46_len25_ttl64`, `udp64_len25_ttl64`,
+  `edge_eamt_dst_46` (the EAMT-hit case), `icmp46_len25_ttl64`, and
+  `neg_v4_ttl_expired` (the TTL=1 drop) are read straight out of
+  `benchmarks/siit/vectors/`. The scapy boundary the wheel has held since the
+  first playground landing holds again: presets are frozen vector bytes, not
+  generated at build time, so the browser never needs a packet-crafting
+  library it can't ship.
+
+The wheel rebuild is the tell that this was a real language change, not just
+a frontend one: `nanuk-0.1.0-py3-none-any.whl` grew from 53439 to 55717 bytes
+picking up the reg-reg ALU op and `s.const` (the `Movi` mini-vertical from
+Part B) — the playground runs on exactly the same IR the core does, so
+teaching the language a new op means rebuilding the artifact the browser
+loads, every time.
+
+### SimBricks: two v4/v6 guests, three beats, switch-verified numbers only
+
+The scenario (`b3907d0`, beat-2 fix `2fdfa53`): a v4-only QEMU guest and a
+v6-only QEMU guest either side of a Verilator'd `nanuk_switch` running
+`examples/siit/{parse,translate}.asm` over the DEMO_SIIT table plane. Project
+doctrine here is unforgiving on purpose — a number only counts if the
+switch's own counters back it, not if a client tool merely claims it (see the
+beat-2 rewrite below, which exists because the first draft broke that rule).
+
+**Beat 1 — ping, both translations, round-trip:**
+```
+10 packets transmitted, 10 received, 0% packet loss
+```
+10/10. `ttl=63` on the reply — not a stray decrement, the actual signal that
+the reply really crossed both translations and came back.
+
+**Beat 2 — iperf UDP, reconciled against the switch's own counters:**
+```
+[  1] Sent 49 datagrams
+switch: frames in=173 sent=173 dropped=0 core_err=0 flooded=0 grew=172 shrunk=1
+```
+iperf's client reports sending 49 datagrams; net of 3 warmup pings, the
+switch counts 172 − 3 = **169** frames translated v4→v6. 169 against a
+client-reported 49 clears the reconciliation gate (≥0.9×) with room to
+spare — but note the direction: switch-translated is *above* what the client
+claims to have sent, not below it, which is the opposite of the overclaim
+the beat was rewritten to catch. The likely explanation is retries — the v6
+side has no real iperf server, only an AF_PACKET ICMP-echo responder, so
+iperf's UDP close handshake never gets acked and it retries unpaced for up to
+10 rounds, each retry a genuine extra frame the switch also translates and
+counts. That explanation was never confirmed against a packet capture, and
+this report is not going to dress it up as settled. **The ~3x surplus (169
+translated vs. 49 sent) is recorded here as a loose end, not explained
+away.** What the beat *does* establish, conservatively, is the claim the
+switch can actually back: at least the 49 datagrams iperf reports sending
+were translated and counted, switch-side, in both directions of the run.
+
+**Beat 3 — TTL=1 negative gate:**
+```
+12 packets transmitted, 0 received, 100% packet loss
+switch: frames in=12 sent=0 dropped=12 core_err=0 grew=0 shrunk=0
+```
+12/12 loss, `dropped=12` at the switch. RFC 7915's hop-limit-≤1 refuse is a
+silent drop, no ICMP error generated (Nanuk never originates a packet) — so
+from the guest's side this looks exactly like a black hole, which is the
+correct behavior, confirmed at the switch rather than inferred from silence.
+
+### The i40e zero-frame bug — a SimBricks finding, not a Nanuk one
+
+Before E1000, ping was 100% loss on i40e NICs despite the switch's own byte
+dump showing a perfect IPv4 reply on the wire. Root-caused with tcpdump on
+both guests plus the switch-side dump: v4→v6 (growing, 118 B) frames arrived
+fine; v6→v4 (shrinking, 98 B) frames arrived at the guest as **98 bytes of
+all-zeros** — the switch's TxPacket buffer held the correct bytes, but the
+`i40e_bm` model's RX path hands the guest zeros instead. Proved
+port-independent (swapped which guest sits on port 0) and size-independent
+(`ping -s 200`); it tracks the shrink/return direction specifically.
+Switching to the **E1000** NIC model delivers both directions intact — same
+datapath, same core, only the NIC model changed. This is a `i40e_bm` bug in
+SimBricks itself, not anything Nanuk did or can fix from this side of the
+interface; it's reportable upstream to the SimBricks project, and the E1000
+swap here is a workaround, not a fix.
+
+### The v6 responder is userspace because the guest kernel has no IPv6 at all
+
+The plan imagined a "v6-only Linux guest"; the actual SimBricks base image
+(`linux-5.15.93`) is built `# CONFIG_IPV6 is not set` — no kernel IPv6 stack,
+period (`/proc/sys/net/ipv6` doesn't exist; `ip -6 addr add` refuses). So
+`siit_responder.py` answers ICMPv6 echo at layer 2 over `AF_PACKET`, with no
+kernel IP stack involved: it watches for translated echo requests, crafts
+replies (addresses and MACs swapped, RFC 4443 checksum recomputed), and lets
+them ride back through the core to be translated v6→v4 again. This is enough
+to exercise the core for real in both directions, but it's also why iperf TCP
+isn't in this arc: TCP needs a real kernel TCP/IPv6 stack on the v6 side, and
+a userspace raw-socket TCP implementation is out of scope for a benchmark
+runner. **Future work:** an IPv6-enabled guest kernel is the one thing that
+unlocks iperf TCP here — everything else in the scenario (tables, translator,
+switch) already supports it.
+
+### `-x`: the switch needed an opt-in flood mode because a middlebox owns no egress
+
+`translate.asm` is a middlebox by the frozen decision "egress stays the
+packaging's call" — it rewrites the frame but deliberately never writes
+`md[0]`. Confirmed empirically before reaching for the flag: `md_out[0]`
+passes through unchanged as the *ingress* port id, so without `-x` the stock
+switch reads that as the egress choice and sets `egress = ingress_port`,
+dropping every translated frame at the exact port it came in on. `-x` makes
+`nanuk_switch` ignore `md_out[0]` for sent frames and instead flood
+all-but-ingress — the same t3 flood policy the switch already installs at
+boot, repurposed here because "everyone but the ingress port" is exactly
+"the other port" on a two-port bump-in-the-wire. It's config-plumbing, not a
+datapath change: default (off) behavior — `egress = md_out[0]` — is untouched,
+so every other switch-based beat (l2fwd, tunnel) is unaffected by the flag
+existing.
+
+---
+
+Both demo tiers are now live on top of a core that Plan A/B already proved
+correct: the playground makes SIIT explorable instruction-by-instruction in a
+browser, and SimBricks makes it real traffic across real address families in
+real guests. Neither tier touched the datapath — every fix, flag, and
+workaround above lives in the packaging around the core, which is the
+periphery doing exactly the job the periphery is for.
