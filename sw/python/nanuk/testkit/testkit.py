@@ -10,6 +10,7 @@ from scapy.layers.l2 import ARP, Dot1Q, Ether
 from scapy.packet import Raw
 
 from .map_harness import Table
+from .siit_ref import DEMO_SIIT, SiitConfig
 
 # The demo MACs (the docs' example FDB): ...:01 -> port 2, ...:02 -> port 3.
 DMAC = "aa:bb:cc:dd:ee:01"
@@ -48,6 +49,38 @@ def demo_tables(l2_both: bool = False) -> list[Table]:
     """The standard demo table plane: t0 = L2 FDB, t1 = tunnel map,
     t2 unconfigured, t3 = system flood table."""
     return [demo_l2_table(both=l2_both), demo_tun_table(), NO_TABLE, demo_flood_table()]
+
+
+def siit_tables(cfg: SiitConfig = DEMO_SIIT) -> list[Table]:
+    """The SIIT translator's table plane (frozen in the part-A plan), built
+    from a SiitConfig's EAMT. LOOKUP keys/actions are <=64 bits, hence the
+    hi/lo split for the 128-bit v6 side:
+
+      t0: v4 -> v6 EAMT, key = v4 addr (32b), action = v6 addr high 64b
+      t1: v4 -> v6 EAMT, key = v4 addr (32b), action = v6 addr low 64b
+      t2: v6 -> v4 EAMT, key = v6 addr LOW 64b, action = v4 addr (32b)
+
+    t2's low-64 keying is a documented demo constraint: EAMT v6 entries must
+    be distinct in their low 64 bits (general prefixes are the LPM trigger).
+    Keys/actions are big-endian ints of the address bytes.
+    """
+    t0 = {
+        int.from_bytes(v4, "big"): int.from_bytes(v6[:8], "big")
+        for v4, v6 in cfg.eamt46.items()
+    }
+    t1 = {
+        int.from_bytes(v4, "big"): int.from_bytes(v6[8:], "big")
+        for v4, v6 in cfg.eamt46.items()
+    }
+    t2 = {
+        int.from_bytes(v6[8:], "big"): int.from_bytes(v4, "big")
+        for v6, v4 in cfg.eamt64.items()
+    }
+    return [
+        Table(key_width=32, action_width=64, entries=t0),
+        Table(key_width=32, action_width=64, entries=t1),
+        Table(key_width=64, action_width=32, entries=t2),
+    ]
 
 
 def l2l3l4_packets() -> list[tuple[str, bytes]]:
