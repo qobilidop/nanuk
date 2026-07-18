@@ -5,16 +5,21 @@
   import ResultView from './ResultView.svelte';
   import MapResultView from './MapResultView.svelte';
 
-  let { runtime, ready, initialPacket, initialPreset, onRun, runOut, runError, cursorByte }: {
-    runtime: NanukRuntime | null; ready: boolean;
+  let { runtime, ready, programName, initialPacket, initialPreset, onRun, runOut, runError, cursorByte }: {
+    runtime: NanukRuntime | null; ready: boolean; programName: string;
     initialPacket: string | null; initialPreset: string | null;
     onRun: (out: RunResult) => void;
     runOut: RunOk | null; runError: BridgeError | null;
     cursorByte: number | null;
   } = $props();
 
-  interface Preset { name: string; hex: string; note: string }
+  interface Preset { name: string; hex: string; note: string; programs?: string[] }
   let presets: Preset[] = $state([]);
+  // Chips scope to the active program: a preset with no `programs` list shows
+  // everywhere (the classic packets), otherwise only where it applies.
+  const shown = $derived(
+    presets.filter((p) => !p.programs || p.programs.includes(programName)),
+  );
   // svelte-ignore state_referenced_locally -- deliberate: the URL param seeds the initial value only
   let packetHex = $state(initialPacket ?? '');
   let selected: string | null = $state(null);
@@ -45,7 +50,7 @@
 <div class="panel">
   <h2>packet</h2>
   <div class="chips">
-    {#each presets as p}
+    {#each shown as p}
       <button class="chip" class:selected={selected === p.name} title={p.note}
         onclick={() => { packetHex = p.hex; selected = p.name; if (ready) run(); }}>
         {p.name}</button>

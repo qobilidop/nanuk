@@ -12,6 +12,7 @@
   import l2l3l4Src from './programs/l2l3l4.py?raw';
   import nanukprotoSrc from './programs/nanukproto.py?raw';
   import mapL2fwdSrc from './programs/map_l2fwd.py?raw';
+  import siitSrc from './programs/siit.py?raw';
 
   const params = parseParams(location.search);
   let runtime: NanukRuntime | null = $state(null);
@@ -20,6 +21,7 @@
     l2l3l4: l2l3l4Src,
     nanukproto: nanukprotoSrc,
     map_l2fwd: mapL2fwdSrc,
+    siit: siitSrc,
   };
   let programName = $state(params.program ?? 'l2l3l4');
   let source = $state(PROGRAM_SOURCES[params.program ?? 'l2l3l4']);
@@ -129,6 +131,7 @@
       <option value="l2l3l4">l2l3l4 (parser)</option>
       <option value="nanukproto">nanukproto (parser)</option>
       <option value="map_l2fwd">l2 forward (MAP)</option>
+      <option value="siit">SIIT translator (MAP)</option>
     </select>
     <span class="status" class:ready={status === 'ready'}>{status}</span>
   </header>
@@ -152,7 +155,7 @@
           editable={false} python={false} ranges={asmRanges} execLine={execAsm} />
       </div>
       <aside>
-        <PacketPanel {runtime} ready={compiled !== null}
+        <PacketPanel {runtime} ready={compiled !== null} {programName}
           initialPacket={params.packet} initialPreset={params.preset}
           {onRun} {runOut} {runError} {cursorByte} />
       </aside>
