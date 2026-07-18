@@ -184,6 +184,64 @@ def test_tcp46_checksum_patch():
     )
 
 
+def test_udp46_trailing_padding_is_not_leaked():
+    """Ethernet minimum-frame padding (or any junk past the IPv4 Total
+    Length) must not become IPv6 payload -- L4 is bound to Total Length,
+    not to "whatever bytes happen to follow the header"."""
+    src4 = socket.inet_aton("198.51.100.2")
+    dst4 = socket.inet_aton("192.0.2.33")
+    payload = b"pad-test"
+    pkt = (
+        Ether(dst=MAC1, src=MAC2)
+        / IP(src="198.51.100.2", dst="192.0.2.33", ttl=64)
+        / UDP(sport=1, dport=2)
+        / Raw(payload)
+    )
+    frame = bytes(pkt) + b"\x00\x00\x00\x00"  # 4 bytes beyond Total Length
+
+    r = translate(frame)
+    assert r.verdict == "sent"
+
+    src6, dst6 = WKP + src4, WKP + dst4
+    udp_len = 8 + len(payload)
+    v6 = r.frame[14:54]
+    assert struct.unpack("!H", v6[4:6])[0] == udp_len, "payload length excludes the padding"
+    assert len(r.frame) == 14 + 40 + udp_len, "no leaked padding in the output frame"
+    assert ones_csum(v6_pseudo(src6, dst6, udp_len, 17) + r.frame[54:]) == 0
+
+
+def test_v6_output_zero_udp_checksum_becomes_0xffff():
+    """RFC 768/8200: IPv6 UDP checksums are mandatory, so if the patched
+    checksum would compute to 0x0000, it must be sent as 0xFFFF instead.
+    Brute-force a payload word that lands the patched checksum on zero."""
+    src4 = socket.inet_aton("198.51.100.2")
+    dst4 = socket.inet_aton("192.0.2.33")
+    src6, dst6 = WKP + src4, WKP + dst4
+    sport, dport = 12345, 53
+
+    tail = None
+    for n in range(1 << 16):
+        candidate = struct.pack("!H", n)
+        udp_len = 8 + len(candidate)
+        udp = struct.pack("!HHHH", sport, dport, udp_len, 0) + candidate
+        if ones_csum(v6_pseudo(src6, dst6, udp_len, 17) + udp) == 0:
+            tail = candidate
+            break
+    assert tail is not None, "the search space is a full 16-bit sweep -- one hit is guaranteed"
+
+    pkt = (
+        Ether(dst=MAC1, src=MAC2)
+        / IP(src="198.51.100.2", dst="192.0.2.33", ttl=64)
+        / UDP(sport=sport, dport=dport)
+        / Raw(tail)
+    )
+    r = translate(bytes(pkt))
+    assert r.verdict == "sent"
+    assert r.frame[54 + 6 : 54 + 8] == b"\xff\xff", (
+        "a computed-zero UDP checksum is transmitted as all-ones"
+    )
+
+
 def test_icmp46_echo():
     pkt = (
         Ether(dst=MAC1, src=MAC2)
@@ -284,3 +342,67 @@ def test_v6_dst_neither_pool6_nor_eamt_drops():
     )
     r = translate(bytes(pkt))
     assert (r.verdict, r.why) == ("drop", "untranslatable_address")
+
+
+def test_v4_fragment_beats_unsupported_l4_drops():
+    """A fragmented packet on an unsupported protocol reports "fragment",
+    not "unsupported_l4" -- the frozen ledger order, both fields on the
+    very same packet (MF set, proto 47)."""
+    pkt = Ether(dst=MAC1, src=MAC2) / IP(dst="192.0.2.33", proto=47, flags="MF") / Raw(b"x" * 8)
+    r = translate(bytes(pkt))
+    assert (r.verdict, r.why) == ("drop", "fragment")
+
+
+def test_v6_fragment_beats_unsupported_l4_drops():
+    """Same overlap, v6 side: next header 44 (a Fragment extension header)
+    is also not in {UDP, TCP, ICMPv6} -- must report "fragment", not
+    "unsupported_l4"."""
+    pkt = (
+        Ether(dst=MAC1, src=MAC2)
+        / IPv6(src="64:ff9b::c633:6402", dst="64:ff9b::c000:221", hlim=64, nh=44)
+        / Raw(b"x" * 8)
+    )
+    r = translate(bytes(pkt))
+    assert (r.verdict, r.why) == ("drop", "fragment")
+
+
+def test_v4_udp_truncated_l4_drops():
+    """A UDP header cut short (here: 4 of its 8 bytes present) must DROP,
+    never raise -- translate() is total."""
+    pkt = Ether(dst=MAC1, src=MAC2) / IP(dst="192.0.2.33") / UDP(sport=1, dport=2) / Raw(b"payload")
+    frame = bytes(pkt)[: 14 + 20 + 4]  # IPv4 header intact, only 4 UDP bytes
+    r = translate(frame)
+    assert (r.verdict, r.why) == ("drop", "l4_truncated")
+
+
+def test_v6_tcp_truncated_l4_drops():
+    """A TCP header cut short (10 of its 20 bytes) on the 64 side must
+    DROP, with the v6 payload length field patched to match what's
+    actually present -- isolating the TCP<20 guard from the payload_len-
+    overrun guard covered separately below."""
+    pkt = (
+        Ether(dst=MAC1, src=MAC2)
+        / IPv6(src="64:ff9b::c633:6402", dst="64:ff9b::c000:221", hlim=64)
+        / TCP(sport=1111, dport=80, flags="S")
+        / Raw(b"payload")
+    )
+    frame = bytearray(bytes(pkt)[: 14 + 40 + 10])  # only 10 of the 20 TCP header bytes
+    struct.pack_into("!H", frame, 14 + 4, 10)  # payload length matches what's present
+    r = translate(bytes(frame))
+    assert (r.verdict, r.why) == ("drop", "l4_truncated")
+
+
+def test_v6_payload_len_overruns_frame_drops():
+    """The v6 payload length field claiming more bytes than the frame
+    actually carries is truncation too, distinct from a too-short L4
+    sub-header -- must DROP, never slice past the end and misread."""
+    pkt = (
+        Ether(dst=MAC1, src=MAC2)
+        / IPv6(src="64:ff9b::c633:6402", dst="64:ff9b::c000:221", hlim=64)
+        / UDP(sport=1, dport=2)
+        / Raw(b"payload")
+    )
+    frame = bytearray(bytes(pkt))
+    struct.pack_into("!H", frame, 14 + 4, 9999)  # claims far more than the frame carries
+    r = translate(bytes(frame))
+    assert (r.verdict, r.why) == ("drop", "l4_truncated")

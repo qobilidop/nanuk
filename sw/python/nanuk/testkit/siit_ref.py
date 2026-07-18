@@ -41,12 +41,14 @@ def _v6(colon: str) -> bytes:
     return socket.inet_pton(socket.AF_INET6, colon)
 
 
-@dataclass
+@dataclass(frozen=True)
 class SiitConfig:
     """Addressing config, RFC 7757 precedence: EAMT exact-match first, else
     RFC 6052 pool6 embed/extract. `eamt` is the control-plane-shaped form
     (dotted v4, colon v6); `__post_init__` derives the byte-keyed dicts
-    `translate()` (and the table-plane builder that later tasks add) use."""
+    `translate()` (and the table-plane builder that later tasks add) use.
+    Frozen so a shared config (DEMO_SIIT) can't be mutated out from under
+    callers; the derived dicts still need object.__setattr__ to land."""
 
     pool6: bytes = WKP
     eamt: tuple[tuple[str, str], ...] = ()
@@ -60,8 +62,8 @@ class SiitConfig:
             v4b, v6b = _v4(v4s), _v6(v6s)
             eamt46[v4b] = v6b
             eamt64[v6b] = v4b
-        self.eamt46 = eamt46
-        self.eamt64 = eamt64
+        object.__setattr__(self, "eamt46", eamt46)
+        object.__setattr__(self, "eamt64", eamt64)
 
 
 DEMO_SIIT = SiitConfig(eamt=(("192.0.2.1", "2001:db8:1::c001"),))
@@ -128,20 +130,27 @@ def _translate46(l3: bytes, cfg: SiitConfig) -> SiitResult:
     ttl = l3[8]
     proto = l3[9]
     src4, dst4 = l3[12:16], l3[16:20]
-    l4 = l3[ihl:]
+    l4 = l3[ihl:total_len]  # bound to Total Length -- trailing padding never leaks
 
-    # Ledger, in the plan's frozen order (matters when >1 condition would
-    # otherwise fire on the same packet -- e.g. a fragmented zero-checksum
-    # UDP datagram reports zero_udp_checksum, not fragment).
-    if proto == PROTO_UDP and len(l4) >= 8 and l4[6:8] == b"\x00\x00":
-        return _drop("zero_udp_checksum")
-    if proto not in (PROTO_ICMP, PROTO_TCP, PROTO_UDP):
-        return _drop("unsupported_l4")
+    # Ledger, in the plan's frozen order: header checksum -> zero UDP
+    # checksum -> fragment -> ICMP non-echo -> unsupported L4 -> TTL. Order
+    # matters whenever >1 condition would otherwise fire on the same packet
+    # -- e.g. a fragmented packet on an unsupported protocol reports
+    # "fragment", not "unsupported_l4" (both directions agree on this).
+    if proto == PROTO_UDP:
+        if len(l4) < 8:
+            return _drop("l4_truncated")
+        if l4[6:8] == b"\x00\x00":
+            return _drop("zero_udp_checksum")
+    elif proto == PROTO_TCP and len(l4) < 20:
+        return _drop("l4_truncated")
+    if flags_frag & 0x3FFF:  # MF (bit 13) or a nonzero 13-bit offset
+        return _drop("fragment")
     if proto == PROTO_ICMP:
         if len(l4) < 2 or l4[0] not in (ICMP4_ECHO_REQUEST, ICMP4_ECHO_REPLY) or l4[1] != 0:
             return _drop("icmp_error")  # non-echo: error translation deferred
-    if flags_frag & 0x3FFF:  # MF (bit 13) or a nonzero 13-bit offset
-        return _drop("fragment")
+    elif proto not in (PROTO_TCP, PROTO_UDP):
+        return _drop("unsupported_l4")
     if ttl <= 1:
         return _drop("ttl_expired")
 
@@ -166,6 +175,10 @@ def _translate46(l3: bytes, cfg: SiitConfig) -> SiitResult:
         csum_off = 6 if proto == PROTO_UDP else 16
         old_csum = struct.unpack("!H", body[csum_off : csum_off + 2])[0]
         new_csum = _patch(old_csum, src4 + dst4, src6 + dst6)
+        if proto == PROTO_UDP and new_csum == 0:
+            # RFC 768/8200: IPv6 UDP checksums are mandatory, so a
+            # computed-zero result must be sent as all-ones.
+            new_csum = 0xFFFF
         struct.pack_into("!H", body, csum_off, new_csum)
     else:
         # v4 ICMP has no pseudo-header; v6 does. Patch the type word AND
@@ -178,6 +191,8 @@ def _translate46(l3: bytes, cfg: SiitConfig) -> SiitResult:
         pseudo = _icmp6_pseudo(src6, dst6, payload_len)
         old_csum = struct.unpack("!H", body[2:4])[0]
         new_csum = _patch(old_csum, old_word, new_word + pseudo)
+        if new_csum == 0:  # same RFC 768 idiom applies to ICMPv6 (RFC 4443)
+            new_csum = 0xFFFF
         struct.pack_into("!H", body, 2, new_csum)
 
     return SiitResult("sent", bytes(v6) + bytes(body), "")
@@ -193,15 +208,24 @@ def _translate64(l3: bytes, cfg: SiitConfig) -> SiitResult:
     nh = l3[6]
     hop_limit = l3[7]
     src6, dst6 = l3[8:24], l3[24:40]
+    if len(l3) - 40 < payload_len:
+        return _drop("l4_truncated")  # header claims more than the frame carries
     l4 = l3[40 : 40 + payload_len]
 
+    # Same ledger order as _translate46 (see comment there): header
+    # checksum has no v6 analogue, so this starts at the UDP/TCP length
+    # guard, then fragment, then ICMP non-echo / unsupported L4, then TTL.
+    if nh == PROTO_UDP and len(l4) < 8:
+        return _drop("l4_truncated")
+    if nh == PROTO_TCP and len(l4) < 20:
+        return _drop("l4_truncated")
     if nh == NH_FRAGMENT:
         return _drop("fragment")
-    if nh not in (PROTO_ICMPV6, PROTO_TCP, PROTO_UDP):
-        return _drop("unsupported_l4")
     if nh == PROTO_ICMPV6:
         if len(l4) < 2 or l4[0] not in (ICMP6_ECHO_REQUEST, ICMP6_ECHO_REPLY) or l4[1] != 0:
             return _drop("icmp_error")
+    elif nh not in (PROTO_TCP, PROTO_UDP):
+        return _drop("unsupported_l4")
     if hop_limit <= 1:
         return _drop("ttl_expired")
 
