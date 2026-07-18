@@ -152,6 +152,16 @@ def _lower_state(state: ir.ParserState) -> "_StateLowering":
                 name = lmd.debug_name or f"md{lmd.slot}"
                 reg = lo.alloc(lmd.value_id, 16, name)
                 lo.emit(f"ldmd    {reg}, {lmd.slot}", comment=name)
+            case "movi":
+                mv = op.movi
+                if mv.imm > _MAX_IMM16:
+                    raise LowerError(
+                        f"state {state.name!r}: movi immediate {mv.imm} "
+                        f"exceeds the MOVI limit of {_MAX_IMM16}"
+                    )
+                name = mv.debug_name or f"{mv.imm:#x}"
+                reg = lo.alloc(mv.value_id, 16, name)
+                lo.emit(f"movi    {reg}, {mv.imm:#06x}", comment=name)
     _lower_terminator(lo, state.terminator)
     return lo
 

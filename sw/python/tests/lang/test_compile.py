@@ -110,6 +110,61 @@ def test_smd_unit_count_follows_width():
     assert stmds[1][1][0] == "3" and stmds[1][1][2] == "1"
 
 
+# -- const primitive (MOVI value) ---------------------------------------------
+
+
+def test_const_emits_movi_and_is_storable_to_md():
+    """s.const materializes a 16-bit literal as a value; a following smd stores
+    that value's register (the SIIT twin uses this for the md[1] bitmap)."""
+    asm = compile_single_state(lambda s: s.smd(s.const(0x0B), slot=1))
+    ins = instrs(asm)
+    movi = next(i for i in ins if i[0] == "movi")
+    stmd = next(i for i in ins if i[0] == "stmd")
+    assert int(movi[1][1], 0) == 0x0B
+    assert stmd[1][0] == "1" and stmd[1][2] == "1"   # slot 1, one unit
+    assert stmd[1][1] == movi[1][0]                  # stores the const's register
+
+
+@pytest.mark.parametrize("bad", [-1, 0x10000, True])
+def test_const_out_of_range_rejected(bad):
+    with pytest.raises(CompileError, match="const"):
+        compile_single_state(lambda s: s.const(bad))
+
+
+def test_const_builds_movi_ir_and_interp_iss_agree():
+    """The whole mini-vertical: eDSL -> IR Movi -> lowered `movi` -> and
+    pp_interp agrees with the ISS on the assembled words (steps included)."""
+    from nanuk.ir.pp_interp import pp_interp
+    from nanuk.ir.pp_lower import to_pp_asm
+    from nanuk.isa.pp_asm import assemble_with_lines
+    from nanuk.isa.pp_iss import run_pp_iss
+
+    p = Parser()
+
+    @p.state(start=True)
+    def start(s):
+        s.smd(s.const(0x0B), slot=1)
+        s.smd(s.const(0xFFFF), slot=2)
+        s.accept()
+
+    prog = p.build_ir()
+    movis = [op.movi.imm for st in prog.states for op in st.ops
+             if op.WhichOneof("op") == "movi"]
+    assert movis == [0x0B, 0xFFFF]              # IR carries the Movi ops
+
+    asm = to_pp_asm(prog)
+    assert any(i[0] == "movi" for i in instrs(asm))   # lowered to movi words
+
+    pkt = bytes(20)
+    ri = pp_interp(prog, pkt)
+    assert (ri.md[1], ri.md[2]) == (0x0B, 0xFFFF)
+    binary, lines = assemble_with_lines(asm)
+    rs = run_pp_iss(binary, pkt, line_map=lines)
+    assert (ri.verdict, ri.error, ri.md, ri.steps) == (
+        rs.verdict, rs.error, rs.md, rs.steps
+    )
+
+
 def test_static_advance_emits_advi():
     asm = compile_single_state(lambda s: s.advance(14))
     assert instrs(asm)[0] == ("advi", ["14"])

@@ -1,6 +1,12 @@
 """Generate web/public/presets.json: the demo corpus + the nanukproto
-tunnel as {name, hex, note}. Runs offline in the devcontainer (scapy
-lives there); only hex strings ship — scapy never enters the bundle."""
+tunnel + the SIIT translator vectors, as {name, hex, note, programs}. Runs
+offline in the devcontainer (scapy lives there); only hex strings ship —
+scapy never enters the bundle. `programs` scopes each preset's chip to the
+programs it makes sense for (a preset without the field would show for all).
+
+The SIIT presets are read straight from the committed conformance vectors
+(benchmarks/siit/vectors/*.json — already scapy-free bytes), so no scapy
+dependency reaches the SIIT half of the corpus."""
 
 import json
 import pathlib
@@ -11,7 +17,33 @@ from scapy.layers.l2 import ARP, Dot1Q, Ether
 from scapy.packet import Raw
 
 DMAC = "aa:bb:cc:dd:ee:01"
-OUT = pathlib.Path(__file__).resolve().parents[1] / "public" / "presets.json"
+REPO = pathlib.Path(__file__).resolve().parents[2]
+OUT = REPO / "web" / "public" / "presets.json"
+VECTORS = REPO / "benchmarks" / "siit" / "vectors"
+
+# Every classic parser/MAP packet shows for these programs (not SIIT).
+CLASSIC = ["l2l3l4", "nanukproto", "map_l2fwd"]
+
+# The frozen five SIIT presets, drawn from the committed vectors: a name in
+# its group file, a human label, and the expected outcome note.
+SIIT_PRESETS = [
+    ("udp46", "udp46_len25_ttl64", "IPv4->IPv6 UDP (RFC 6052 64:ff9b::/96) — sent"),
+    ("udp64", "udp64_len25_ttl64", "IPv6->IPv4 UDP — sent"),
+    ("edge", "edge_eamt_dst_46", "IPv4->IPv6, dst hits the EAMT (192.0.2.1) — sent"),
+    ("icmp46", "icmp46_len25_ttl64", "IPv4->IPv6 ICMP echo — sent"),
+    ("negative", "neg_v4_ttl_expired", "TTL=1 — dropped (ttl_expired), no ICMP error"),
+]
+
+
+def siit_presets() -> list[dict]:
+    out = []
+    for group, name, note in SIIT_PRESETS:
+        vecs = json.loads((VECTORS / f"{group}.json").read_text())
+        vec = next(v for v in vecs if v["name"] == name)
+        out.append({
+            "name": name, "hex": vec["in"], "note": note, "programs": ["siit"],
+        })
+    return out
 
 
 def nk_tunnel() -> bytes:
@@ -39,9 +71,12 @@ PRESETS = [
     ("nk_tunnel", nk_tunnel(), "the invented nanukproto tunnel (beat 3)"),
 ]
 
+entries = [
+    {"name": n, "hex": bytes(p).hex(), "note": note, "programs": CLASSIC}
+    for n, p, note in PRESETS
+]
+entries += siit_presets()
+
 OUT.parent.mkdir(parents=True, exist_ok=True)
-OUT.write_text(json.dumps(
-    [{"name": n, "hex": bytes(p).hex(), "note": note} for n, p, note in PRESETS],
-    indent=2,
-) + "\n")
-print(f"wrote {OUT} ({len(PRESETS)} presets)")
+OUT.write_text(json.dumps(entries, indent=2) + "\n")
+print(f"wrote {OUT} ({len(entries)} presets)")

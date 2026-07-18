@@ -31,10 +31,13 @@ def _compile(path: pathlib.Path) -> None:
 
 def test_presets_expected_verdicts():
     presets = json.loads(PRESETS.read_text())
-    assert {p["name"] for p in presets} == set(EXPECTED)
+    # The classic (parser/MAP) corpus is exactly EXPECTED; SIIT presets are
+    # scoped to the "siit" program and covered by test_siit_bridge.
+    classic = [p for p in presets if "l2l3l4" in p.get("programs", [])]
+    assert {p["name"] for p in classic} == set(EXPECTED)
     for program in ("l2l3l4.py", "nanukproto.py"):
         _compile(PROGRAMS / program)
-        for preset in presets:
+        for preset in classic:
             out = json.loads(bridge.run_packet(preset["hex"]))
             assert out["ok"]
             want = EXPECTED[preset["name"]][0 if program == "l2l3l4.py" else 1]

@@ -218,6 +218,10 @@ def symex(
                 sym = z3.BitVec(f"md_{md.slot}_{md.value_id}", 64)
                 m.constraints.append(z3.ULE(sym, 0xFFFF))
                 m.values[md.value_id] = (sym, 16)
+            case "movi":
+                mv = op.movi
+                m.tick()  # one MOVI word, mirrors pp_interp
+                m.values[mv.value_id] = (z3.BitVecVal(mv.imm & _MASK64, 64), 16)
         return True
 
     def _exec_terminator(m: _Sym, term: ir.Terminator) -> None:

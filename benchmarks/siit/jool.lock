@@ -1,0 +1,9 @@
+# Jool graybox oracle pin (SIIT demo, Plan B). Pointer file only -- no
+# GPL content lands here or anywhere else in this tree; the pinned commit
+# is fetched into gitignored third_party/jool by fetch_jool.sh, and
+# sw/python/nanuk/testkit/jool_graybox.py reads fixtures from that clone at
+# test time (gated on NANUK_JOOL=1). Update by re-running
+# `git ls-remote https://github.com/NICMx/Jool main` and re-fetching.
+url=https://github.com/NICMx/Jool
+sha=eddd73af5c42f428529443478c9be436c6414694
+subpath=test/graybox/test-suite/siit

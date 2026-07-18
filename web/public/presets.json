@@ -1,47 +1,132 @@
 [
   {
     "name": "plain_ipv4_udp",
-    "hex": "aabbccddee01f2bf825e556408004500001e000100004011c4b0ac11000c0a00000100350035000ae0e86869",
-    "note": "Ethernet / IPv4 / UDP"
+    "hex": "aabbccddee01328b191ec7ac08004500001e000100004011c4b0ac11000c0a00000100350035000ae0e86869",
+    "note": "Ethernet / IPv4 / UDP",
+    "programs": [
+      "l2l3l4",
+      "nanukproto",
+      "map_l2fwd"
+    ]
   },
   {
     "name": "single_vlan",
     "hex": "aabbccddee010000000000008100006408004500001c0001000040117cce7f0000017f000001003512b50008eef1",
-    "note": "one 802.1Q tag"
+    "note": "one 802.1Q tag",
+    "programs": [
+      "l2l3l4",
+      "nanukproto",
+      "map_l2fwd"
+    ]
   },
   {
     "name": "qinq",
     "hex": "aabbccddee01000000000000810000c88100012c08004500001c0001000040117cce7f0000017f0000010035003500080172",
-    "note": "stacked VLANs (QinQ)"
+    "note": "stacked VLANs (QinQ)",
+    "programs": [
+      "l2l3l4",
+      "nanukproto",
+      "map_l2fwd"
+    ]
   },
   {
     "name": "ipv4_options",
     "hex": "aabbccddee0100000000000008004600002000010000401179c87f0000017f000001010101010035003500080172",
-    "note": "IPv4 with options (IHL > 5)"
+    "note": "IPv4 with options (IHL > 5)",
+    "programs": [
+      "l2l3l4",
+      "nanukproto",
+      "map_l2fwd"
+    ]
   },
   {
     "name": "ipv4_tcp",
     "hex": "aabbccddee010000000000000800450000280001000040067ccd7f0000017f00000100140050000000000000000050022000917c0000",
-    "note": "TCP: accepted, no UDP header"
+    "note": "TCP: accepted, no UDP header",
+    "programs": [
+      "l2l3l4",
+      "nanukproto",
+      "map_l2fwd"
+    ]
   },
   {
     "name": "arp",
-    "hex": "aabbccddee01f2bf825e556408060001080006040001f2bf825e5564ac11000c0000000000000a000001",
-    "note": "unknown EtherType: accept"
+    "hex": "aabbccddee01328b191ec7ac08060001080006040001328b191ec7acac11000c0000000000000a000001",
+    "note": "unknown EtherType: accept",
+    "programs": [
+      "l2l3l4",
+      "nanukproto",
+      "map_l2fwd"
+    ]
   },
   {
     "name": "runt_frame",
     "hex": "00000000000000000000",
-    "note": "10 bytes: header violation"
+    "note": "10 bytes: header violation",
+    "programs": [
+      "l2l3l4",
+      "nanukproto",
+      "map_l2fwd"
+    ]
   },
   {
     "name": "non_v4_version",
     "hex": "aabbccddee01000000000000080060000000000000000000000000000000000000000000000000000000000000000000000000000000",
-    "note": "IPv4 EtherType but version 6: drop"
+    "note": "IPv4 EtherType but version 6: drop",
+    "programs": [
+      "l2l3l4",
+      "nanukproto",
+      "map_l2fwd"
+    ]
   },
   {
     "name": "nk_tunnel",
     "hex": "aabbccddee0100000000000088b54e4b100abcde08004500001e000100004011c4afac11000c0a00000200351092000ad08a6869",
-    "note": "the invented nanukproto tunnel (beat 3)"
+    "note": "the invented nanukproto tunnel (beat 3)",
+    "programs": [
+      "l2l3l4",
+      "nanukproto",
+      "map_l2fwd"
+    ]
+  },
+  {
+    "name": "udp46_len25_ttl64",
+    "hex": "aabbccddee01aabbccddee02080045000035000100004011147ac6336402cb007107303900350021cc6f000102030405060708090a0b0c0d0e0f101112131415161718",
+    "note": "IPv4->IPv6 UDP (RFC 6052 64:ff9b::/96) \u2014 sent",
+    "programs": [
+      "siit"
+    ]
+  },
+  {
+    "name": "udp64_len25_ttl64",
+    "hex": "aabbccddee01aabbccddee0286dd60000000002111400064ff9b0000000000000000c63364020064ff9b0000000000000000cb007107303900350021cc6f000102030405060708090a0b0c0d0e0f101112131415161718",
+    "note": "IPv6->IPv4 UDP \u2014 sent",
+    "programs": [
+      "siit"
+    ]
+  },
+  {
+    "name": "edge_eamt_dst_46",
+    "hex": "aabbccddee01aabbccddee020800450000200001000040118e95c6336402c000020130390035000ce12c00010203",
+    "note": "IPv4->IPv6, dst hits the EAMT (192.0.2.1) \u2014 sent",
+    "programs": [
+      "siit"
+    ]
+  },
+  {
+    "name": "icmp46_len25_ttl64",
+    "hex": "aabbccddee01aabbccddee02080045000035000100004001148ac6336402cb0071070800493a12340001000102030405060708090a0b0c0d0e0f101112131415161718",
+    "note": "IPv4->IPv6 ICMP echo \u2014 sent",
+    "programs": [
+      "siit"
+    ]
+  },
+  {
+    "name": "neg_v4_ttl_expired",
+    "hex": "aabbccddee01aabbccddee0208004500001d0001000001115392c6336402cb007107303900350009f12f78",
+    "note": "TTL=1 \u2014 dropped (ttl_expired), no ICMP error",
+    "programs": [
+      "siit"
+    ]
   }
 ]

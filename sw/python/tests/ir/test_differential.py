@@ -50,6 +50,26 @@ def budget_loop() -> ir.ParserProgram:
     ])
 
 
+def const_program() -> ir.ParserProgram:
+    """MOVI two literals into the md window, then accept. Packet-independent,
+    so it runs on every edge packet (empty included) and exercises the Movi op
+    end to end — the interpreter's one-step cost model vs the lowered `movi`
+    word — the RTL-drift lesson applied at IR level: a new op nobody fuzzes is
+    silently untested."""
+    return ir.ParserProgram(ir_version=1, states=[
+        ir.ParserState(
+            name="lit",
+            ops=[
+                ir.ParserOp(movi=ir.Movi(value_id=1, imm=0x0B, debug_name="bitmap")),
+                ir.ParserOp(emit_md=ir.MdStore(value_id=1, slot=1, nunits=1)),
+                ir.ParserOp(movi=ir.Movi(value_id=2, imm=0xBEEF, debug_name="k")),
+                ir.ParserOp(emit_md=ir.MdStore(value_id=2, slot=2, nunits=1)),
+            ],
+            terminator=ir.Terminator(halt=ir.Halt(drop=False)),
+        ),
+    ])
+
+
 def edge_packets() -> list[bytes]:
     return [
         b"",                        # empty: extracts fail immediately
@@ -68,6 +88,11 @@ def test_rich_program_edges(pkt):
 @pytest.mark.parametrize("pkt", edge_packets(), ids=lambda p: f"len{len(p)}")
 def test_budget_loop_edges(pkt):
     assert_same(budget_loop(), pkt, "loop/edge")
+
+
+@pytest.mark.parametrize("pkt", edge_packets(), ids=lambda p: f"len{len(p)}")
+def test_const_program_edges(pkt):
+    assert_same(const_program(), pkt, "const/edge")
 
 
 @pytest.mark.parametrize("seed", range(10))

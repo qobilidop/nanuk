@@ -34,6 +34,7 @@ message ParserOp {
     MdStore emit_md = 4;          // value -> metadata-window slots
     Shift shift = 5;              // value_id = src << amount
     MdLoad load_md = 6;           // value_id = metadata-window slot
+    Movi movi = 7;                // value_id = 16-bit immediate (MOVI)
   }
 }
 
@@ -80,6 +81,16 @@ message Shift {
   uint32 value_id = 1;
   uint32 src_value_id = 2;
   uint32 amount = 3;              // 0..63
+}
+
+// A materialized constant value (MOVI). The parser twin of MapConst: the
+// machine has always had MOVI, but the parser IR only used it internally to
+// stage compare constants — this surfaces it as a first-class value, so a
+// parser can emit a literal (e.g. a header-present bitmap) to the md window.
+message Movi {
+  uint32 value_id = 1;
+  uint32 imm = 2;                 // 16-bit
+  string debug_name = 3;
 }
 
 message Terminator {

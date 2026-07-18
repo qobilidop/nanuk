@@ -228,6 +228,19 @@ class StateCompiler:
         )
         return value
 
+    def const(self, imm: int, *, name: str | None = None) -> Value:
+        """Materialize a 16-bit constant as a value (MOVI) — usable anywhere a
+        value goes (e.g. ``s.smd(s.const(0x0B), slot=1)`` to write a literal
+        header-present bitmap). Mirrors the MAP eDSL's ``s.const``."""
+        self._check_open()
+        if not isinstance(imm, int) or isinstance(imm, bool) or not 0 <= imm <= _MAX_IMM16:
+            raise CompileError(f"const {imm!r} out of range 0..{_MAX_IMM16:#x}")
+        value = Value(next(self._value_ids), 16, name or f"{imm:#x}")
+        self._ops.append(
+            ir.ParserOp(movi=ir.Movi(value_id=value.value_id, imm=imm, debug_name=value.name))
+        )
+        return value
+
     def advance(self, amount) -> None:
         """Advance the cursor: int -> constant advance (offset tracking follows);
         value handle -> register advance, after which extract offsets are unknown."""

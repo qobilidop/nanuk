@@ -127,6 +127,10 @@ def _validate_state(state: ir.ParserState, state_names: set[str], seen_ids: set[
                         f"0..{_SMD_SLOTS - 1}"
                     )
                 define(lmd.value_id, 16, "load_md")
+            case "movi":
+                # imm width is an ISA-encoding limit (16-bit MOVI), checked in
+                # pp_lower like the dispatch/ADVI immediates — not here.
+                define(op.movi.value_id, 16, "movi")
             case None:
                 raise ValidationError(f"{where}: empty Op (no oneof member set)")
 

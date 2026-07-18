@@ -342,6 +342,10 @@ from nanuk.ir.map_interp import map_interp
 from nanuk.ir.map_lower import to_map_asm_annotated
 from nanuk.ir.map_validate import map_validate
 
+# MapBinOp.Kind -> mnemonic (mirrors map_lower._BIN_MNEMONIC; the ISA v0.1
+# reg-reg ALU that reg-reg SIIT arithmetic lowers to).
+_BIN_MNEMONIC = {1: "add", 2: "sub", 3: "and", 4: "or", 5: "xor"}
+
 
 def render_map_ir(program: ir.MatchActionProgram) -> RenderedIr:
     """MAP sibling of render_ir; asm emission counts mirror map_lower."""
@@ -427,6 +431,17 @@ def render_map_ir(program: ir.MatchActionProgram) -> RenderedIr:
                     names[sh.value_id] = name
                     lines.append(f"    v{sh.value_id} = v{sh.src_value_id} << {sh.amount}")
                     rstate.ops.append(RenderedOp(name, len(lines), 1))
+                case "bin_op":
+                    b = op.bin_op
+                    mn = _BIN_MNEMONIC[b.kind]
+                    lhs = _value_name(names, b.lhs_value_id)
+                    rhs = _value_name(names, b.rhs_value_id)
+                    name = f"{lhs} {mn} {rhs}"
+                    names[b.value_id] = name
+                    lines.append(
+                        f"    v{b.value_id} = v{b.lhs_value_id} {mn} v{b.rhs_value_id}"
+                    )
+                    rstate.ops.append(RenderedOp(name, len(lines), 1))
                 case "lookup":
                     lk = op.lookup
                     key = _value_name(names, lk.key_value_id)
@@ -506,6 +521,7 @@ class _Table:
 _DEMO_ENTRIES = {0xAABBCCDDEE01: 0x4, 0xAABBCCDDEE02: 0x8}
 _FLOOD_ENTRIES = {i: (0xF & ~(1 << i)) for i in range(4)}
 _LAST_MAP_PROGRAM = None
+_LAST_MAP_KIND = None  # "siit" (baked SIIT PP + EAMT plane) | None (l2l3l4 + FDB)
 
 
 def _default_tables(program: ir.MatchActionProgram) -> list:
@@ -605,8 +621,180 @@ def _pp_context(packet: bytes):
     return pp_interp(_pp_rig()["ir"], packet, check=False)
 
 
+# --- SIIT composed run: the baked PP twin + the frozen EAMT table plane ------
+
+_SIIT_PP_RIG = None
+
+# DEMO_SIIT's exact-host EAMT (192.0.2.1 <-> 2001:db8:1::c001), split into the
+# three <=64-bit tables the translate twin looks up (t0/t1 = v4 -> v6 hi/lo,
+# t2 = v6-low64 -> v4). Baked as constants — the wheels never ship testkit
+# (the scapy boundary); test_siit_bridge holds these identical to
+# testkit.siit_tables()'s output.
+_SIIT_EAMT46_HI = {0xC0000201: 0x20010DB800010000}  # t0: v4 -> v6 high 64
+_SIIT_EAMT46_LO = {0xC0000201: 0x0000_0000_0000_C001}  # t1: v4 -> v6 low 64
+_SIIT_EAMT64 = {0x0000_0000_0000_C001: 0xC0000201}  # t2: v6 low 64 -> v4
+
+
+def _siit_tables() -> list:
+    """The SIIT table plane, matching testkit.siit_tables(DEMO_SIIT)."""
+    return [
+        _Table(32, 64, dict(_SIIT_EAMT46_HI)),
+        _Table(32, 64, dict(_SIIT_EAMT46_LO)),
+        _Table(64, 32, dict(_SIIT_EAMT64)),
+    ]
+
+
+def _make_siit_pp_parser():
+    """The baked SIIT parse-side twin: accepts {IPv4, IPv6}, records which L4
+    rides inside, refuses the structural half of the ingress ledger. A copy of
+    examples/siit/parse.py's make_parser() (the bridge is playground toolchain
+    and must not import example content); test_siit_bridge pins it identical to
+    the example at the assembly level."""
+    from nanuk.lang import Header, Parser
+
+    eth = Header("eth", dst=48, src=48, ethertype=16)
+    ipv4 = Header("ipv4", version=4, ihl=4, tos=8, total_len=16, ident=16,
+                  flags_frag=16, ttl=8, proto=8, csum=16, src=32, dst=32)
+    ipv6 = Header("ipv6", version=4, tclass=8, flow=20, plen=16, nexthdr=8)
+    l4 = Header("l4", first=8)
+
+    H_ETH, H_IPV4, H_IPV6, H_UDP, H_TCP, H_ICMP4, H_ICMP6, H_L4 = (
+        0, 1, 2, 3, 4, 5, 6, 7)
+    ETY_IPV4, ETY_IPV6 = 0x0800, 0x86DD
+    PROTO_UDP, PROTO_TCP, PROTO_ICMP4 = 17, 6, 1
+    NH_ICMP6 = 58
+    BM_V4, BM_V4_UDP, BM_V4_TCP, BM_V4_ICMP = 0x03, 0x0B, 0x13, 0x23
+    BM_V6, BM_V6_UDP, BM_V6_TCP, BM_V6_ICMP = 0x05, 0x0D, 0x15, 0x45
+    SMD_BITMAP = 1
+
+    p = Parser()
+
+    @p.state(start=True)
+    def start(s):
+        s.mark(eth, hdr_id=H_ETH)
+        ety = s.extract(eth.ethertype)
+        s.advance(14)
+        s.dispatch(ety, {ETY_IPV4: ipv4_check, ETY_IPV6: ipv6_hdr},
+                   default=s.drop)
+
+    @p.state()
+    def ipv4_check(s):
+        s.mark(ipv4, hdr_id=H_IPV4)
+        ihl = s.extract(ipv4.ihl)
+        s.dispatch(ihl, {0: bad, 1: bad, 2: bad, 3: bad, 4: bad},
+                   default=ipv4_body)
+
+    @p.state()
+    def ipv4_body(s):
+        s.mark(ipv4)
+        ihl = s.extract(ipv4.ihl)
+        proto = s.extract(ipv4.proto)
+        s.advance(ihl << 2)
+        s.dispatch(proto, {PROTO_UDP: udp4, PROTO_TCP: tcp4, PROTO_ICMP4: icmp4},
+                   default=v4_bare)
+
+    @p.state()
+    def v4_bare(s):
+        s.smd(s.const(BM_V4), slot=SMD_BITMAP)
+        s.accept()
+
+    @p.state()
+    def udp4(s):
+        s.mark(l4, hdr_id=H_L4)
+        s.mark(l4, hdr_id=H_UDP)
+        s.advance(8)
+        s.smd(s.const(BM_V4_UDP), slot=SMD_BITMAP)
+        s.accept()
+
+    @p.state()
+    def tcp4(s):
+        s.mark(l4, hdr_id=H_L4)
+        s.mark(l4, hdr_id=H_TCP)
+        s.advance(20)
+        s.smd(s.const(BM_V4_TCP), slot=SMD_BITMAP)
+        s.accept()
+
+    @p.state()
+    def icmp4(s):
+        s.mark(l4, hdr_id=H_L4)
+        s.mark(l4, hdr_id=H_ICMP4)
+        s.advance(4)
+        s.smd(s.const(BM_V4_ICMP), slot=SMD_BITMAP)
+        s.accept()
+
+    @p.state()
+    def ipv6_hdr(s):
+        s.mark(ipv6, hdr_id=H_IPV6)
+        nh = s.extract(ipv6.nexthdr)
+        s.advance(40)
+        s.dispatch(nh, {PROTO_UDP: udp6, PROTO_TCP: tcp6, NH_ICMP6: icmp6},
+                   default=v6_bare)
+
+    @p.state()
+    def v6_bare(s):
+        s.smd(s.const(BM_V6), slot=SMD_BITMAP)
+        s.accept()
+
+    @p.state()
+    def udp6(s):
+        s.mark(l4, hdr_id=H_L4)
+        s.mark(l4, hdr_id=H_UDP)
+        s.advance(8)
+        s.smd(s.const(BM_V6_UDP), slot=SMD_BITMAP)
+        s.accept()
+
+    @p.state()
+    def tcp6(s):
+        s.mark(l4, hdr_id=H_L4)
+        s.mark(l4, hdr_id=H_TCP)
+        s.advance(20)
+        s.smd(s.const(BM_V6_TCP), slot=SMD_BITMAP)
+        s.accept()
+
+    @p.state()
+    def icmp6(s):
+        s.mark(l4, hdr_id=H_L4)
+        s.mark(l4, hdr_id=H_ICMP6)
+        s.advance(4)
+        s.smd(s.const(BM_V6_ICMP), slot=SMD_BITMAP)
+        s.accept()
+
+    @p.state()
+    def bad(s):
+        s.drop()
+
+    return p
+
+
+def _siit_pp_rig():
+    """The baked SIIT parser, assembled and provenance-rendered once (its panes
+    aren't shown in a composed run, so provenance is built against an empty
+    source — mirrors _pp_rig)."""
+    global _SIIT_PP_RIG
+    if _SIIT_PP_RIG is None:
+        program = _make_siit_pp_parser().build_ir()
+        asm_text, bindings = to_pp_asm_annotated(program, check=False)
+        prog_bytes, line_map = assemble_with_lines(asm_text)
+        states = _provenance(render_ir(program), "", asm_text, program)
+        _SIIT_PP_RIG = {
+            "ir": program, "prog": prog_bytes, "line_map": line_map,
+            "bindings": bindings, "states": states,
+        }
+    return _SIIT_PP_RIG
+
+
+def _is_siit_map(program: ir.MatchActionProgram) -> bool:
+    """The loaded MAP is the SIIT translator iff it declares exactly the three
+    EAMT tables (t0/t1 = 32b key / 64b action, t2 = 64b key / 32b action).
+    Selects the SIIT PP twin + EAMT plane for the composed run; every other
+    MAP falls back to the l2l3l4 parser + the demo FDB/flood plane."""
+    return [(t.table_id, t.key_width, t.action_width) for t in program.tables] == [
+        (0, 32, 64), (1, 32, 64), (2, 64, 32)
+    ]
+
+
 def _compile_map(source: str, build_map_ir) -> str:
-    global _LAST_PROGRAM, _LAST_MAP_PROGRAM
+    global _LAST_PROGRAM, _LAST_MAP_PROGRAM, _LAST_MAP_KIND
     try:
         program = build_map_ir()
         map_validate(program)
@@ -621,6 +809,7 @@ def _compile_map(source: str, build_map_ir) -> str:
     states = _provenance(rendered, source, asm_text, program)
     prog_bytes, line_map = map_assemble_with_lines(asm_text)
     _LAST_MAP_PROGRAM = program
+    _LAST_MAP_KIND = "siit" if _is_siit_map(program) else None
     _LAST_PROGRAM = None
     globals()["_LAST_MAP_ASM"] = {
         "prog": prog_bytes, "line_map": line_map, "bindings": bindings,
@@ -642,7 +831,7 @@ def _run_map_packet(packet: bytes) -> str:
     phase against the baked rig's provenance)."""
     program = globals()["_LAST_MAP_PROGRAM"]
     md_in = [0] * 8  # slot 0 = ingress port 0
-    rig = _pp_rig()
+    rig = _siit_pp_rig() if _LAST_MAP_KIND == "siit" else _pp_rig()
     pp_events: list = []
     pp = pp_interp(rig["ir"], packet, md_in, check=False, trace=pp_events)
     pp_iss = run_pp_iss(rig["prog"], packet, md_in, line_map=rig["line_map"])
@@ -668,7 +857,7 @@ def _run_map_packet(packet: bytes) -> str:
             },
             "trace": {"pp": pp_trace, "map": None},
         })
-    tables = _default_tables(program)
+    tables = _siit_tables() if _LAST_MAP_KIND == "siit" else _default_tables(program)
     events: list = []
     r = map_interp(program, packet, pp, tables, pp.md, check=False, trace=events)
     map_asm = globals()["_LAST_MAP_ASM"]

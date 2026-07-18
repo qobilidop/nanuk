@@ -1,0 +1,173 @@
+[
+  {
+    "name": "neg_non_ip_ethertype",
+    "rfc": "7915-ledger-order",
+    "dir": "46",
+    "in": "aabbccddee01aabbccddee0208060001080006040001328b191ec7acac11000c0000000000000a000001",
+    "verdict": "drop",
+    "out": null,
+    "why": "non_ip_ethertype"
+  },
+  {
+    "name": "neg_runt",
+    "rfc": "7915-ledger-order",
+    "dir": "46",
+    "in": "00000000000000000000",
+    "verdict": "drop",
+    "out": null,
+    "why": "runt"
+  },
+  {
+    "name": "neg_v4_bad_header_checksum",
+    "rfc": "7915-ledger-order",
+    "dir": "46",
+    "in": "aabbccddee01aabbccddee0208004500001d000100004011eb92c6336402cb007107303900350009f12f78",
+    "verdict": "drop",
+    "out": null,
+    "why": "v4_bad_header_checksum"
+  },
+  {
+    "name": "neg_v4_fragment",
+    "rfc": "7915-4.1-frag",
+    "dir": "46",
+    "in": "aabbccddee01aabbccddee0208004500001d000120004011f491c6336402cb007107303900350009f12f78",
+    "verdict": "drop",
+    "out": null,
+    "why": "fragment"
+  },
+  {
+    "name": "neg_v4_fragment_beats_l4_truncated",
+    "rfc": "7915-ledger-order",
+    "dir": "46",
+    "in": "aabbccddee01aabbccddee02080045000018000120004011f496c6336402cb00710730390035",
+    "verdict": "drop",
+    "out": null,
+    "why": "fragment"
+  },
+  {
+    "name": "neg_v4_fragment_beats_unsupported_l4",
+    "rfc": "7915-ledger-order",
+    "dir": "46",
+    "in": "aabbccddee01aabbccddee0208004500001c00012000402ff474c6336402cb0071077878787878787878",
+    "verdict": "drop",
+    "out": null,
+    "why": "fragment"
+  },
+  {
+    "name": "neg_v4_icmp_error",
+    "rfc": "7915-4.2-err-dest-unreach",
+    "dir": "46",
+    "in": "aabbccddee01aabbccddee02080045000024000100004001149bc6336402cb00710703011b1d000000007878787878787878",
+    "verdict": "drop",
+    "out": null,
+    "why": "icmp_error"
+  },
+  {
+    "name": "neg_v4_l4_truncated",
+    "rfc": "7915-ledger-order",
+    "dir": "46",
+    "in": "aabbccddee01aabbccddee02080045000023000100004011148cc6336402cb00710730390035",
+    "verdict": "drop",
+    "out": null,
+    "why": "l4_truncated"
+  },
+  {
+    "name": "neg_v4_truncated",
+    "rfc": "7915-ledger-order",
+    "dir": "46",
+    "in": "aabbccddee01aabbccddee0208004500001c0001000040111493c63364",
+    "verdict": "drop",
+    "out": null,
+    "why": "v4_truncated"
+  },
+  {
+    "name": "neg_v4_ttl_expired",
+    "rfc": "7915-4.1-hoplimit",
+    "dir": "46",
+    "in": "aabbccddee01aabbccddee0208004500001d0001000001115392c6336402cb007107303900350009f12f78",
+    "verdict": "drop",
+    "out": null,
+    "why": "ttl_expired"
+  },
+  {
+    "name": "neg_v4_unsupported_l4",
+    "rfc": "7915-4.5-forward-all",
+    "dir": "46",
+    "in": "aabbccddee01aabbccddee0208004500001c00010000402f1475c6336402cb0071077878787878787878",
+    "verdict": "drop",
+    "out": null,
+    "why": "unsupported_l4"
+  },
+  {
+    "name": "neg_v4_zero_udp_checksum",
+    "rfc": "7915-4.5-udp-zero-csum",
+    "dir": "46",
+    "in": "aabbccddee01aabbccddee0208004500001d0001000040111492c6336402cb007107303900350009000078",
+    "verdict": "drop",
+    "out": null,
+    "why": "zero_udp_checksum"
+  },
+  {
+    "name": "neg_v6_fragment",
+    "rfc": "7915-5.1.1-fragment",
+    "dir": "64",
+    "in": "aabbccddee01aabbccddee0286dd6000000000082c400064ff9b0000000000000000c63364020064ff9b0000000000000000cb0071077878787878787878",
+    "verdict": "drop",
+    "out": null,
+    "why": "fragment"
+  },
+  {
+    "name": "neg_v6_icmp_error",
+    "rfc": "7915-5.2-err-dest-unreach",
+    "dir": "64",
+    "in": "aabbccddee01aabbccddee0286dd6000000000083a400064ff9b0000000000000000c63364020064ff9b0000000000000000cb0071070100000000000000",
+    "verdict": "drop",
+    "out": null,
+    "why": "icmp_error"
+  },
+  {
+    "name": "neg_v6_l4_truncated",
+    "rfc": "7915-ledger-order",
+    "dir": "64",
+    "in": "aabbccddee01aabbccddee0286dd60000000000411400064ff9b0000000000000000c63364020064ff9b0000000000000000cb00710730390035",
+    "verdict": "drop",
+    "out": null,
+    "why": "l4_truncated"
+  },
+  {
+    "name": "neg_v6_truncated",
+    "rfc": "7915-ledger-order",
+    "dir": "64",
+    "in": "aabbccddee01aabbccddee0286dd60000000000811400064ff9b0000000000000000c63364020064ff9b0000",
+    "verdict": "drop",
+    "out": null,
+    "why": "v6_truncated"
+  },
+  {
+    "name": "neg_v6_ttl_expired",
+    "rfc": "7915-5.1-ttl",
+    "dir": "64",
+    "in": "aabbccddee01aabbccddee0286dd60000000000911010064ff9b0000000000000000c63364020064ff9b0000000000000000cb007107303900350009f12f78",
+    "verdict": "drop",
+    "out": null,
+    "why": "ttl_expired"
+  },
+  {
+    "name": "neg_v6_unsupported_l4",
+    "rfc": "7915-5.5-forward-all",
+    "dir": "64",
+    "in": "aabbccddee01aabbccddee0286dd6000000000082f400064ff9b0000000000000000c63364020064ff9b0000000000000000cb0071077878787878787878",
+    "verdict": "drop",
+    "out": null,
+    "why": "unsupported_l4"
+  },
+  {
+    "name": "neg_v6_untranslatable_address",
+    "rfc": "7915-5.1-untranslatable",
+    "dir": "64",
+    "in": "aabbccddee01aabbccddee0286dd60000000000911400064ff9b0000000000000000c633640220010db8000900000000000000001234303900350009ed4178",
+    "verdict": "drop",
+    "out": null,
+    "why": "untranslatable_address"
+  }
+]

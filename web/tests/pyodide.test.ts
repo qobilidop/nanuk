@@ -65,5 +65,27 @@ describe.skipIf(process.env.NANUK_SKIP_PYODIDE === '1')('pyodide integration', (
     } else {
       throw new Error('MAP run was gated or failed');
     }
+
+    // SIIT translator: composed SIIT-parser -> SIIT-MAP run, translating a
+    // v4 UDP packet to v6 (RFC 6052). Asserts the exact reference bytes.
+    const siitSource = readFileSync(join(WEB, 'src', 'programs', 'siit.py'), 'utf8');
+    const siitCompiled = runtime.compile(siitSource);
+    expect(siitCompiled.ok).toBe(true);
+    if (siitCompiled.ok) expect(siitCompiled.kind).toBe('map');
+    const udp46 = presets.find((p: any) => p.name === 'udp46_len25_ttl64');
+    const udp46Out =
+      'aabbccddee01aabbccddee0286dd600000000021113f0064ff9b0000000000000000c63364020064ff9b0000000000000000cb007107303900350021cc6f000102030405060708090a0b0c0d0e0f101112131415161718';
+    const siitRun = runtime.run(udp46.hex);
+    expect(siitRun.ok).toBe(true);
+    if (siitRun.ok && siitRun.kind === 'map' && !siitRun.result.gated) {
+      expect(siitRun.result.verdict).toBe(0); // sent
+      expect(siitRun.result.frame).toBe(udp46Out);
+      expect(siitRun.trace.map).not.toBeNull();
+      expect(siitRun.trace.pp.divergence).toBeNull();
+      expect(siitRun.trace.map!.divergence).toBeNull();
+      expect(siitRun.trace.map!.result_match).toBe(true);
+    } else {
+      throw new Error('SIIT run was gated or failed');
+    }
   });
 });

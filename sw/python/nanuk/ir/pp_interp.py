@@ -243,6 +243,11 @@ def _exec_op(m: _Machine, op: ir.ParserOp, index: int) -> None:
             m.tick()
             m.values[md.value_id] = (m.md[md.slot], 16)
             m.record("op", index, {md.value_id: m.md[md.slot]})
+        case "movi":  # MOVI — one instruction, one step
+            mv = op.movi
+            m.tick()
+            m.values[mv.value_id] = (mv.imm & _MASK16, 16)
+            m.record("op", index, {mv.value_id: mv.imm & _MASK16})
 
 
 def _exec_terminator(m: _Machine, term: ir.Terminator, default: bool = False) -> str:

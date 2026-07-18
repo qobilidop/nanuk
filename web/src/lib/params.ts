@@ -1,10 +1,10 @@
 export interface Params {
-  program: string | null; // validated: 'l2l3l4' | 'nanukproto' | 'map_l2fwd'
+  program: string | null; // validated: 'l2l3l4' | 'nanukproto' | 'map_l2fwd' | 'siit'
   preset: string | null; // preset name, resolved against presets.json later
   packet: string | null; // raw hex, validated by the bridge on run
 }
 
-const PROGRAMS = new Set(['l2l3l4', 'nanukproto', 'map_l2fwd']);
+const PROGRAMS = new Set(['l2l3l4', 'nanukproto', 'map_l2fwd', 'siit']);
 
 export function parseParams(search: string): Params {
   const q = new URLSearchParams(search);
