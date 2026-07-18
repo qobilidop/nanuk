@@ -119,6 +119,15 @@ class Fixture:
 # the top-level variable assignments, then split on commas to ints.
 
 _CALL_RE = re.compile(r"^(test(?:64|46|66|44)_(?:auto|11|12))\s+(.+?)\s*$")
+# A DELIBERATELY BROADER pattern than `_CALL_RE`: it matches any line that
+# *looks like* a direction-prefixed test invocation (`test64_<anything>
+# <args>`), including helper variants `_CALL_RE` does not know how to parse.
+# The definitions (`test64_auto() {`) are excluded because `()` follows the
+# name with no whitespace. Used only by the parse-completeness guard below
+# (carried forward from B1's review): every invocation-looking line inside an
+# in-scope group block MUST be turned into fixtures, or the parse is silently
+# partial and we raise rather than ship a truncated manifest.
+_INVOKE_RE = re.compile(r"^test(?:64|46|66|44)_\w+\s")
 _GROUP_IF_RE = re.compile(r'^\s*if\s+\[\s+-z\s+"\$1"\s+-o\s+"\$1"\s*=\s*"([A-Za-z0-9_]+)"\s+\];\s*then\s*$')
 _VAR_RE = re.compile(r"^([A-Z_]+)=([0-9]+(?:,[0-9]+)*)\s*$")
 
@@ -156,6 +165,8 @@ def _parse_test_sh(text: str) -> list[Fixture]:
     fixtures: list[Fixture] = []
     current_group: str | None = None
     seen: dict[str, int] = {}
+    candidate_calls = 0  # lines that look like an in-scope test invocation
+    matched_calls = 0  # lines the parser actually turned into fixture(s)
 
     for raw_line in text.splitlines():
         line = raw_line.strip()
@@ -170,9 +181,12 @@ def _parse_test_sh(text: str) -> list[Fixture]:
             continue
         if current_group is None or current_group in _SKIP_GROUPS:
             continue
+        if _INVOKE_RE.match(line):
+            candidate_calls += 1
         m = _CALL_RE.match(line)
         if not m:
             continue
+        matched_calls += 1
 
         call, argstr = m.group(1), m.group(2)
         args = argstr.split()
@@ -223,6 +237,19 @@ def _parse_test_sh(text: str) -> list[Fixture]:
                     )
                 )
 
+    # Parse-completeness guard (B1 review carry-forward). `_INVOKE_RE` counts
+    # every invocation-looking line in an in-scope block; `_CALL_RE` is the
+    # narrower pattern the parser understands. If a line looks like a test
+    # call but the parser did not turn it into fixtures, the manifest is
+    # silently partial -- refuse loudly rather than under-report coverage.
+    if candidate_calls != matched_calls:
+        raise ValueError(
+            f"test.sh parse is incomplete: {candidate_calls} invocation-looking "
+            f"lines in scope, but only {matched_calls} were parsed into fixtures. "
+            "An unrecognized test helper variant would be silently dropped -- "
+            "extend _CALL_RE (and Fixture handling) to cover it, do not ship a "
+            "truncated manifest."
+        )
     return fixtures
 
 
@@ -243,38 +270,27 @@ def load_manifest(root: Path) -> list[Fixture]:
 # are runtime knobs for out-of-scope tests, not the base config this
 # replay's SiitConfig represents).
 #
-# Two shape mismatches are inherent, not oversights, and are already-named
-# deferrals in the audit (benchmarks/siit/audit.md):
-#   - Jool's pool6 here is `2001:db8:100::/40` -- a /40, not the /96 our
-#     `SiitConfig.pool6` assumes (`6052-prefix-lengths`: deferred). We
-#     still mirror its network address into the 12-byte field (same
-#     convention as `WKP`'s construction), which is only byte-faithful
-#     for a would-be /96; fixtures whose translation actually depends on
-#     the /40 embedding math are a B2 classification concern, not a bug
-#     here.
-#   - Jool's EAMT entries here are /24<->/120 PREFIX ranges, not the
-#     single-address pairs our `SiitConfig.eamt` supports
-#     (`7757-eamt-general-prefix`: deferred). We mirror each range's own
-#     network address as the one representable point in that range;
-#     fixtures using a non-network host address inside the range will
-#     miss this EAMT entry in the reference translator, again a named B2
-#     concern (cite `7757-eamt-general-prefix`), not silently faked here.
+# As of B2 the mirror is FAITHFUL to Jool's real config: the pool6 is a /40
+# (`2001:db8:100::/40`) mirrored with its true prefix length, and the two
+# EAMT entries are the /24<->/120 PREFIX pairs Jool actually configures.
+# `SiitConfig` now models both (RFC 6052 all six prefix lengths; RFC 7757
+# prefix EAMT with longest-prefix-match), so the reference oracle translates
+# these exactly as Jool's addressing does -- no would-be-/96 truncation, no
+# network-address-only EAMT stand-in. (The Nanuk *program* still implements
+# only /96 + exact EAMT; that scope split lives in benchmarks/siit and is a
+# program-vs-reference distinction, not a limitation of this mirror.)
 
 _INSTANCE_POOL6_RE = re.compile(r"instance\s+add\s+--netfilter\s+-6\s+(\S+)")
 _EAMT_ADD_RE = re.compile(r"eamt\s+add\s+(\S+)\s+(\S+)")
 
 
-def _strip_prefixlen(cidr: str) -> str:
-    return cidr.split("/", 1)[0]
-
-
 def jool_config(root: Path) -> SiitConfig:
     """Mirror `setup-jool.sh`'s `jool_siit instance add`/`eamt add` calls
-    into a `SiitConfig` (see the module-level note above for the two
-    known, already-deferred shape mismatches: non-/96 pool6, prefix
-    EAMT)."""
+    into a `SiitConfig`, faithfully: the pool6 prefix length and the EAMT
+    prefix pairs are preserved exactly as Jool configures them."""
     text = (root / _SUITE / "setup-jool.sh").read_text()
     pool6: bytes | None = None
+    pool6_len = 96
     eamt: list[tuple[str, str]] = []
 
     for raw_line in text.splitlines():
@@ -283,18 +299,22 @@ def jool_config(root: Path) -> SiitConfig:
             continue
         m = _INSTANCE_POOL6_RE.search(line)
         if m:
-            pool6 = socket.inet_pton(socket.AF_INET6, _strip_prefixlen(m.group(1)))[:12]
+            net, plen = m.group(1).split("/", 1)
+            pool6 = socket.inet_pton(socket.AF_INET6, net)[:12]
+            pool6_len = int(plen)
             continue
         m = _EAMT_ADD_RE.search(line)
         if m:
             first, second = m.group(1), m.group(2)
             # Jool's own CLI detects family by character (':' -> v6, '.' ->
             # v4), not by position -- setup-jool.sh happens to write v6
-            # first, but don't assume that; match Jool's own rule.
+            # first, but don't assume that; match Jool's own rule. CIDRs are
+            # kept intact so SiitConfig sees the true prefix pair.
             v6_raw, v4_raw = (first, second) if ":" in first else (second, first)
-            eamt.append((_strip_prefixlen(v4_raw), _strip_prefixlen(v6_raw)))
+            eamt.append((v4_raw, v6_raw))
 
     kwargs: dict[str, object] = {"eamt": tuple(eamt)}
     if pool6 is not None:
         kwargs["pool6"] = pool6
+        kwargs["pool6_len"] = pool6_len
     return SiitConfig(**kwargs)

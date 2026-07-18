@@ -15,7 +15,13 @@ from scapy.layers.inet6 import ICMPv6EchoRequest, IPv6
 from scapy.layers.l2 import ARP, Ether
 from scapy.packet import Raw
 
-from nanuk.testkit.siit_ref import WKP, translate
+from nanuk.testkit.siit_ref import (
+    WKP,
+    SiitConfig,
+    _embed_6052,
+    _extract_6052,
+    translate,
+)
 
 MAC1 = "aa:bb:cc:dd:ee:01"
 MAC2 = "aa:bb:cc:dd:ee:02"
@@ -303,6 +309,172 @@ def test_icmp46_echo():
     assert ones_csum(v6_pseudo(src6, dst6, icmp_len, 58) + body) == 0, (
         "checksum verifies against the v6 pseudo-header ICMPv4 never had"
     )
+
+
+# --------------------------------------------------------------------------
+# RFC 6052 §2.2 addressing: all six prefix lengths (embed AND extract).
+# The expected IPv6-embedded addresses are RFC 6052 §2.4's own worked
+# examples, all for the IPv4 address 192.0.2.33 -- so this KAT verifies the
+# generalized embedding against the RFC's table byte-for-byte, not against
+# our own re-derivation.
+# --------------------------------------------------------------------------
+
+
+def _pton6(s: str) -> bytes:
+    return socket.inet_pton(socket.AF_INET6, s)
+
+
+# (prefix_len, pool6 network address, expected IPv6-embedded address) for
+# IPv4 192.0.2.33, straight from RFC 6052 §2.4.
+RFC6052_EXAMPLES = [
+    (32, "2001:db8::", "2001:db8:c000:221::"),
+    (40, "2001:db8:100::", "2001:db8:1c0:2:21::"),
+    (48, "2001:db8:122::", "2001:db8:122:c000:2:2100::"),
+    (56, "2001:db8:122:300::", "2001:db8:122:3c0:0:221::"),
+    (64, "2001:db8:122:344::", "2001:db8:122:344:c0:2:2100::"),
+    (96, "2001:db8:122:344::", "2001:db8:122:344::c000:221"),
+    (96, "64:ff9b::", "64:ff9b::c000:221"),  # the Well-Known Prefix
+]
+
+
+def test_rfc6052_embed_all_prefix_lengths():
+    v4 = socket.inet_aton("192.0.2.33")
+    for plen, pool6_str, expected in RFC6052_EXAMPLES:
+        pool6 = _pton6(pool6_str)
+        assert _embed_6052(v4, pool6, plen) == _pton6(expected), (
+            f"/{plen} embed of 192.0.2.33 behind {pool6_str}"
+        )
+
+
+def test_rfc6052_extract_all_prefix_lengths():
+    v4 = socket.inet_aton("192.0.2.33")
+    for plen, pool6_str, embedded in RFC6052_EXAMPLES:
+        pool6 = _pton6(pool6_str)
+        assert _extract_6052(_pton6(embedded), pool6, plen) == v4, (
+            f"/{plen} extract from {embedded}"
+        )
+
+
+def test_rfc6052_extract_prefix_miss_returns_none():
+    # An address that does not carry the /40 pool6 prefix must not extract.
+    pool6 = _pton6("2001:db8:100::")
+    assert _extract_6052(_pton6("2001:db8:999:0:1::"), pool6, 40) is None
+
+
+def test_translate46_slash40_pool6_end_to_end():
+    """A whole v4->v6 UDP frame under a /40 pool6, embedding both addresses
+    per RFC 6052 §2.4's /40 example (192.0.2.33 -> 2001:db8:1c0:2:21::)."""
+    cfg = SiitConfig(pool6=_pton6("2001:db8:100::"), pool6_len=40)
+    pkt = (
+        Ether(dst=MAC1, src=MAC2)
+        / IP(src="192.0.2.33", dst="203.0.113.5", ttl=64)
+        / UDP(sport=1, dport=2)
+        / Raw(b"x")
+    )
+    r = translate(bytes(pkt), cfg)
+    assert r.verdict == "sent"
+    v6 = r.frame[14:54]
+    assert v6[8:24] == _pton6("2001:db8:1c0:2:21::"), "src /40-embedded per RFC 6052 §2.4"
+    assert v6[24:40] == _embed_6052(socket.inet_aton("203.0.113.5"), _pton6("2001:db8:100::"), 40)
+
+
+def test_translate64_slash40_pool6_round_trips():
+    """The v6->v4 twin: an address carrying the /40 pool6 extracts back to
+    its IPv4 form; the src/dst survive a full round trip."""
+    cfg = SiitConfig(pool6=_pton6("2001:db8:100::"), pool6_len=40)
+    pkt = (
+        Ether(dst=MAC1, src=MAC2)
+        / IPv6(src="2001:db8:1c0:2:21::", dst="2001:db8:1cb:71:5::", hlim=64)
+        / UDP(sport=1, dport=2)
+        / Raw(b"x")
+    )
+    r = translate(bytes(pkt), cfg)
+    assert r.verdict == "sent"
+    v4 = r.frame[14:34]
+    assert v4[12:16] == socket.inet_aton("192.0.2.33"), "src extracted from the /40 pool6"
+    assert v4[16:20] == socket.inet_aton("203.0.113.5")
+
+
+# --------------------------------------------------------------------------
+# RFC 7757 prefix EAMT (general prefix pairs, longest-prefix-match).
+# --------------------------------------------------------------------------
+
+
+def test_prefix_eamt_slash24_slash120_both_directions():
+    """Jool's actual config shape: 1.0.0.0/24 <-> 2001:db8:3::/120. Suffix
+    lengths match (8 bits each), so 1.0.0.96 <-> 2001:db8:3::60."""
+    cfg = SiitConfig(eamt=(("1.0.0.0/24", "2001:db8:3::/120"),))
+
+    pkt46 = (
+        Ether(dst=MAC1, src=MAC2)
+        / IP(src="1.0.0.96", dst="1.0.0.5", ttl=64)
+        / UDP(sport=1, dport=2)
+        / Raw(b"x")
+    )
+    r = translate(bytes(pkt46), cfg)
+    assert r.verdict == "sent"
+    v6 = r.frame[14:54]
+    assert v6[8:24] == _pton6("2001:db8:3::60"), "1.0.0.96 -> 2001:db8:3::60 (suffix copied)"
+    assert v6[24:40] == _pton6("2001:db8:3::5")
+
+    pkt64 = (
+        Ether(dst=MAC1, src=MAC2)
+        / IPv6(src="2001:db8:3::60", dst="2001:db8:3::5", hlim=64)
+        / UDP(sport=1, dport=2)
+        / Raw(b"x")
+    )
+    r = translate(bytes(pkt64), cfg)
+    assert r.verdict == "sent"
+    v4 = r.frame[14:34]
+    assert v4[12:16] == socket.inet_aton("1.0.0.96"), "2001:db8:3::60 -> 1.0.0.96 (reverse)"
+    assert v4[16:20] == socket.inet_aton("1.0.0.5")
+
+
+def test_prefix_eamt_longest_prefix_match_wins():
+    """Two overlapping IPv4 prefixes: the longer (/24) must win over the
+    shorter (/16) for an address covered by both."""
+    cfg = SiitConfig(
+        eamt=(
+            ("1.0.0.0/16", "2001:db8:aaaa::/104"),
+            ("1.0.0.0/24", "2001:db8:bbbb::/120"),
+        )
+    )
+    pkt = (
+        Ether(dst=MAC1, src=MAC2)
+        / IP(src="10.0.0.1", dst="1.0.0.7", ttl=64)  # dst covered by both
+        / UDP(sport=1, dport=2)
+        / Raw(b"x")
+    )
+    r = translate(bytes(pkt), cfg)
+    assert r.verdict == "sent"
+    dst6 = r.frame[14 + 24 : 14 + 40]
+    assert dst6 == _pton6("2001:db8:bbbb::7"), "the /24 EAM wins the longest-prefix match"
+
+
+def test_exact_host_eam_is_slash32_slash128_special_case():
+    """A bare-address EAM (no CIDR) is exactly the /32<->/128 host pair it
+    always was, and still populates the byte-keyed dicts the program table
+    builder consumes."""
+    cfg = SiitConfig(eamt=(("192.0.2.1", "2001:db8:1::c001"),))
+    assert cfg.eamt46[socket.inet_aton("192.0.2.1")] == _pton6("2001:db8:1::c001")
+    assert cfg.eamt64[_pton6("2001:db8:1::c001")] == socket.inet_aton("192.0.2.1")
+    assert cfg._eam == ((0xC0000201, 32, int.from_bytes(_pton6("2001:db8:1::c001"), "big"), 128),)
+
+
+def test_prefix_eam_absent_from_exact_dicts():
+    """A general prefix EAM must NOT leak into the exact-host dicts the
+    program plane consumes (it can't express prefixes -- LPM/T3 trigger)."""
+    cfg = SiitConfig(eamt=(("1.0.0.0/24", "2001:db8:3::/120"),))
+    assert cfg.eamt46 == {}
+    assert cfg.eamt64 == {}
+    assert len(cfg._eam) == 1
+
+
+def test_pool6_len_must_be_legal():
+    import pytest
+
+    with pytest.raises(ValueError, match="RFC 6052 prefix length"):
+        SiitConfig(pool6=_pton6("2001:db8::"), pool6_len=52)
 
 
 # --------------------------------------------------------------------------

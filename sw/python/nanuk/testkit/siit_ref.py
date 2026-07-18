@@ -49,6 +49,11 @@ ICMP6_ECHO_REPLY = 129
 
 WKP = bytes.fromhex("0064ff9b000000000000000000")[:12]  # 64:ff9b::/96 (RFC 6052)
 
+# The six legal RFC 6052 §2.2 prefix lengths. All are multiples of 8, so the
+# IPv4 embedding is byte-aligned in every case -- which is what lets the
+# embed/extract helpers below work byte-wise rather than bit-wise.
+_LEGAL_PL6052 = frozenset({32, 40, 48, 56, 64, 96})
+
 
 def _v4(dotted: str) -> bytes:
     return socket.inet_aton(dotted)
@@ -58,27 +63,137 @@ def _v6(colon: str) -> bytes:
     return socket.inet_pton(socket.AF_INET6, colon)
 
 
+def _embed_6052(v4: bytes, pool6: bytes, prefix_len: int) -> bytes:
+    """RFC 6052 §2.2: embed a 32-bit IPv4 address into a 128-bit
+    IPv6-embedded address behind a pool6 prefix of one of the six legal
+    lengths (32/40/48/56/64/96).
+
+    The IPv4 octets straddle the reserved "u" octet (byte 8, bits 64-71),
+    which MUST be zero. The split (v4 bytes before the u-octet, v4 bytes
+    after it) per the §2.2 table:
+
+        /32 -> 4 before, 0 after   (bytes 4-7)
+        /40 -> 3 before, 1 after   (bytes 5-7, then byte 9)
+        /48 -> 2 before, 2 after   (bytes 6-7, then bytes 9-10)
+        /56 -> 1 before, 3 after   (byte 7,   then bytes 9-11)
+        /64 -> 0 before, 4 after   (bytes 9-12)
+        /96 -> all 4 in bytes 12-15 (no u-octet straddle)
+    """
+    pfx = prefix_len // 8
+    if prefix_len == 96:
+        return pool6[:12] + v4
+    n_before = (64 - prefix_len) // 8  # v4 bytes sitting before the u-octet
+    out = bytearray(16)
+    out[:pfx] = pool6[:pfx]
+    out[pfx:8] = v4[:n_before]
+    # out[8] stays 0 -- the reserved u-octet (RFC 6052 §2.2)
+    out[9 : 9 + (4 - n_before)] = v4[n_before:]
+    return bytes(out)
+
+
+def _extract_6052(v6: bytes, pool6: bytes, prefix_len: int) -> bytes | None:
+    """Inverse of `_embed_6052`: pull the IPv4 address back out if `v6`
+    carries the pool6 prefix, else None. The u-octet is not re-validated --
+    extraction reads only the IPv4 bit positions (RFC 6052 §2.2 puts the
+    zero constraint on embedding)."""
+    pfx = prefix_len // 8
+    if v6[:pfx] != pool6[:pfx]:
+        return None
+    if prefix_len == 96:
+        return v6[12:16]
+    n_before = (64 - prefix_len) // 8
+    return v6[pfx:8] + v6[9 : 9 + (4 - n_before)]
+
+
+def _prefix_match(addr: int, width: int, prefix: int, plen: int) -> bool:
+    if plen == 0:
+        return True
+    shift = width - plen
+    return (addr >> shift) == (prefix >> shift)
+
+
+def _eam_reproject(
+    addr: int, src_w: int, src_plen: int, dst_prefix: int, dst_w: int, dst_plen: int
+) -> int:
+    """RFC 7757 §3.3: strip the source prefix, prepend the destination
+    prefix, then pad with trailing zeros (4->6, §3.3.1 step 5) or discard
+    trailing bits (6->4, §3.3.2 step 5) to reach the destination width.
+    `dst_prefix` is the full-width integer form of the destination prefix
+    (its own suffix bits are ignored)."""
+    suffix_len = src_w - src_plen
+    suffix = addr & ((1 << suffix_len) - 1) if suffix_len else 0
+    top = (dst_prefix >> (dst_w - dst_plen)) if dst_plen else 0
+    result = top << (dst_w - dst_plen)
+    shift = (dst_w - dst_plen) - suffix_len
+    if shift >= 0:
+        result |= suffix << shift
+    else:
+        result |= suffix >> (-shift)  # trailing bits don't fit -> discarded
+    return result & ((1 << dst_w) - 1)
+
+
+def _parse_eam(v4s: str, v6s: str) -> tuple[int, int, int, int]:
+    """Parse one EAMT row `(v4, v6)` where each side is an address or a
+    CIDR. A bare address is the exact-host case: v4 -> /32, v6 -> /128
+    (so existing single-address configs are /32<->/128 pairs, unchanged)."""
+
+    def one(s: str, af: int, host_len: int) -> tuple[int, int]:
+        if "/" in s:
+            addr, plen_s = s.split("/", 1)
+            plen = int(plen_s)
+        else:
+            addr, plen = s, host_len
+        return int.from_bytes(socket.inet_pton(af, addr), "big"), plen
+
+    v4, p4 = one(v4s, socket.AF_INET, 32)
+    v6, p6 = one(v6s, socket.AF_INET6, 128)
+    return v4, p4, v6, p6
+
+
 @dataclass(frozen=True)
 class SiitConfig:
-    """Addressing config, RFC 7757 precedence: EAMT exact-match first, else
-    RFC 6052 pool6 embed/extract. `eamt` is the control-plane-shaped form
-    (dotted v4, colon v6); `__post_init__` derives the byte-keyed dicts
-    `translate()` (and the table-plane builder that later tasks add) use.
-    Frozen so a shared config (DEMO_SIIT) can't be mutated out from under
-    callers; the derived dicts still need object.__setattr__ to land."""
+    """Addressing config, RFC 7757 precedence: EAMT longest-prefix-match
+    first, else RFC 6052 pool6 embed/extract.
+
+    `pool6` is the prefix's network address bytes and `pool6_len` its length
+    (one of the six RFC 6052 §2.2 lengths); the default is the /96 Well-Known
+    Prefix, so callers that pass neither get the original behavior. `eamt` is
+    the control-plane-shaped form: each entry is `(v4, v6)`, either bare
+    addresses (an exact /32<->/128 host pair, as before) or CIDRs (a general
+    RFC 7757 prefix pair). `__post_init__` derives (a) `_eam`, the ordered
+    entry table `translate()` uses for longest-prefix-match in both
+    directions, and (b) the byte-keyed `eamt46`/`eamt64` dicts that the
+    program table-plane builder (`testkit.siit_tables`) consumes -- populated
+    only from *exact host* pairs, since the program plane implements
+    EAMT-exact + /96 (general prefixes are the LPM/T3 trigger). Frozen so a
+    shared config (DEMO_SIIT) can't be mutated out from under callers; the
+    derived attributes still need object.__setattr__ to land."""
 
     pool6: bytes = WKP
+    pool6_len: int = 96
     eamt: tuple[tuple[str, str], ...] = ()
     eamt46: dict[bytes, bytes] = field(init=False, default_factory=dict, repr=False)
     eamt64: dict[bytes, bytes] = field(init=False, default_factory=dict, repr=False)
+    _eam: tuple[tuple[int, int, int, int], ...] = field(
+        init=False, default_factory=tuple, repr=False
+    )
 
     def __post_init__(self) -> None:
+        if self.pool6_len not in _LEGAL_PL6052:
+            raise ValueError(f"pool6_len {self.pool6_len} is not an RFC 6052 prefix length")
+        eam: list[tuple[int, int, int, int]] = []
         eamt46: dict[bytes, bytes] = {}
         eamt64: dict[bytes, bytes] = {}
         for v4s, v6s in self.eamt:
-            v4b, v6b = _v4(v4s), _v6(v6s)
-            eamt46[v4b] = v6b
-            eamt64[v6b] = v4b
+            v4, p4, v6, p6 = _parse_eam(v4s, v6s)
+            eam.append((v4, p4, v6, p6))
+            if p4 == 32 and p6 == 128:
+                # exact host pair -> expose in the byte-keyed dicts the
+                # program-table builder consumes (general prefixes cannot be).
+                v4b, v6b = v4.to_bytes(4, "big"), v6.to_bytes(16, "big")
+                eamt46[v4b] = v6b
+                eamt64[v6b] = v4b
+        object.__setattr__(self, "_eam", tuple(eam))
         object.__setattr__(self, "eamt46", eamt46)
         object.__setattr__(self, "eamt64", eamt64)
 
@@ -112,14 +227,30 @@ def _patch(csum: int, old: bytes, new: bytes) -> int:
     return (~_fold((~csum & 0xFFFF) + (~_sum16(old) & 0xFFFF) + _sum16(new))) & 0xFFFF
 
 
-def _addr46(v4: bytes, cfg: SiitConfig) -> bytes:
-    return cfg.eamt46.get(v4) or cfg.pool6 + v4
+def _addr46(v4b: bytes, cfg: SiitConfig) -> bytes:
+    """v4->v6 mapping, RFC 7757 precedence: EAMT longest-prefix-match first,
+    else RFC 6052 pool6 embedding."""
+    v4 = int.from_bytes(v4b, "big")
+    best: tuple[int, int, int, int] | None = None
+    for e in cfg._eam:
+        if _prefix_match(v4, 32, e[0], e[1]) and (best is None or e[1] > best[1]):
+            best = e
+    if best is not None:
+        return _eam_reproject(v4, 32, best[1], best[2], 128, best[3]).to_bytes(16, "big")
+    return _embed_6052(v4b, cfg.pool6, cfg.pool6_len)
 
 
-def _addr64(v6: bytes, cfg: SiitConfig) -> bytes | None:
-    if v6[:12] == cfg.pool6:
-        return v6[12:16]
-    return cfg.eamt64.get(v6)  # None -> untranslatable
+def _addr64(v6b: bytes, cfg: SiitConfig) -> bytes | None:
+    """v6->v4 mapping: EAMT longest-prefix-match first, else RFC 6052
+    extraction; None (untranslatable) if neither matches."""
+    v6 = int.from_bytes(v6b, "big")
+    best: tuple[int, int, int, int] | None = None
+    for e in cfg._eam:
+        if _prefix_match(v6, 128, e[2], e[3]) and (best is None or e[3] > best[3]):
+            best = e
+    if best is not None:
+        return _eam_reproject(v6, 128, best[3], best[0], 32, best[1]).to_bytes(4, "big")
+    return _extract_6052(v6b, cfg.pool6, cfg.pool6_len)
 
 
 def _drop(why: str) -> SiitResult:

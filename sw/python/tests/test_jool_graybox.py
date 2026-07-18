@@ -130,24 +130,61 @@ def test_known_fixture_split_expectation_pair() -> None:
 
 def test_jool_config_pool6_and_eamt() -> None:
     """setup-jool.sh configures pool6 via `instance add --netfilter -6
-    2001:db8:100::/40` and two EAMT ranges via `eamt add`. Our SiitConfig
-    only supports /96 pool6 and single-address EAMT (both already-deferred
-    scope limits: 6052-prefix-lengths, 7757-eamt-general-prefix -- see
-    benchmarks/siit/audit.md), so the mirror carries each value's network
-    address, byte-faithful to what a /96 field can hold."""
+    2001:db8:100::/40` and two EAMT PREFIX pairs via `eamt add`. As of B2
+    the mirror is faithful: the /40 prefix length and the /24<->/120 EAMT
+    prefixes are preserved exactly, and SiitConfig translates within them
+    (RFC 6052 all six prefix lengths; RFC 7757 prefix EAMT with LPM)."""
+    from nanuk.testkit.siit_ref import _addr46, _addr64
+
     root = jg.jool_root()
     cfg = jg.jool_config(root)
 
-    expected_pool6 = socket.inet_pton(socket.AF_INET6, "2001:db8:100::")[:12]
-    assert cfg.pool6 == expected_pool6
+    assert cfg.pool6 == socket.inet_pton(socket.AF_INET6, "2001:db8:100::")[:12]
+    assert cfg.pool6_len == 40
 
     assert cfg.eamt == (
-        ("1.0.0.0", "2001:db8:3::"),
-        ("10.0.0.0", "2001:db8:2::"),
+        ("1.0.0.0/24", "2001:db8:3::/120"),
+        ("10.0.0.0/24", "2001:db8:2::/120"),
     )
-    # __post_init__ derived dicts must reflect the same entries.
-    assert cfg.eamt46[socket.inet_aton("1.0.0.0")] == socket.inet_pton(socket.AF_INET6, "2001:db8:3::")
-    assert cfg.eamt64[socket.inet_pton(socket.AF_INET6, "2001:db8:2::")] == socket.inet_aton("10.0.0.0")
+    # These are general PREFIX pairs, not exact host pairs, so they must NOT
+    # populate the exact-host dicts the program table-plane consumes (the
+    # program implements /96 + EAMT-exact only -- the scope split).
+    assert cfg.eamt46 == {}
+    assert cfg.eamt64 == {}
+
+    # But the reference oracle translates within the ranges via LPM, both
+    # ways: 1.0.0.96 <-> 2001:db8:3::60, and the second entry's range too.
+    assert _addr46(socket.inet_aton("1.0.0.96"), cfg) == socket.inet_pton(
+        socket.AF_INET6, "2001:db8:3::60"
+    )
+    assert _addr64(
+        socket.inet_pton(socket.AF_INET6, "2001:db8:2::7"), cfg
+    ) == socket.inet_aton("10.0.0.7")
+    # A /40 pool6 address (outside both EAMT ranges) round-trips via RFC 6052.
+    assert _addr64(
+        socket.inet_pton(socket.AF_INET6, "2001:db8:1c6:3364:2::"), cfg
+    ) == socket.inet_aton("198.51.100.2")
+
+
+def test_parse_completeness_guard_fires_on_unrecognized_call() -> None:
+    """B1 review carry-forward: an invocation-looking line inside an
+    in-scope group block that the parser cannot turn into fixtures must
+    raise, not be silently dropped. Corrupt a copy of the real test.sh by
+    injecting an unknown helper variant into the rfc7915 block and prove the
+    guard fires."""
+    root = jg.jool_root()
+    text = (root / jg._SUITE / "test.sh").read_text()
+    # Sanity: the clean text parses without raising.
+    assert jg._parse_test_sh(text)
+
+    # Inject a bogus, unparseable invocation right after a known in-scope
+    # call. `test64_frobnicate ...` matches the broad invocation pattern but
+    # not _CALL_RE (no auto/11/12 suffix), so it must trip the guard.
+    marker = "test46_11 7915 aat1 aae1"
+    assert marker in text
+    corrupted = text.replace(marker, marker + "\n\ttest64_frobnicate 7915 xxt1 xxe1", 1)
+    with pytest.raises(ValueError, match="parse is incomplete"):
+        jg._parse_test_sh(corrupted)
 
 
 def test_pinned_sha_matches_lock() -> None:
