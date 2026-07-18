@@ -14,9 +14,18 @@
  * {ingress -> every port but ingress}) is installed by this switch at
  * boot — flooding is the periphery's policy, not the core's semantics.
  *
- * Usage: nanuk_switch [-S SYNC-PERIOD] [-E ETH-LATENCY] [-u] -f PP_PROG.BIN \
+ * Usage: nanuk_switch [-S SYNC-PERIOD] [-E ETH-LATENCY] [-u] [-x] -f PP_PROG.BIN \
  *            -m MAP_PROG.BIN [-t TABLES.TXT] \
  *            -s SOCKET-A [-s SOCKET-B ...] [-h LISTEN-SOCKET ...]
+ *
+ * -x = middlebox flood mode (packaging policy, not a datapath change): a
+ * pure translator/middlebox MAP program (e.g. examples/siit/translate.asm)
+ * leaves md[0] untouched -- it rewrites the packet but takes no forwarding
+ * decision, "egress stays the packaging's call". With -x the switch ignores
+ * md_out[0] for SENT frames and instead floods each output to every port but
+ * the ingress port (the t3 flood policy this switch already owns), so a
+ * two-port bump-in-the-wire translator delivers to the far side. Default
+ * (off) is unchanged: egress comes from md_out[0] as before.
  */
 
 #include <getopt.h>
@@ -218,6 +227,7 @@ static bool ConnectAll(std::vector<NetPort *> &all_ports) {
 
 static uint64_t cur_ts = 0;
 static int exiting = 0;
+static int middlebox_flood = 0;  // -x: ignore md_out[0], flood all-but-ingress
 static std::vector<NetPort *> ports;
 static uint64_t clock_period = 4 * 1000ULL;  // 4ns -> 250MHz (picoseconds)
 
@@ -465,8 +475,12 @@ class Controller {
       unsigned verdict = core.result_verdict;
       if (verdict == 0) {
         /* Sent: fan out per md_out slot 0 (the egress bitmap under the
-         * nanuk_switch convention). */
-        unsigned egress = core.md_out[0] & 0xF;
+         * nanuk_switch convention). In middlebox mode (-x) the MAP program
+         * takes no forwarding decision, so the packaging floods to every
+         * port but the ingress one (the t3 flood policy) instead. */
+        unsigned egress = middlebox_flood
+                              ? (((1u << ports.size()) - 1) & ~(1u << f.port))
+                              : (core.md_out[0] & 0xF);
         unsigned popcount = __builtin_popcount(egress);
         if (popcount > 1)
           flooded++;
@@ -546,7 +560,7 @@ int main(int argc, char *argv[]) {
 
   SimbricksNetIfDefaultParams(&netParams);
 
-  while ((c = getopt(argc, argv, "s:h:uS:E:f:m:t:")) != -1 && !bad_option) {
+  while ((c = getopt(argc, argv, "s:h:uxS:E:f:m:t:")) != -1 && !bad_option) {
     switch (c) {
       case 's':
         fprintf(stderr, "nanuk_switch: connecting to: %s\n", optarg);
@@ -558,6 +572,9 @@ int main(int argc, char *argv[]) {
         break;
       case 'u':
         sync_eth = 0;
+        break;
+      case 'x':
+        middlebox_flood = 1;
         break;
       case 'S':
         netParams.sync_interval = strtoull(optarg, NULL, 0) * 1000ULL;
@@ -583,11 +600,16 @@ int main(int argc, char *argv[]) {
 
   if (ports.empty() || bad_option || !prog_path || !map_prog_path) {
     fprintf(stderr,
-            "Usage: nanuk_switch [-S SYNC-PERIOD] [-E ETH-LATENCY] [-u] "
+            "Usage: nanuk_switch [-S SYNC-PERIOD] [-E ETH-LATENCY] [-u] [-x] "
             "-f PP_PROG.BIN -m MAP_PROG.BIN [-t TABLES.TXT] "
             "-s SOCKET-A [-s SOCKET-B ...]\n");
     return EXIT_FAILURE;
   }
+
+  if (middlebox_flood)
+    fprintf(stderr,
+            "nanuk_switch: middlebox flood mode (-x): md_out[0] ignored, "
+            "sent frames flood all-but-ingress\n");
 
   signal(SIGINT, sigint_handler);
   signal(SIGTERM, sigint_handler);
