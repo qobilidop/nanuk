@@ -5,6 +5,21 @@ RFC 1624 incremental checksum patch); later tasks generate committed vectors
 by running inputs through `translate()` and diff the Nanuk program against
 them, so this module *is* the spec, not a convenience wrapper around one.
 
+Framing convention: any trailing bytes beyond the IP datagram (as bounded by
+the IPv4 Total Length / IPv6 Payload Length field) are below this
+translator's abstraction and pass through to the output verbatim, unchanged
+and untranslated. The IP length field is what bounds the L4 slice used for
+checksum arithmetic and header parsing -- that bounding is real and stays --
+but bytes past it (e.g. Ethernet minimum-frame padding) are not part of the
+IP datagram this translator speaks for. Three reasons: (1) L2 padding is a
+link-layer concern -- Jool, the real-world precedent this demo tracks, is an
+L3 kernel module and never sees it either; (2) real hardware MACs pad short
+frames on transmit and strip padding on receive, so a correct L3 translator
+sitting above that boundary should neither expect padding nor manufacture
+its removal; (3) on the Nanuk zero-copy datapath, physical frame length is
+not program-visible (reads past the frame end are terminal), so passing
+trailing bytes through is free and stripping them is inexpressible.
+
 Pure stdlib on purpose: dev-only (testkit), but the committed vectors this
 generates must replay scapy-free, so nothing here reaches for scapy either
 — that stays confined to the tests that build input frames.
@@ -152,7 +167,8 @@ def _translate46(l3: bytes, cfg: SiitConfig) -> SiitResult:
     ttl = l3[8]
     proto = l3[9]
     src4, dst4 = l3[12:16], l3[16:20]
-    l4 = l3[ihl:total_len]  # bound to Total Length -- trailing padding never leaks
+    l4 = l3[ihl:total_len]  # bound to Total Length -- for checksum arithmetic only
+    trailer = l3[total_len:]  # below the IP datagram: sub-abstraction, passes through verbatim
 
     if flags_frag & 0x3FFF:  # MF (bit 13) or a nonzero 13-bit offset
         return _drop("fragment")
@@ -215,7 +231,7 @@ def _translate46(l3: bytes, cfg: SiitConfig) -> SiitResult:
             new_csum = 0xFFFF
         struct.pack_into("!H", body, 2, new_csum)
 
-    return SiitResult("sent", bytes(v6) + bytes(body), "")
+    return SiitResult("sent", bytes(v6) + bytes(body) + bytes(trailer), "")
 
 
 def _translate64(l3: bytes, cfg: SiitConfig) -> SiitResult:
@@ -238,6 +254,7 @@ def _translate64(l3: bytes, cfg: SiitConfig) -> SiitResult:
     hop_limit = l3[7]
     src6, dst6 = l3[8:24], l3[24:40]
     l4 = l3[40 : 40 + payload_len]
+    trailer = l3[40 + payload_len :]  # below the IP datagram: sub-abstraction, passes through verbatim
 
     if nh == NH_FRAGMENT:
         return _drop("fragment")
@@ -294,7 +311,7 @@ def _translate64(l3: bytes, cfg: SiitConfig) -> SiitResult:
         new_csum = _patch(old_csum, old_word + pseudo, new_word)
         struct.pack_into("!H", body, 2, new_csum)
 
-    return SiitResult("sent", bytes(v4) + bytes(body), "")
+    return SiitResult("sent", bytes(v4) + bytes(body) + bytes(trailer), "")
 
 
 def translate(frame: bytes, cfg: SiitConfig = DEMO_SIIT) -> SiitResult:

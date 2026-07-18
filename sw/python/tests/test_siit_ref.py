@@ -184,10 +184,13 @@ def test_tcp46_checksum_patch():
     )
 
 
-def test_udp46_trailing_padding_is_not_leaked():
+def test_udp46_trailing_padding_passes_through():
     """Ethernet minimum-frame padding (or any junk past the IPv4 Total
-    Length) must not become IPv6 payload -- L4 is bound to Total Length,
-    not to "whatever bytes happen to follow the header"."""
+    Length) is below the translator's abstraction: it must pass through to
+    the output verbatim, unchanged, after the translated datagram. The
+    IPv6 Payload Length field still bounds only the real UDP segment --
+    that bounding is what makes checksum arithmetic and L4 parsing correct;
+    it is not a license to drop bytes that aren't the translator's to drop."""
     src4 = socket.inet_aton("198.51.100.2")
     dst4 = socket.inet_aton("192.0.2.33")
     payload = b"pad-test"
@@ -197,7 +200,8 @@ def test_udp46_trailing_padding_is_not_leaked():
         / UDP(sport=1, dport=2)
         / Raw(payload)
     )
-    frame = bytes(pkt) + b"\x00\x00\x00\x00"  # 4 bytes beyond Total Length
+    trailer = b"\x00\x00\x00\x00"  # 4 bytes beyond Total Length
+    frame = bytes(pkt) + trailer
 
     r = translate(frame)
     assert r.verdict == "sent"
@@ -205,9 +209,46 @@ def test_udp46_trailing_padding_is_not_leaked():
     src6, dst6 = WKP + src4, WKP + dst4
     udp_len = 8 + len(payload)
     v6 = r.frame[14:54]
-    assert struct.unpack("!H", v6[4:6])[0] == udp_len, "payload length excludes the padding"
-    assert len(r.frame) == 14 + 40 + udp_len, "no leaked padding in the output frame"
-    assert ones_csum(v6_pseudo(src6, dst6, udp_len, 17) + r.frame[54:]) == 0
+    assert struct.unpack("!H", v6[4:6])[0] == udp_len, "payload length excludes the trailer"
+    assert len(r.frame) == 14 + 40 + udp_len + len(trailer), (
+        "trailer bytes are appended verbatim after the translated datagram"
+    )
+    udp_seg = r.frame[54 : 54 + udp_len]
+    assert ones_csum(v6_pseudo(src6, dst6, udp_len, 17) + udp_seg) == 0
+    assert r.frame[54 + udp_len :] == trailer, "trailer passes through unchanged"
+
+
+def test_udp64_trailing_padding_passes_through():
+    """The 64-direction twin of test_udp46_trailing_padding_passes_through:
+    bytes beyond the IPv6 Payload Length are below the translator's
+    abstraction and pass through to the output verbatim, after the
+    translated IPv4 datagram. The IPv4 Total Length field still bounds
+    only the real UDP segment."""
+    payload = b"pad-test"
+    pkt = (
+        Ether(dst=MAC1, src=MAC2)
+        / IPv6(src="64:ff9b::c633:6402", dst="64:ff9b::c000:221", hlim=64)
+        / UDP(sport=1, dport=2)
+        / Raw(payload)
+    )
+    trailer = b"\x00\x00\x00\x00"  # 4 bytes beyond IPv6 Payload Length
+    frame = bytes(pkt) + trailer
+
+    r = translate(frame)
+    assert r.verdict == "sent"
+
+    src4 = socket.inet_aton("198.51.100.2")
+    dst4 = socket.inet_aton("192.0.2.33")
+    udp_len = 8 + len(payload)
+    total_len = udp_len + 20
+    v4 = r.frame[14:34]
+    assert struct.unpack("!H", v4[2:4])[0] == total_len, "IPv4 Total Length excludes the trailer"
+    assert len(r.frame) == 14 + total_len + len(trailer), (
+        "trailer bytes are appended verbatim after the translated datagram"
+    )
+    udp_seg = r.frame[34 : 34 + udp_len]
+    assert ones_csum(v4_pseudo(src4, dst4, udp_len, 17) + udp_seg) == 0
+    assert r.frame[34 + udp_len :] == trailer, "trailer passes through unchanged"
 
 
 def test_v6_output_zero_udp_checksum_becomes_0xffff():

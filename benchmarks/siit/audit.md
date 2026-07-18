@@ -89,7 +89,7 @@ identical in both directions — see [`7915-ledger-order`](#frozen-decisions-led
 | `7915-4.1-tos` | Traffic Class = copied from the IPv4 TOS octet (default). | tested(`udp46`, `edge`) | `v6[0..1]` carry all 8 TOS bits. `edge` varies non-zero TOS/DSCP/ECN. |
 | `7915-4.1-tos-ignore` | SHOULD offer a config option to ignore IPv4 TOS and set Traffic Class to 0. | not-a-requirement | Config-provision SHOULD, no packet-observable default behavior beyond `7915-4.1-tos` (which we implement — copy). A knob, not a translation rule. |
 | `7915-4.1-flowlabel` | Flow Label = 0. | tested(`udp46`) | `v6[1..3]` low 20 bits are zero. |
-| `7915-4.1-payloadlen` | Payload Length = IPv4 Total Length − IPv4 header (incl. options) length. | tested(`udp46`, `edge`) | `payload_len = total_len − ihl`; `l4` is bound to Total Length so trailing L2 padding never leaks. `edge` covers options (IHL>5). |
+| `7915-4.1-payloadlen` | Payload Length = IPv4 Total Length − IPv4 header (incl. options) length. | tested(`udp46`, `edge`) | `payload_len = total_len − ihl`; `l4` is bound to Total Length for checksum/L4 parsing. `edge` covers options (IHL>5). Bytes beyond Total Length are not part of this field's accounting at all — see [`7915-framing-trailer`](#frozen-decisions-ledger). |
 | `7915-4.1-nexthdr` | Next Header = IPv4 Protocol, except ICMPv4 (1) → ICMPv6 (58). | tested(`udp46`, `tcp46`, `icmp46`) | `new_nh = 58 if proto == ICMP else proto`. |
 | `7915-4.1-hoplimit` | Hop Limit derived from TTL; MUST decrement; if it reaches zero, drop and (per §4.4) return ICMPv4 Time Exceeded. | tested(`negative`) + refused(ICMP-error generation) | **Frozen decision:** `hop = TTL − 1`; **TTL ≤ 1 → DROP** (`ttl_expired`). We do NOT originate the Time Exceeded — packet origination is refused (see [`7915-4.4`](#44-generation-of-icmpv4-errors)). Normal decrement covered by every `udp46`/`tcp46`/`icmp46` output; the drop by `negative`. |
 | `7915-4.1-src` | Source Address mapped to IPv6 via the addressing algorithm (§6). | tested(`udp46`, `edge`) | EAMT-first, else RFC 6052 embed — see [§6](#6-addressing-rfc-7915-6-rfc-6052-2-rfc-7757). `udp46` covers 6052 embed; `edge` covers EAMT hits. |
@@ -174,7 +174,7 @@ as §4, minus the v4-header-checksum step (no v6 analogue).
 | `7915-5.1-ihl` | IHL = 5; no IPv4 options are generated. | tested(`udp64`) | **Frozen decision:** never emit options — `v4[0] = 0x45` always. |
 | `7915-5.1-tos` | TOS = copied from IPv6 Traffic Class (all 8 bits). | tested(`udp64`, `edge`) | `tc = (tc-hi << 4) \| (tc-lo)`. `edge` varies non-zero TC. |
 | `7915-5.1-tos-ignore` | SHOULD offer a config option to ignore IPv6 Traffic Class and set a fixed IPv4 TOS. | not-a-requirement | Config-provision SHOULD, no packet-observable default behavior beyond `7915-5.1-tos` (which we implement — copy). A knob, not a translation rule. |
-| `7915-5.1-totallen` | Total Length = IPv6 Payload Length + 20. | tested(`udp64`) | `total_len = payload_len + 20`. |
+| `7915-5.1-totallen` | Total Length = IPv6 Payload Length + 20. | tested(`udp64`) | `total_len = payload_len + 20`. Bytes beyond Payload Length are not part of this field's accounting at all — see [`7915-framing-trailer`](#frozen-decisions-ledger). |
 | `7915-5.1-identification` | Identification set by a fragment-ID generator at the translator. | tested(`udp64`) | **Frozen decision:** `Identification = 0` (deterministic; RFC 7915-sanctioned post-RFC 8021 policy, since we never fragment). `struct.pack_into("!H", v4, 6, 0x4000)`. |
 | `7915-5.1-df` | DF = 0 if the translated packet ≤ 1260 B, else 1. MF = 0, Fragment Offset = 0. | tested(`udp64`) — **documented divergence** | **Frozen decision:** always **DF=1** (with ID=0, MF=0, offset=0). Rationale: ID=0 is only safe under DF=1 — a small packet emitted with DF=0 and ID=0 that a downstream router fragments would misreassemble. RFC 8021 deprecates atomic fragments; a stateless translator that never fragments is safe and fully deterministic with DF=1. Diverges from §5.1's size-conditional DF for packets ≤ 1260 B; a candidate Jool divergence, recorded. |
 | `7915-5.1-ttl` | TTL derived from Hop Limit; MUST decrement; if zero, drop and (per §5.4) return ICMPv6 Time Exceeded. | tested(`negative`) + refused(ICMP-error generation) | **Frozen decision:** `TTL = hop − 1`; **Hop Limit ≤ 1 → DROP** (`ttl_expired`). No error origination (see [`7915-5.4`](#54-generation-of-icmpv6-errors)). |
@@ -278,6 +278,7 @@ here for the reviewer, each with its ID:
 | Computed-zero UDP/ICMPv6 checksum → transmit 0xFFFF | `7915-4.5-udp-zero-transmit` | tested(`udp46`, `icmp46`) |
 | Unsupported L4 → DROP (vs. §4.5/§5.5 MUST-forward) | `7915-4.5-forward-all`, `7915-5.5-forward-all` | refused + tested(`negative`) |
 | Untranslatable address → DROP | `7915-5.1-untranslatable` | tested(`negative`) |
+| Trailing frame bytes beyond the IP datagram pass through verbatim (not stripped) | `7915-framing-trailer` (below) | tested(`edge`) |
 
 **`7915-ledger-order`** — *not-a-requirement (Nanuk-sovereign ordering).* RFC 7915
 does not fix the order in which validation failures are detected; Nanuk does, so
@@ -293,6 +294,32 @@ addressing (`untranslatable_address`). Fragment is checked before L4 truncation
 and checksum because a non-initial fragment's bytes are not an L4 header at all.
 Exercised across the `negative` group (one vector per reason) with the `edge`
 group covering the addressing miss.
+
+**`7915-framing-trailer`** — *tested(`edge`).* RFC 7915 doesn't speak to bytes
+past the IP datagram at all — Total Length / Payload Length bound the datagram
+this translator speaks for, and nothing outside that bound is this document's
+business. Controller decision: any trailing frame bytes beyond the IPv4 Total
+Length (v4→v6) or the IPv6 Payload Length (v6→v4) — e.g. Ethernet
+minimum-frame padding — pass through to the output **verbatim, unchanged,
+appended after the translated datagram**. This reverses an earlier
+implementation choice that *stripped* the trailer; three reasons it was
+wrong: (1) L2 padding is a link-layer concern below IP, and the real-world
+precedent this demo tracks, Jool, is an L3 kernel module that never sees
+frame padding either — stripping it would be inventing a behavior with no
+spec or reference basis; (2) real hardware MACs pad short frames on transmit
+and strip padding on receive, so a conformant L3 translator sitting above
+that boundary should neither expect it nor manufacture its removal;
+(3) on the Nanuk zero-copy datapath, physical frame length is not
+program-visible (every read past a frame's end is a *terminal* halt, by the
+same v0.1 decision behind `7915-ledger-order`'s addressing checks), so
+passing trailing bytes through is free while stripping them is
+**inexpressible** — no program can locate a frame end it cannot read. The
+length-bounding of the L4 slice for checksum arithmetic and header parsing is
+unaffected and stays exactly as `7915-4.1-payloadlen` / `7915-5.1-totallen`
+describe; only the disposition of bytes *outside* that bound changed.
+Exercised by `edge_min_frame_46` (18 B of Ethernet minimum-frame padding on a
+42 B v4→v6 frame) — the reference translator and the Nanuk program both now
+reproduce the vector byte-for-byte; see `sw/python/tests/test_siit_program.py`.
 
 ---
 
@@ -396,12 +423,13 @@ the `ID` column.
 | `7915-8-iana` | §8 | not-a-requirement |
 | `7915-9to11-refs` | §9–11 | not-a-requirement |
 | `7915-ledger-order` | (cross-cutting) | not-a-requirement (Nanuk-sovereign) |
+| `7915-framing-trailer` | (cross-cutting) | tested(`edge`) |
 
-**Tally — 93 dispositioned clauses.** By primary (first-listed) category:
+**Tally — 94 dispositioned clauses.** By primary (first-listed) category:
 
-- **tested:** 46. Group citations across the table (a clause may cite several):
+- **tested:** 47. Group citations across the table (a clause may cite several):
   `udp46` 12, `udp64` 14, `tcp46` 2, `tcp64` 2, `icmp46` 6, `icmp64` 5,
-  `edge` 11, `negative` 19.
+  `edge` 12, `negative` 19.
 - **deferred:** 27. By trigger (counting every clause a trigger touches, incl.
   compound rows): ICMP-error translation 13, fragmentation 8, extension-header
   traversal 2, source-address sanity filtering 2, source-route inspection 1,
