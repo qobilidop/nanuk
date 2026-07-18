@@ -67,6 +67,12 @@ here is directly testable; it fixes scope.
 | `7915-1-multicast` | IPv4 multicast addresses cannot be mapped to IPv6 multicast. | **refused** | Multicast is a spec non-goal. Multicast destinations are neither WKP-embeddable nor EAMT-mapped, so v6→v4 they fall to `untranslatable_address`; v4→v6 they are out of the demo's addressing plan. |
 | `7915-1-frag-not-xlated` | Fragmented UDP without a checksum, and fragmented ICMP/ICMPv6, are not translated. | deferred(fragmentation) + tested(`negative`) | Any fragment → `fragment` drop today (see [`7915-4.1-frag`](#41-ipv4-to-ipv6-header)); full fragment translation is deferred. |
 
+### 1.4. Path MTU discovery and fragmentation (RFC 7915 §1.4)
+
+| ID | Clause (RFC 7915 §1.4) | Disposition | Rationale / vector |
+|---|---|---|---|
+| `7915-1.4-router-mtu` | The translator MUST behave as a router: it MUST send a Packet Too Big/Fragmentation Needed error, or fragment the packet, when the packet exceeds the next-hop MTU. | deferred(fragmentation) | Trigger: same fragmentation/PMTU arc as the §4/§5 fragmentation rows (e.g. [`7915-4.1-df1-frag-needed`](#41-ipv4-to-ipv6-header), [`7915-5.1.1-fragment`](#51-ipv6-to-ipv4-header)). The error-*generation* half is already covered by the standing ICMP-error-generation refusal (see [`7915-4.4`](#44-generation-of-icmpv4-errors) / [`7915-5.4`](#54-generation-of-icmpv6-errors)); what remains deferred here is the fragmentation/PMTU machinery itself. |
+
 ---
 
 ## 4. IPv4-to-IPv6 (RFC 7915 §4)
@@ -156,6 +162,10 @@ Head shrinks 20 B net: a fresh 20 B IPv4 header (including a freshly computed
 header checksum) replaces the 40 B IPv6 header. Same **outer-in** ledger order
 as §4, minus the v4-header-checksum step (no v6 analogue).
 
+| ID | Clause (RFC 7915 §5 intro) | Disposition | Rationale / vector |
+|---|---|---|---|
+| `7915-5-flow-order` | SHOULD keep same-flow packets in arrival order. | not-a-requirement | Single in-order pipeline; no reordering surface exists to test — mirror of [`7915-4.6-flow-order`](#46-knowing-when-to-translate). |
+
 ### 5.1. IPv6-to-IPv4 header
 
 | ID | Clause (RFC 7915 §5.1) | Disposition | Rationale / vector |
@@ -163,6 +173,7 @@ as §4, minus the v4-header-checksum step (no v6 analogue).
 | `7915-5.1-version` | Version = 4. | tested(`udp64`) | `v4[0] = 0x45`. |
 | `7915-5.1-ihl` | IHL = 5; no IPv4 options are generated. | tested(`udp64`) | **Frozen decision:** never emit options — `v4[0] = 0x45` always. |
 | `7915-5.1-tos` | TOS = copied from IPv6 Traffic Class (all 8 bits). | tested(`udp64`, `edge`) | `tc = (tc-hi << 4) \| (tc-lo)`. `edge` varies non-zero TC. |
+| `7915-5.1-tos-ignore` | SHOULD offer a config option to ignore IPv6 Traffic Class and set a fixed IPv4 TOS. | not-a-requirement | Config-provision SHOULD, no packet-observable default behavior beyond `7915-5.1-tos` (which we implement — copy). A knob, not a translation rule. |
 | `7915-5.1-totallen` | Total Length = IPv6 Payload Length + 20. | tested(`udp64`) | `total_len = payload_len + 20`. |
 | `7915-5.1-identification` | Identification set by a fragment-ID generator at the translator. | tested(`udp64`) | **Frozen decision:** `Identification = 0` (deterministic; RFC 7915-sanctioned post-RFC 8021 policy, since we never fragment). `struct.pack_into("!H", v4, 6, 0x4000)`. |
 | `7915-5.1-df` | DF = 0 if the translated packet ≤ 1260 B, else 1. MF = 0, Fragment Offset = 0. | tested(`udp64`) — **documented divergence** | **Frozen decision:** always **DF=1** (with ID=0, MF=0, offset=0). Rationale: ID=0 is only safe under DF=1 — a small packet emitted with DF=0 and ID=0 that a downstream router fragments would misreassemble. RFC 8021 deprecates atomic fragments; a stateless translator that never fragments is safe and fully deterministic with DF=1. Diverges from §5.1's size-conditional DF for packets ≤ 1260 B; a candidate Jool divergence, recorded. |
@@ -171,6 +182,7 @@ as §4, minus the v4-header-checksum step (no v6 analogue).
 | `7915-5.1-checksum` | IPv4 header checksum computed fresh. | tested(`udp64`) | **Frozen decision:** computed via ones-complement fold (the `CSUM` instruction in-program) — `struct.pack_into("!H", v4, 10, (~_sum16(v4)) & 0xFFFF)`. |
 | `7915-5.1-src` | Source Address mapped to IPv4 via §6. | tested(`udp64`, `edge`) | 6052-extract if the address carries pool6, else EAMT `t2` lookup — see [§6](#6-addressing-rfc-7915-6-rfc-6052-2-rfc-7757). |
 | `7915-5.1-dst` | Destination Address mapped to IPv4 via §6. | tested(`udp64`, `edge`) | Same. Miss on both extract and EAMT → `untranslatable_address` drop. |
+| `7915-5.1-src-illegal` | Silently discard packets whose source is illegal (e.g. `::1`). | deferred(source-address sanity filtering) | Trigger: security-hardening pass (RFC 6052 §3.1 martian checks, IPv6 side), mirroring [`7915-4.1-src-illegal`](#41-ipv4-to-ipv6-header). Today address extraction/EAMT succeeds for any recognized source, so illegal sources would translate. Named, not silently ignored. |
 | `7915-5.1-untranslatable` | An address that cannot be mapped → drop (implied by §6). | tested(`negative`) | **Frozen decision:** neither pool6 prefix nor EAMT `t2` hit → `untranslatable_address` DROP. |
 | `7915-5.1-exthdr` | Hop-by-Hop, Destination Options, and Routing (Segments Left = 0) headers MUST be ignored (skipped) during translation. | deferred(extension-header traversal) + tested(`negative`) | Trigger: fragmentation/ICMP-error arc (needs an ext-header chain walk in PP). Today a non-UDP/TCP/ICMPv6/Fragment next-header → `unsupported_l4` drop. |
 | `7915-5.1-routing-nonzero` | A Routing header with non-zero Segments Left MUST NOT be translated; SHOULD return ICMPv6 Parameter Problem (Type 4 Code 0). | tested(`negative`) + refused(ICMP-error generation) | Routing header (NH 43) → `unsupported_l4` drop; no error origination. |
@@ -297,6 +309,7 @@ the `ID` column.
 | `7915-1-no-exthdr-xlate` | §1 | deferred(extension-header traversal) |
 | `7915-1-multicast` | §1 | refused |
 | `7915-1-frag-not-xlated` | §1 | deferred(fragmentation) + tested(`negative`) |
+| `7915-1.4-router-mtu` | §1.4 | deferred(fragmentation) |
 | `7915-4.1-version` | §4.1 | tested(`udp46`) |
 | `7915-4.1-tos` | §4.1 | tested(`udp46`, `edge`) |
 | `7915-4.1-tos-ignore` | §4.1 | not-a-requirement |
@@ -337,9 +350,11 @@ the `ID` column.
 | `7915-4.5-forward-all` | §4.5 | refused(rewrite-only totality) + tested(`negative`) |
 | `7915-4.6-route-priority` | §4.6 | not-a-requirement |
 | `7915-4.6-flow-order` | §4.6 | not-a-requirement |
+| `7915-5-flow-order` | §5 | not-a-requirement |
 | `7915-5.1-version` | §5.1 | tested(`udp64`) |
 | `7915-5.1-ihl` | §5.1 | tested(`udp64`) |
 | `7915-5.1-tos` | §5.1 | tested(`udp64`, `edge`) |
+| `7915-5.1-tos-ignore` | §5.1 | not-a-requirement |
 | `7915-5.1-totallen` | §5.1 | tested(`udp64`) |
 | `7915-5.1-identification` | §5.1 | tested(`udp64`) |
 | `7915-5.1-df` | §5.1 | tested(`udp64`) — documented divergence |
@@ -348,6 +363,7 @@ the `ID` column.
 | `7915-5.1-checksum` | §5.1 | tested(`udp64`) |
 | `7915-5.1-src` | §5.1 | tested(`udp64`, `edge`) |
 | `7915-5.1-dst` | §5.1 | tested(`udp64`, `edge`) |
+| `7915-5.1-src-illegal` | §5.1 | deferred(source-address sanity filtering) |
 | `7915-5.1-untranslatable` | §5.1 | tested(`negative`) |
 | `7915-5.1-exthdr` | §5.1 | deferred(extension-header traversal) + tested(`negative`) |
 | `7915-5.1-routing-nonzero` | §5.1 | tested(`negative`) + refused(ICMP-error generation) |
@@ -381,19 +397,19 @@ the `ID` column.
 | `7915-9to11-refs` | §9–11 | not-a-requirement |
 | `7915-ledger-order` | (cross-cutting) | not-a-requirement (Nanuk-sovereign) |
 
-**Tally — 89 dispositioned clauses.** By primary (first-listed) category:
+**Tally — 93 dispositioned clauses.** By primary (first-listed) category:
 
 - **tested:** 46. Group citations across the table (a clause may cite several):
   `udp46` 12, `udp64` 14, `tcp46` 2, `tcp64` 2, `icmp46` 6, `icmp64` 5,
   `edge` 11, `negative` 19.
-- **deferred:** 25. By trigger (counting every clause a trigger touches, incl.
-  compound rows): ICMP-error translation 13, fragmentation 7, extension-header
-  traversal 2, source-address sanity filtering 1, source-route inspection 1,
+- **deferred:** 27. By trigger (counting every clause a trigger touches, incl.
+  compound rows): ICMP-error translation 13, fragmentation 8, extension-header
+  traversal 2, source-address sanity filtering 2, source-route inspection 1,
   configurable prefix length 1, LPM/T3 1.
 - **refused:** 6 — stateful NAT64, multicast, ICMP-error generation (§4.4/§5.4),
   rewrite-only forward-all (§4.5/§5.5). (ICMP-error *generation* is also a
   secondary refusal on 5 further drop clauses; rewrite-only totality likewise.)
-- **not-a-requirement:** 12.
+- **not-a-requirement:** 14.
 
 **14 clauses carry a compound disposition** — a translation rule that is
 deferred in full yet whose current DROP behavior is exercised by the `negative`
