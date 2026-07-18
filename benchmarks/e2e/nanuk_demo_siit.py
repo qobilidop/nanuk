@@ -110,9 +110,15 @@ v6_idle = _run_responder + ["sleep infinity"]
 
 # The two guests boot independently (no cross-host barrier), so before the
 # counted ping we poll until the v6 responder answers -- then all 10 land.
+# Each poll attempt is itself one ICMP echo translated v4->v6 at the switch
+# (a "grew" frame, same as the counted beats), whether or not it gets a
+# reply -- so it prints the attempt count (SIIT_WARMUP_PINGS) to the guest
+# console. Beat 2's report subtracts that count from the switch's `grew`
+# counter so the reported translated-frame number attributes only to iperf.
 _wait_up = (
     "i=0; until ping -c1 -W1 192.0.2.1 >/dev/null 2>&1; do "
-    "i=$((i+1)); [ $i -ge 45 ] && break; done"
+    "i=$((i+1)); [ $i -ge 45 ] && break; done; "
+    "echo SIIT_WARMUP_PINGS=$((i+1))"
 )
 
 # --- per-beat client (v4 guest) command tails -------------------------------
@@ -129,8 +135,34 @@ elif BEAT == "iperf_udp":
     # IPv4 20+8+1400=1428 <= v4 MTU; translated IPv6 40+8+1400=1448 <= v6 MTU.
     # The v6 responder receives the stream (no kernel IPv6 iperf server is
     # possible), so the client reports its own real transferred throughput.
-    v4_beat = ["sleep 3", _wait_up, "iperf -c 192.0.2.1 -u -b 5m -l 1400 -i 1 -t 3"]
+    #
+    # Rate: -b 100k (~9 datagrams/sec at -l 1400) is deliberately slow. At the
+    # original -b 5m (~443 datagrams/sec), the switch's own frame counters
+    # only ever saw ~12% of what iperf sent (guest sent 1353, switch grew=164
+    # incl. warmup): nanuk_switch's rx_queue is bounded (RX_QUEUE_MAX) and
+    # drains only as fast as the Verilator core can be simulated in real
+    # time, so a guest send rate above that drain rate silently overflows the
+    # queue ("rx queue full, dropping frame" -- these never reach frames_in,
+    # so they are invisible to the switch's own dropped counter too). Slowing
+    # the send rate well below the drain rate lets what iperf reports sending
+    # reconcile against what the switch counts (run_siit.sh gates on it: the
+    # switch's translated count, net of the connectivity-poll warmup, must be
+    # >= 0.9x iperf's own "Sent N datagrams"). The v6 side has no real iperf
+    # server (see above), so the client's UDP close handshake is never acked
+    # and it retries for ~10 rounds after the main transfer -- each an
+    # un-paced extra datagram, so the switch's count is expected to run
+    # somewhat *above* iperf's reported send count, not below it; that is
+    # the switch confirming more than the claim, never less.
+    v4_beat = ["sleep 3", _wait_up, "iperf -c 192.0.2.1 -u -b 100k -l 1400 -i 1 -t 5"]
     v6_beat = v6_idle
+elif BEAT == "iperf_tcp":
+    # Aspirational, unexercised: the v6 guest kernel lacks CONFIG_IPV6 (no
+    # kernel TCP/IPv6 stack), so there is nothing to terminate a TCP iperf
+    # server on the v6 side -- see the module docstring and run_siit.sh.
+    raise SystemExit(
+        "nanuk_demo_siit: SIIT_BEAT=iperf_tcp is not runnable on this guest "
+        "image (CONFIG_IPV6=n on the v6 side); documented, not implemented."
+    )
 else:
     raise SystemExit(f"nanuk_demo_siit: unknown SIIT_BEAT={BEAT!r}")
 

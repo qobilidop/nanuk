@@ -24,8 +24,17 @@
 # (t0/t1/t2, from testkit.siit_tables()) rides the same tables.txt path as
 # every other beat -- no datapath change.
 #
-# Run from anywhere: benchmarks/e2e/run_siit.sh
+# Run from anywhere: benchmarks/e2e/run_siit.sh [ping|iperf_udp|ttl]
+#   With no argument, all three beats run (the committed, reviewed flow).
+#   With one, only that beat runs -- for fast iteration while tuning a single
+#   beat; not how the beats are meant to be verified for the report.
 set -euo pipefail
+
+ONLY="${1:-}"
+case "$ONLY" in
+  ""|ping|iperf_udp|ttl) ;;
+  *) echo "usage: $0 [ping|iperf_udp|ttl]" >&2; exit 1 ;;
+esac
 
 cd "$(dirname "$0")/../.."   # benchmarks/e2e -> repo root
 REPO="$PWD"
@@ -87,28 +96,53 @@ WRAP
 }
 
 # ---- Beat 1: ping across address families ----
-run_beat ping
-grep -qE ", 0% packet loss" "$OUT/run-siit-ping.log" || {
-  echo "BEAT 1 FAILED: no clean ping v4->v6 (see $OUT/run-siit-ping.log)"; exit 1; }
-echo "beat 1 ok: ping 192.0.2.1 -> 0% loss (ICMP echo translated both ways)"
+if [ -z "$ONLY" ] || [ "$ONLY" = ping ]; then
+  run_beat ping
+  grep -qE ", 0% packet loss" "$OUT/run-siit-ping.log" || {
+    echo "BEAT 1 FAILED: no clean ping v4->v6 (see $OUT/run-siit-ping.log)"; exit 1; }
+  echo "beat 1 ok: ping 192.0.2.1 -> 0% loss (ICMP echo translated both ways)"
+fi
 
 # ---- Beat 2: iperf UDP through the translator (growing direction) ----
-run_beat iperf_udp
-grep -qE "Mbits/sec|Kbits/sec|bits/sec" "$OUT/run-siit-iperf_udp.log" || {
-  echo "BEAT 2 (UDP) FAILED: no iperf transfer (see $OUT/run-siit-iperf_udp.log)"; exit 1; }
-# Cross-check the datapath actually translated the stream: the switch's grew
-# counter (v4->v6 head growth) must exceed the 10 ping echoes by a lot.
-UDP_GREW=$(grep -oE "grew=[0-9]+" "$OUT/run-siit-iperf_udp.log" | tail -1 | cut -d= -f2)
-[ "${UDP_GREW:-0}" -ge 100 ] || {
-  echo "BEAT 2 (UDP) FAILED: only grew=${UDP_GREW:-0} translated frames"; exit 1; }
-echo "beat 2 ok: iperf UDP streamed across the translator (grew=$UDP_GREW frames v4->v6)"
-echo "note: iperf TCP is not run -- it needs a kernel IPv6 stack on the v6 side,"
-echo "      which the SimBricks base guest kernel (CONFIG_IPV6=n) cannot provide."
+if [ -z "$ONLY" ] || [ "$ONLY" = iperf_udp ]; then
+  run_beat iperf_udp
+  grep -qE "Mbits/sec|Kbits/sec|bits/sec" "$OUT/run-siit-iperf_udp.log" || {
+    echo "BEAT 2 (UDP) FAILED: no iperf transfer (see $OUT/run-siit-iperf_udp.log)"; exit 1; }
+  # Cross-check against the switch's own counters -- not just iperf's
+  # self-report. The guest's _wait_up connectivity poll (shared with beat 1)
+  # sends its own ICMP echoes through the translator before iperf starts,
+  # each one a "grew" frame at the switch too; subtract those (reported by
+  # the guest as SIIT_WARMUP_PINGS) before comparing to what iperf sent.
+  # nanuk_switch's rx_queue is bounded and drains only as fast as the
+  # Verilator core can be simulated in real time, so a fast iperf send rate
+  # can outrun that drain rate and most datagrams never reach the switch at
+  # all (frames_in never counts them -- this is not a switch-side drop; see
+  # nanuk_demo_siit.py). The reconciliation gate below (>= 90% of iperf's own
+  # sent count actually arriving) is what makes the reported throughput
+  # trustworthy.
+  UDP_SENT=$(grep -oE "Sent [0-9]+ datagrams" "$OUT/run-siit-iperf_udp.log" | tail -1 | grep -oE "[0-9]+")
+  UDP_GREW=$(grep -oE "grew=[0-9]+" "$OUT/run-siit-iperf_udp.log" | tail -1 | cut -d= -f2)
+  WARMUP=$(grep -oE "SIIT_WARMUP_PINGS=[0-9]+" "$OUT/run-siit-iperf_udp.log" | tail -1 | cut -d= -f2)
+  UDP_TRANSLATED=$(( ${UDP_GREW:-0} - ${WARMUP:-0} ))
+  [ -n "${UDP_SENT:-}" ] && [ "$UDP_SENT" -gt 0 ] || {
+    echo "BEAT 2 (UDP) FAILED: could not parse iperf's sent-datagram count"; exit 1; }
+  THRESH=$(( (UDP_SENT * 9 + 9) / 10 ))   # ceil(0.9 * sent)
+  [ "$UDP_TRANSLATED" -ge "$THRESH" ] || {
+    echo "BEAT 2 (UDP) FAILED: iperf sent $UDP_SENT datagrams but only $UDP_TRANSLATED"\
+         "(grew=${UDP_GREW:-0} - warmup=${WARMUP:-0}) reached the switch"\
+         "(need >= $THRESH = 0.9x sent)"; exit 1; }
+  echo "beat 2 ok: iperf sent $UDP_SENT datagrams, switch translated $UDP_TRANSLATED"\
+       "(grew=${UDP_GREW:-0} - warmup=${WARMUP:-0} pings) v4->v6 -- reconciled >= 0.9x"
+  echo "note: iperf TCP is not run -- it needs a kernel IPv6 stack on the v6 side,"
+  echo "      which the SimBricks base guest kernel (CONFIG_IPV6=n) cannot provide."
+fi
 
 # ---- Beat 3: negative gate, TTL=1 must be dropped ----
-run_beat ttl
-grep -qE ", 100% packet loss" "$OUT/run-siit-ttl.log" || {
-  echo "BEAT 3 FAILED: TTL=1 ping was NOT fully dropped (see $OUT/run-siit-ttl.log)"; exit 1; }
-echo "beat 3 ok: TTL=1 ping -> 100% loss (translator drops hop-limit<=1, no ICMP error)"
+if [ -z "$ONLY" ] || [ "$ONLY" = ttl ]; then
+  run_beat ttl
+  grep -qE ", 100% packet loss" "$OUT/run-siit-ttl.log" || {
+    echo "BEAT 3 FAILED: TTL=1 ping was NOT fully dropped (see $OUT/run-siit-ttl.log)"; exit 1; }
+  echo "beat 3 ok: TTL=1 ping -> 100% loss (translator drops hop-limit<=1, no ICMP error)"
+fi
 
 echo "SIIT BEATS PASSED"
