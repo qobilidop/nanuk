@@ -1,0 +1,27 @@
+[book]
+title = "Nanuk: A Packet Processor from Chip to Language"
+authors = ["Bili Dong"]
+description = "Building a programmable packet processor from chip to programming language — the Nanuk book."
+language = "en"
+src = "src"
+
+[build]
+# Build-output doctrine: outputs live under the producing subsystem, so the
+# rendered book lands in book/build (this file lives in book/, and build-dir
+# is resolved relative to it).
+build-dir = "build"
+
+[output.html]
+site-url = "/nanuk/book/"
+default-theme = "light"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/qobilidop/nanuk"
+edit-url-template = "https://github.com/qobilidop/nanuk/edit/main/book/{path}"
+mathjax-support = false
+
+[output.html.fold]
+enable = true
+level = 1
+
+[output.html.search]
+enable = true

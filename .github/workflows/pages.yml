@@ -3,9 +3,9 @@ name: Pages
 on:
   push:
     branches: [main]
-    paths: ['web/**', 'sw/python/**', 'hw/amaranth/**', '.github/workflows/pages.yml']
+    paths: ['web/**', 'sw/python/**', 'hw/amaranth/**', 'book/**', '.github/workflows/pages.yml']
   pull_request:
-    paths: ['web/**', 'sw/python/**', 'hw/amaranth/**', '.github/workflows/pages.yml']
+    paths: ['web/**', 'sw/python/**', 'hw/amaranth/**', 'book/**', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 jobs:
@@ -38,6 +38,14 @@ jobs:
           npm test
           npm run build
 
+      # The book: pinned mdBook binary (release tarball), rendered to book/build
+      # per the build-output doctrine (outputs under the producing subsystem).
+      - name: Build the book (mdBook)
+        run: |
+          MDBOOK_VERSION=v0.4.52
+          curl -sSL "https://github.com/rust-lang/mdBook/releases/download/${MDBOOK_VERSION}/mdbook-${MDBOOK_VERSION}-x86_64-unknown-linux-gnu.tar.gz" | tar -xz
+          ./mdbook build book
+
       - name: Compose the site artifact
         run: |
           mkdir -p _site
@@ -46,6 +54,8 @@ jobs:
           cp -r web/dist/* _site/play/
           mkdir -p _site/api
           cp -r hw/amaranth/build/api/* _site/api/
+          mkdir -p _site/book
+          cp -r book/build/* _site/book/
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'
