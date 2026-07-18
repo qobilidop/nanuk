@@ -116,3 +116,41 @@ def test_ttl_expired_preset_drops():
     assert r["gated"] is False
     assert r["verdict"] == 1  # drop
     assert r["frame"] is None
+
+
+# --- bridge program uniqueness: SIIT table signature vs others ----------------
+
+
+def test_siit_signature_is_unique_among_bridge_programs():
+    """SIIT MAP (t0-t2 with 32/64/64/32-bit configurations) must not collide
+    with other bridge programs (specifically map_l2fwd). Verify _is_siit_map()
+    correctly identifies SIIT by its unique table signature, and no other
+    wired-in MAP would match it."""
+    # Compile SIIT and extract its table signature
+    _compile_siit()
+    siit_program = bridge._LAST_MAP_PROGRAM
+    assert siit_program is not None, "SIIT must be a MAP program"
+    siit_sig = [(t.table_id, t.key_width, t.action_width) for t in siit_program.tables]
+    expected_siit_sig = [(0, 32, 64), (1, 32, 64), (2, 64, 32)]
+    assert siit_sig == expected_siit_sig, f"SIIT signature {siit_sig} != {expected_siit_sig}"
+
+    # Compile map_l2fwd and extract its table signature
+    map_l2fwd_src = (WEB / "src" / "programs" / "map_l2fwd.py").read_text()
+    l2fwd_out = json.loads(bridge.compile_source(map_l2fwd_src))
+    assert l2fwd_out["ok"], l2fwd_out
+    l2fwd_program = bridge._LAST_MAP_PROGRAM
+    assert l2fwd_program is not None, "map_l2fwd must be a MAP program"
+    l2fwd_sig = [(t.table_id, t.key_width, t.action_width) for t in l2fwd_program.tables]
+
+    # Assert SIIT signature is unique (does not collide with map_l2fwd)
+    assert siit_sig != l2fwd_sig, (
+        f"SIIT signature {siit_sig} collides with map_l2fwd {l2fwd_sig}"
+    )
+
+    # Assert _is_siit_map correctly identifies each program
+    assert bridge._is_siit_map(siit_program) is True, (
+        "_is_siit_map should return True for SIIT"
+    )
+    assert bridge._is_siit_map(l2fwd_program) is False, (
+        "_is_siit_map should return False for map_l2fwd"
+    )
