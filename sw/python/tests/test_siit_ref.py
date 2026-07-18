@@ -11,7 +11,7 @@ import socket
 import struct
 
 from scapy.layers.inet import ICMP, IP, TCP, UDP
-from scapy.layers.inet6 import IPv6
+from scapy.layers.inet6 import ICMPv6EchoRequest, IPv6
 from scapy.layers.l2 import ARP, Ether
 from scapy.packet import Raw
 
@@ -406,3 +406,68 @@ def test_v6_payload_len_overruns_frame_drops():
     struct.pack_into("!H", frame, 14 + 4, 9999)  # claims far more than the frame carries
     r = translate(bytes(frame))
     assert (r.verdict, r.why) == ("drop", "l4_truncated")
+
+
+def test_v4_icmp_2byte_l4_drops_without_raising():
+    """type/code only, no checksum field at all -- the ICMP checksum patch
+    reads body[2:4], so anything under 4 bytes must DROP before that read,
+    never raise struct.error. Total Length is patched down to match the
+    physical truncation (and the header checksum recomputed) so this
+    actually reaches the ICMP<4B guard, not the earlier Total-Length-
+    overrun guard."""
+    pkt = (
+        Ether(dst=MAC1, src=MAC2)
+        / IP(src="198.51.100.2", dst="192.0.2.33", ttl=64)
+        / ICMP(type=8, code=0)
+        / Raw(struct.pack("!HH", 0x1234, 1) + b"ping-payload")
+    )
+    frame = bytearray(bytes(pkt)[: 14 + 20 + 2])  # IPv4 header + type/code only
+    struct.pack_into("!H", frame, 14 + 2, 22)  # Total Length == 20 + 2
+    struct.pack_into("!H", frame, 14 + 10, 0)  # zero before recomputing
+    struct.pack_into("!H", frame, 14 + 10, ones_csum(bytes(frame[14:34])))
+    r = translate(bytes(frame))
+    assert (r.verdict, r.why) == ("drop", "l4_truncated")
+
+
+def test_v6_icmp_2byte_l4_drops_without_raising():
+    """Same guard, v6 side: no v4-style header checksum to fix up, just
+    the payload length patched to match the physical truncation."""
+    pkt = (
+        Ether(dst=MAC1, src=MAC2)
+        / IPv6(src="64:ff9b::c633:6402", dst="64:ff9b::c000:221", hlim=64)
+        / ICMPv6EchoRequest(id=0x1234, seq=1)
+        / Raw(b"ping-payload")
+    )
+    frame = bytearray(bytes(pkt)[: 14 + 40 + 2])  # v6 header + type/code only
+    struct.pack_into("!H", frame, 14 + 4, 2)  # payload length == 2
+    r = translate(bytes(frame))
+    assert (r.verdict, r.why) == ("drop", "l4_truncated")
+
+
+def test_v4_total_length_overrun_drops():
+    """Total Length claiming far more than the physical frame carries must
+    DROP as truncation, not fall through to build a malformed sent frame."""
+    pkt = Ether(dst=MAC1, src=MAC2) / IP(dst="192.0.2.33") / UDP(sport=1, dport=2) / Raw(b"x")
+    frame = bytearray(bytes(pkt))
+    struct.pack_into("!H", frame, 14 + 2, 9999)  # Total Length far exceeds the frame
+    r = translate(bytes(frame))
+    assert (r.verdict, r.why) == ("drop", "l4_truncated")
+
+
+def test_v4_fragment_with_truncated_l4_reports_fragment():
+    """The definitive ledger order: fragment (c) is checked before L4
+    truncation (d). A fragment whose remaining bytes are shorter than a
+    UDP header still reports "fragment", not "l4_truncated" -- a
+    non-initial fragment's payload was never going to be a UDP header."""
+    pkt = (
+        Ether(dst=MAC1, src=MAC2)
+        / IP(dst="192.0.2.33", flags="MF")
+        / UDP(sport=1, dport=2)
+        / Raw(b"x")
+    )
+    frame = bytearray(bytes(pkt)[: 14 + 20 + 4])  # only 4 of the 8 UDP header bytes
+    struct.pack_into("!H", frame, 14 + 2, 24)  # Total Length == 20 + 4
+    struct.pack_into("!H", frame, 14 + 10, 0)
+    struct.pack_into("!H", frame, 14 + 10, ones_csum(bytes(frame[14:34])))
+    r = translate(bytes(frame))
+    assert (r.verdict, r.why) == ("drop", "fragment")

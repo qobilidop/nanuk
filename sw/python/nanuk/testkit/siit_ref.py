@@ -115,41 +115,59 @@ def _icmp6_pseudo(src6: bytes, dst6: bytes, upper_len: int) -> bytes:
 
 def _translate46(l3: bytes, cfg: SiitConfig) -> SiitResult:
     """v4 -> v6, RFC 7915 §4.1. Head grows 20B net; body is untouched apart
-    from the L4 checksum patch and (for ICMP) the type-word rewrite."""
+    from the L4 checksum patch and (for ICMP) the type-word rewrite.
+
+    This is the ledger order (controller decision, outer-in; both
+    directions use this identical sequence -- v6 has no analogue of (b),
+    the v4 header checksum):
+      (a) IP-level structural drops -- runt, IP header truncated, Total
+          Length overrunning the physical frame
+      (b) v4 header checksum
+      (c) fragment
+      (d) L4 truncation (UDP < 8B, TCP < 20B, ICMP < 4B)
+      (e) v4 zero UDP checksum
+      (f) ICMP non-echo
+      (g) unsupported L4
+      (h) TTL/hop <= 1
+    (c) before (d)/(e): a non-initial fragment's payload is not an L4
+    header at all, so ANY fragment reports "fragment", never a truncation
+    or checksum verdict about bytes that aren't what they'd otherwise
+    look like.
+    """
     if len(l3) < 20:
         return _drop("v4_truncated")
     ihl = (l3[0] & 0x0F) * 4
     if ihl < 20 or len(l3) < ihl:
         return _drop("v4_truncated")
+    total_len = struct.unpack("!H", l3[2:4])[0]
+    if total_len > len(l3):
+        return _drop("l4_truncated")  # header claims more than the frame carries
     if _sum16(l3[:ihl]) != 0xFFFF:
         return _drop("v4_bad_header_checksum")
 
     tos = l3[1]
-    total_len = struct.unpack("!H", l3[2:4])[0]
     flags_frag = struct.unpack("!H", l3[6:8])[0]
     ttl = l3[8]
     proto = l3[9]
     src4, dst4 = l3[12:16], l3[16:20]
     l4 = l3[ihl:total_len]  # bound to Total Length -- trailing padding never leaks
 
-    # Ledger, in the plan's frozen order: header checksum -> zero UDP
-    # checksum -> fragment -> ICMP non-echo -> unsupported L4 -> TTL. Order
-    # matters whenever >1 condition would otherwise fire on the same packet
-    # -- e.g. a fragmented packet on an unsupported protocol reports
-    # "fragment", not "unsupported_l4" (both directions agree on this).
+    if flags_frag & 0x3FFF:  # MF (bit 13) or a nonzero 13-bit offset
+        return _drop("fragment")
     if proto == PROTO_UDP:
         if len(l4) < 8:
             return _drop("l4_truncated")
         if l4[6:8] == b"\x00\x00":
             return _drop("zero_udp_checksum")
-    elif proto == PROTO_TCP and len(l4) < 20:
-        return _drop("l4_truncated")
-    if flags_frag & 0x3FFF:  # MF (bit 13) or a nonzero 13-bit offset
-        return _drop("fragment")
-    if proto == PROTO_ICMP:
-        if len(l4) < 2 or l4[0] not in (ICMP4_ECHO_REQUEST, ICMP4_ECHO_REPLY) or l4[1] != 0:
+    elif proto == PROTO_TCP:
+        if len(l4) < 20:
+            return _drop("l4_truncated")
+    elif proto == PROTO_ICMP:
+        if len(l4) < 4:  # type/code/checksum -- the checksum patch reads body[2:4]
+            return _drop("l4_truncated")
+        if l4[0] not in (ICMP4_ECHO_REQUEST, ICMP4_ECHO_REPLY) or l4[1] != 0:
             return _drop("icmp_error")  # non-echo: error translation deferred
-    elif proto not in (PROTO_TCP, PROTO_UDP):
+    else:
         return _drop("unsupported_l4")
     if ttl <= 1:
         return _drop("ttl_expired")
@@ -200,31 +218,39 @@ def _translate46(l3: bytes, cfg: SiitConfig) -> SiitResult:
 
 def _translate64(l3: bytes, cfg: SiitConfig) -> SiitResult:
     """v6 -> v4, RFC 7915 §5.1. Head shrinks 20B net; IPv4 header checksum
-    is always computed fresh (there is nothing to patch it from)."""
+    is always computed fresh (there is nothing to patch it from).
+
+    Same ledger order as _translate46 (see the comment there): (a)
+    structural truncation, [no v6 analogue of (b)], (c) fragment, (d) L4
+    truncation, [no v6 analogue of (e)], (f) ICMP non-echo, (g) unsupported
+    L4, (h) TTL/hop.
+    """
     if len(l3) < 40:
         return _drop("v6_truncated")
-    tc = ((l3[0] & 0x0F) << 4) | (l3[1] >> 4)
     payload_len = struct.unpack("!H", l3[4:6])[0]
+    if len(l3) - 40 < payload_len:
+        return _drop("l4_truncated")  # header claims more than the frame carries
+
+    tc = ((l3[0] & 0x0F) << 4) | (l3[1] >> 4)
     nh = l3[6]
     hop_limit = l3[7]
     src6, dst6 = l3[8:24], l3[24:40]
-    if len(l3) - 40 < payload_len:
-        return _drop("l4_truncated")  # header claims more than the frame carries
     l4 = l3[40 : 40 + payload_len]
 
-    # Same ledger order as _translate46 (see comment there): header
-    # checksum has no v6 analogue, so this starts at the UDP/TCP length
-    # guard, then fragment, then ICMP non-echo / unsupported L4, then TTL.
-    if nh == PROTO_UDP and len(l4) < 8:
-        return _drop("l4_truncated")
-    if nh == PROTO_TCP and len(l4) < 20:
-        return _drop("l4_truncated")
     if nh == NH_FRAGMENT:
         return _drop("fragment")
-    if nh == PROTO_ICMPV6:
-        if len(l4) < 2 or l4[0] not in (ICMP6_ECHO_REQUEST, ICMP6_ECHO_REPLY) or l4[1] != 0:
+    if nh == PROTO_UDP:
+        if len(l4) < 8:
+            return _drop("l4_truncated")
+    elif nh == PROTO_TCP:
+        if len(l4) < 20:
+            return _drop("l4_truncated")
+    elif nh == PROTO_ICMPV6:
+        if len(l4) < 4:  # type/code/checksum -- the checksum patch reads body[2:4]
+            return _drop("l4_truncated")
+        if l4[0] not in (ICMP6_ECHO_REQUEST, ICMP6_ECHO_REPLY) or l4[1] != 0:
             return _drop("icmp_error")
-    elif nh not in (PROTO_TCP, PROTO_UDP):
+    else:
         return _drop("unsupported_l4")
     if hop_limit <= 1:
         return _drop("ttl_expired")
