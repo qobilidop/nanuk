@@ -15,20 +15,22 @@ datacenters — that is the deployment hook.
 Design: [`docs/superpowers/specs/2026-07-18-siit-demo-design.md`](../../docs/superpowers/specs/2026-07-18-siit-demo-design.md).
 Plan: [`docs/superpowers/plans/2026-07-18-siit-a-core.md`](../../docs/superpowers/plans/2026-07-18-siit-a-core.md).
 
-## Status (Plan A landed)
+## Status (Plan A + Jool replay landed)
 
-**94** dispositioned RFC clauses · **70** committed vectors across 8 groups ·
-legs 1–3 landed, leg 4 (Jool) is Plan B, pending. The 70 vectors pass
-byte-for-byte on all four software levels (reference, interp, ISS, golden Sail
-emulator) **and** through the Amaranth RTL core in cosim; PP symex enumerates
-26 feasible parser paths, each with a witness reproduced on both interp and the
-emulator.
+**95** dispositioned RFC clauses · **70** committed vectors across 8 groups ·
+**124** Jool graybox fixtures replayed. All four legs landed. The 70 vectors
+pass byte-for-byte on all four software levels (reference, interp, ISS, golden
+Sail emulator) **and** through the Amaranth RTL core in cosim; PP symex
+enumerates 26 feasible parser paths, each with a witness reproduced on both
+interp and the emulator. The Jool graybox replay (leg 4) classifies all 124
+fixtures: **22 pass**, **2 divergence**, **100 out-of-scope**, 0 unclassified
+(see [`jool-replay.md`](jool-replay.md)).
 
 ## Four legs, strongest claim last
 
 1. **RFC requirements audit** — [`audit.md`](audit.md). **Landed.** RFC 7915
    §1/§4/§5 (plus the delegated RFC 6052/7757 addressing and blanket §6–§11
-   rows) walked clause by clause — **94 dispositioned clauses**, each
+   rows) walked clause by clause — **95 dispositioned clauses**, each
    tested / deferred(trigger) / refused(rationale) / not-a-requirement. This is
    the scope ledger and the book-chapter seed. Vectors cite its stable IDs
    (e.g. `7915-4.1-tos`) in their `rfc` field.
@@ -44,14 +46,29 @@ emulator.
    joins over the siit corpus (all 70 pass first try against the chained ISS
    oracle); symex enumerates the parser's program paths (26 feasible, each with
    a witness) and its witness packets join the corpus.
-4. **Jool graybox replay (independent-interpretation oracle)** — **Plan B,
-   pending.** The only leg that can catch a shared misreading of the RFC, since
-   legs 1–3 are authored from one reading. A pinned-commit fetch clones Jool
-   into gitignored `third_party/` (**zero GPL bytes in our tree**); the harness
-   extracts `.pkt` pairs, mirrors Jool's pool6/EAMT config into our tables,
-   applies their byte masks, and reports pass / divergence / out-of-scope per
-   fixture. Divergences are documented findings in the audit (see its
-   "Divergences" list), not failures.
+4. **Jool graybox replay (independent-interpretation oracle)** — **Landed.**
+   The only leg that can catch a shared misreading of the RFC, since legs 1–3
+   are authored from one reading. A pinned-commit fetch clones Jool into
+   gitignored `third_party/` (**zero GPL bytes in our tree**); the harness
+   ([`jool_replay.py`](../../sw/python/nanuk/testkit/jool_replay.py)) extracts
+   `.pkt` pairs, mirrors Jool's real `/40` pool6 + `/24<->/120` EAMT config
+   into a reference `SiitConfig`, applies Jool's own byte-exception masks, and
+   classifies every fixture as pass / divergence / out-of-scope. Results in
+   [`jool-replay.md`](jool-replay.md): **124 fixtures — 22 pass, 2 divergence,
+   100 out-of-scope, 0 unclassified.** The one genuine send-vs-send byte
+   divergence is always-DF=1 (`7915-5.1-df`); the out-of-scope set is
+   fragmentation, ICMP-error translation/generation, extension headers,
+   forward-all, and one hairpin (`7757-hairpin`), each cited to its audit row.
+   Divergences are documented findings, not failures. The replay tests are
+   gated on `NANUK_JOOL=1` + the clone (CI does not fetch).
+
+   **Program vs reference scope.** These are **reference-level** claims: the
+   reference translator implements RFC 6052 all six prefix lengths and RFC 7757
+   prefix EAMT, so it expresses Jool's config exactly. The Nanuk **program**
+   (hand asm + twins + committed vectors) implements RFC 6052 `/96` +
+   EAMT-exact only, so program-level conformance covers the subset of fixtures
+   whose config that subset expresses; the reference carries the rest. The asm,
+   twins, and vectors are unchanged by this leg.
 
 ## Vector groups
 

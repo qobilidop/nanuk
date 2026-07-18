@@ -281,7 +281,8 @@ RFC 6052 pool6**.
 | `6052-prefix-lengths` | Six legal prefix lengths (32/40/48/56/64/96). | deferred(configurable prefix length) | Trigger: multi-prefix deployment. Only /96 in scope (WKP). The hi/lo table split (`t0`/`t1`/`t2`) is kept regardless for RTL cost honesty. |
 | `7757-eamt` | Explicit Address Mapping Table: exact per-address v4↔v6 overrides, taking precedence over the algorithmic prefix. | tested(`edge`) | `t0`/`t1` (v4→v6 hi/lo 64) and `t2` (v6→v4). `DEMO_SIIT` maps `192.0.2.1 ↔ 2001:db8:1::c001`. EAMT checked before 6052 on ingress. |
 | `7757-eamt-low64` | (Nanuk demo constraint) EAMT v6→v4 keys are the **low 64 bits** of the IPv6 address; entries MUST be distinct in their low 64 bits. | tested(`edge`) | **Frozen decision:** LOOKUP keys are ≤64-bit, forcing the hi/lo split; `t2` key = v6 low 64 bits. True of any sane EAMT; full 128-bit generality is the LPM/T3 trigger. |
-| `7757-eamt-general-prefix` | General **prefix** EAMT (RFC 7757 allows prefix mappings, not only host mappings). | deferred(LPM/T3) | Exact-match only in the first landing; prefix EAMT waits for LPM tables (see `coverage.md` T3). |
+| `7757-eamt-general-prefix` | General **prefix** EAMT (RFC 7757 allows prefix mappings, not only host mappings). | deferred(LPM/T3) | Exact-match only in the **program** first landing; prefix EAMT waits for LPM tables (see `coverage.md` T3). The **reference** translator implements it (RFC 7757 §3.3, longest-prefix-match both directions) so the Jool graybox replay (leg 4) can express Jool's `/24<->/120` EAMT config; the program/reference split is the leg-4 scope note in [`jool-replay.md`](jool-replay.md). |
+| `7757-hairpin` | Hairpinning (RFC 7757 §4): when both endpoints are EAMT-covered, a packet sent to an IPv4-converted IPv6 address is translated, loops back into the translator, and is translated again — same family in and out. | deferred(hairpin/dual-translation) | Trigger: a second translation pass (EAMT destination re-entry). Nanuk's translator is single-pass: a v6 input dispatches to the v6→v4 branch and emits v4, never re-entering to re-emit v6. Surfaced by the Jool graybox replay (leg 4): `7915/gat1` is a genuine hairpin (UDP v6→v6 through the EAMT), classified `out_of_scope(7757-hairpin)`. Distinct from the 13 sibling same-family fixtures, which are Jool *originating* an ICMP error (see [`7915-4.4`](#44-generation-of-icmpv4-errors) / [`7915-5.4`](#54-generation-of-icmpv6-errors)), not hairpinning. |
 
 ---
 
@@ -452,23 +453,24 @@ the `ID` column.
 | `7757-eamt` | §6 | tested(`edge`) |
 | `7757-eamt-low64` | §6 | tested(`edge`) |
 | `7757-eamt-general-prefix` | §6 | deferred(LPM/T3) |
+| `7757-hairpin` | §6 | deferred(hairpin/dual-translation) |
 | `7915-7-security` | §7 | not-a-requirement |
 | `7915-8-iana` | §8 | not-a-requirement |
 | `7915-9to11-refs` | §9–11 | not-a-requirement |
 | `7915-ledger-order` | (cross-cutting) | not-a-requirement (Nanuk-sovereign) |
 | `7915-framing-trailer` | (cross-cutting) | tested(`edge`) |
 
-**Tally — 94 dispositioned clauses.** By primary (first-listed) category:
+**Tally — 95 dispositioned clauses.** By primary (first-listed) category:
 
 - **tested:** 47. Group citations across the table (a clause may cite several):
   `udp46` 11, `udp64` 14, `tcp46` 2, `tcp64` 2, `icmp46` 5, `icmp64` 5,
   `edge` 12, `negative` 19, plus one `tested(unit)` row
   (`7915-4.5-udp-zero-transmit`, covered by a reference unit test since no
   committed vector folds to zero).
-- **deferred:** 27. By trigger (counting every clause a trigger touches, incl.
+- **deferred:** 28. By trigger (counting every clause a trigger touches, incl.
   compound rows): ICMP-error translation 13, fragmentation 8, extension-header
   traversal 2, source-address sanity filtering 2, source-route inspection 1,
-  configurable prefix length 1, LPM/T3 1.
+  configurable prefix length 1, LPM/T3 1, hairpin/dual-translation 1.
 - **refused:** 6 — stateful NAT64, multicast, ICMP-error generation (§4.4/§5.4),
   rewrite-only forward-all (§4.5/§5.5). (ICMP-error *generation* is also a
   secondary refusal on 5 further drop clauses; rewrite-only totality likewise.)
@@ -499,3 +501,20 @@ places where a Jool graybox replay (leg 4) may report a difference:
    `7915-5.5-forward-all`) — totality doctrine over the §4.5/§5.5 MUST-forward.
 4. **No ICMP-error generation** (`7915-4.4`, `7915-5.4`) and **no ICMP-error
    translation** (deferred) — a discarded packet is dropped silently.
+
+**Leg 4 replay outcome (Jool graybox, 124 fixtures).** The independent-
+interpretation oracle ran and classified every fixture (see
+[`jool-replay.md`](jool-replay.md)): **22 pass**, **2 divergence**, **100
+out-of-scope**, 0 unclassified. The only genuine send-vs-send byte divergence
+the oracle surfaced is **always-DF=1** (`7915-5.1-df`, divergence list item 2
+above) on the two sub-MTU v6→v4 fixtures `7915/abt1` and `7915/cit1`; its
+comparison mask is *derived* from the policy (the DF flag byte + the IPv4
+header checksum), not fitted per fixture. Every other difference is a
+capability Nanuk defers or refuses that Jool exercises — fragmentation
+(`7915-4.1-frag` / `7915-5.1.1-fragment` / `7915-4.1-df0-fragment`), ICMP-error
+translation (`7915-4.3` / `7915-5.3`) and generation (`7915-4.4` / `7915-5.4`),
+extension-header traversal (`7915-5.1-exthdr`), forward-all
+(`7915-4.5-forward-all` / `7915-5.5-forward-all`), and hairpinning
+(`7757-hairpin`) — each cited to its audit row. No fixture where **Jool
+matches the RFC and our reference does not** was found: the oracle confirmed
+the reading, it did not overturn it.
