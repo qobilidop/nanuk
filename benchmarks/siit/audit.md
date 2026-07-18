@@ -28,6 +28,10 @@ Each clause is dispositioned as exactly one of:
   of the eight in the [vector schema](../../docs/superpowers/plans/2026-07-18-siit-a-core.md):
   `udp46` `udp64` `tcp46` `tcp64` `icmp46` `icmp64` `edge` `negative`.
   (`edge` = addressing/options/boundary cases; `negative` = drop-verdict cases.)
+  The one non-group target, **tested(unit)**, marks a clause whose behavior no
+  committed vector can practically reach (a statistically-unreachable branch) —
+  covered instead by a named reference unit test in `test_siit_ref.py`. Exactly
+  one row uses it (`7915-4.5-udp-zero-transmit`).
 - **deferred(_trigger_)** — out of scope for the first landing, parked with the
   named trigger that would pull it back in.
 - **refused(_rationale_)** — a standing architectural boundary; will not be
@@ -50,6 +54,35 @@ and its drop-reason strings (`runt`, `non_ip_ethertype`, `v4_truncated`,
 `v6_truncated`) are the exact `why` values that `negative`-group vectors assert.
 Where this audit and any other document disagree on ordering, the ledger in
 `siit_ref.py` wins.
+
+### Vector citation model — how a `tested` row maps to a committed vector
+
+Each committed vector carries exactly **one** representative audit ID in its
+`rfc` field (a generator decision — cite the most specific clause the fixture
+was built to exercise, not every clause it happens to touch). But a `tested`
+row is honest even when no vector cites its exact ID, because coverage is
+*group-level*, not citation-level:
+
+- **Sent vectors assert the whole output frame byte-for-byte.** So one
+  `udp46`/`udp64`/…/`edge` sent vector exercises *every* header-mapping clause
+  at once — version, TOS, flow label, payload length, next-header, addressing,
+  the L4 checksum patch. A `tested(<group>)` row that no vector cites by ID is
+  covered by that group's frame assertions; the per-group representative is:
+  `udp46` → `udp46_len0_ttl64`, `udp64` → `udp64_len0_ttl64`,
+  `tcp46` → `tcp46_len0_ttl64`, `tcp64` → `tcp64_len0_ttl64`,
+  `icmp46` → `icmp46_len0_ttl64`, `icmp64` → `icmp64_len0_ttl64`,
+  `edge` → the named fixture in the row's rationale (e.g. `edge_eamt_src_46`).
+- **Negative vectors assert a single drop `why`.** The `negative` group is one
+  vector per distinct ledger `why` string, so several RFC clauses that funnel
+  to the *same* drop reason are all covered by that reason's one vector —
+  e.g. `7915-4.2-nonecho-drop` / `-igmp-drop` / `-err-redirect-quench` and the
+  §5 MLD/ND/unknown rows are all the `icmp_error` or `unsupported_l4` drop
+  paths exercised by `neg_v4_icmp_error` / `neg_v6_icmp_error` /
+  `neg_v4_unsupported_l4` / `neg_v6_unsupported_l4`.
+
+Where a row's coverage is **not** a committed vector at all, the row says so and
+points at the covering unit test instead (see `7915-4.5-udp-zero-transmit`).
+No `tested` claim in this audit is left without a traceable pointer.
 
 ---
 
@@ -143,7 +176,7 @@ First landing translates **echo request/reply only**. ICMP *error* translation
 | `7915-4.5-csum-update` | If the address mapping is not checksum-neutral, TCP/UDP/ICMP pseudo-header checksums MUST be recalculated. Translators MUST do this for TCP, ICMP, and UDP-with-checksum. | tested(`udp46`, `tcp46`, `icmp46`) | RFC 1624 incremental patch `HC' = ~(~HC + ~m + m')` over the address words (pseudo-header length+proto are equal on both sides for UDP/TCP). `_patch(...)`. |
 | `7915-4.5-udp-zero-csum` | For UDP with a zero checksum, the translator SHOULD offer: (1) drop + management event, or (2) compute the IPv6 checksum and forward. | tested(`negative`) | **Frozen decision:** IPv4 UDP checksum 0 → **DROP** (`zero_udp_checksum`). Rationale: computing the mandatory IPv6 UDP checksum needs the full payload, which can exceed the 256 B window — totality-as-guard. This is a documented Jool divergence if their fixtures assume the forwarding config. |
 | `7915-4.5-udp-zero-frag` | A stateless translator cannot compute the checksum of a fragmented zero-checksum UDP packet; SHOULD drop + management event. | tested(`negative`) + deferred(fragmentation) | We drop *all* zero-checksum UDP (stricter than, and consistent with, this SHOULD). Fragmented case also caught by the `fragment` drop upstream. |
-| `7915-4.5-udp-zero-transmit` | (RFC 768 / RFC 8200) An IPv6 UDP checksum that computes to 0x0000 MUST be transmitted as 0xFFFF; likewise ICMPv6 (RFC 4443). | tested(`udp46`, `icmp46`) | **Frozen decision:** `if new_csum == 0: new_csum = 0xFFFF` on both the UDP and ICMP v4→v6 paths. `edge`/`icmp46` include an input engineered to fold to zero. |
+| `7915-4.5-udp-zero-transmit` | (RFC 768 / RFC 8200) An IPv6 UDP checksum that computes to 0x0000 MUST be transmitted as 0xFFFF; likewise ICMPv6 (RFC 4443). | tested(unit) | **Frozen decision:** `if new_csum == 0: new_csum = 0xFFFF` on both the UDP and ICMP v4→v6 paths. **No committed vector folds to zero** — the `udp46`/`icmp46` fixtures use fixed addresses/payloads whose patched checksum is never 0x0000, so the 0→0xFFFF branch is *not* corpus-covered. It is pinned instead by the reference unit test `test_v6_output_zero_udp_checksum_becomes_0xffff` (`sw/python/tests/test_siit_ref.py`), which brute-forces a payload word landing the computed v6 UDP checksum on exactly 0x0000 and asserts the output field is 0xFFFF; Task 4 additionally drove the program's UDP46 + ICMP46 adjust branches with two solved-to-zero frames (throwaway, byte-identical to the reference). The everyday csum-patch path (non-zero fold) is `tested(udp46, icmp46)` via `7915-4.5-csum-update`. |
 | `7915-4.5-other-transports` | Other transport protocols (e.g. DCCP) are OPTIONAL to support. | not-a-requirement | Optional. Non-UDP/TCP/ICMP-echo → `unsupported_l4` drop by decision. |
 | `7915-4.5-forward-all` | To ease debugging, translators MUST forward all transport protocols. | **refused** (rewrite-only totality) + tested(`negative`) | **Documented divergence.** Nanuk translates only UDP, TCP, and ICMP echo; any other L4 → `unsupported_l4` DROP (totality doctrine — every packet gets an explicit verdict). Blindly forwarding an unknown L4 whose pseudo-header checksum we cannot recompute would emit a corrupt frame, so the safe verdict is drop. Recorded here as a deliberate deviation from the §4.5 MUST-forward. |
 
@@ -275,7 +308,7 @@ here for the reviewer, each with its ID:
 | Never emit IPv4 options (IHL=5) | `7915-5.1-ihl` | tested(`udp64`) |
 | EAMT keyed on v6 low 64 bits; entries distinct in low 64 | `7757-eamt-low64` | tested(`edge`) |
 | Outer-in ingress ledger order | `7915-ledger-order` (below) | not-a-requirement (Nanuk-sovereign) |
-| Computed-zero UDP/ICMPv6 checksum → transmit 0xFFFF | `7915-4.5-udp-zero-transmit` | tested(`udp46`, `icmp46`) |
+| Computed-zero UDP/ICMPv6 checksum → transmit 0xFFFF | `7915-4.5-udp-zero-transmit` | tested(unit) — see row (no committed vector folds to zero) |
 | Unsupported L4 → DROP (vs. §4.5/§5.5 MUST-forward) | `7915-4.5-forward-all`, `7915-5.5-forward-all` | refused + tested(`negative`) |
 | Untranslatable address → DROP | `7915-5.1-untranslatable` | tested(`negative`) |
 | Trailing frame bytes beyond the IP datagram pass through verbatim (not stripped) | `7915-framing-trailer` (below) | tested(`edge`) |
@@ -372,7 +405,7 @@ the `ID` column.
 | `7915-4.5-csum-update` | §4.5 | tested(`udp46`, `tcp46`, `icmp46`) |
 | `7915-4.5-udp-zero-csum` | §4.5 | tested(`negative`) |
 | `7915-4.5-udp-zero-frag` | §4.5 | tested(`negative`) + deferred(fragmentation) |
-| `7915-4.5-udp-zero-transmit` | §4.5 | tested(`udp46`, `icmp46`) |
+| `7915-4.5-udp-zero-transmit` | §4.5 | tested(unit) |
 | `7915-4.5-other-transports` | §4.5 | not-a-requirement |
 | `7915-4.5-forward-all` | §4.5 | refused(rewrite-only totality) + tested(`negative`) |
 | `7915-4.6-route-priority` | §4.6 | not-a-requirement |
@@ -428,8 +461,10 @@ the `ID` column.
 **Tally — 94 dispositioned clauses.** By primary (first-listed) category:
 
 - **tested:** 47. Group citations across the table (a clause may cite several):
-  `udp46` 12, `udp64` 14, `tcp46` 2, `tcp64` 2, `icmp46` 6, `icmp64` 5,
-  `edge` 12, `negative` 19.
+  `udp46` 11, `udp64` 14, `tcp46` 2, `tcp64` 2, `icmp46` 5, `icmp64` 5,
+  `edge` 12, `negative` 19, plus one `tested(unit)` row
+  (`7915-4.5-udp-zero-transmit`, covered by a reference unit test since no
+  committed vector folds to zero).
 - **deferred:** 27. By trigger (counting every clause a trigger touches, incl.
   compound rows): ICMP-error translation 13, fragmentation 8, extension-header
   traversal 2, source-address sanity filtering 2, source-route inspection 1,
@@ -449,7 +484,8 @@ present drop verdict is `negative`-tested.
 delegated addressing (RFC 6052 §2, RFC 7757) is dispositioned; §6–§11 are
 covered by blanket rows. No clause is left as "TBD". Every deferral names a
 trigger; every refusal names a rationale; every tested clause names at least one
-of the eight vector groups.
+of the eight vector groups (the sole exception, `7915-4.5-udp-zero-transmit`,
+names a reference unit test — see the vector citation model in Method).
 
 **Divergences from RFC 7915, recorded (findings, not failures).** These are the
 places where a Jool graybox replay (leg 4) may report a difference:

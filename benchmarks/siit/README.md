@@ -15,41 +15,56 @@ datacenters — that is the deployment hook.
 Design: [`docs/superpowers/specs/2026-07-18-siit-demo-design.md`](../../docs/superpowers/specs/2026-07-18-siit-demo-design.md).
 Plan: [`docs/superpowers/plans/2026-07-18-siit-a-core.md`](../../docs/superpowers/plans/2026-07-18-siit-a-core.md).
 
+## Status (Plan A landed)
+
+**94** dispositioned RFC clauses · **70** committed vectors across 8 groups ·
+legs 1–3 landed, leg 4 (Jool) is Plan B, pending. The 70 vectors pass
+byte-for-byte on all four software levels (reference, interp, ISS, golden Sail
+emulator) **and** through the Amaranth RTL core in cosim; PP symex enumerates
+26 feasible parser paths, each with a witness reproduced on both interp and the
+emulator.
+
 ## Four legs, strongest claim last
 
-1. **RFC requirements audit** — [`audit.md`](audit.md). RFC 7915 §1/§4/§5 walked
-   clause by clause, each dispositioned tested / deferred(trigger) /
-   refused(rationale) / not-a-requirement. This is the scope ledger and the
-   book-chapter seed. Vectors cite its stable IDs (e.g. `7915-4.1-tos`) in their
-   `rfc` field.
-2. **Executable spec + generated vectors** — a reference translator
+1. **RFC requirements audit** — [`audit.md`](audit.md). **Landed.** RFC 7915
+   §1/§4/§5 (plus the delegated RFC 6052/7757 addressing and blanket §6–§11
+   rows) walked clause by clause — **94 dispositioned clauses**, each
+   tested / deferred(trigger) / refused(rationale) / not-a-requirement. This is
+   the scope ledger and the book-chapter seed. Vectors cite its stable IDs
+   (e.g. `7915-4.1-tos`) in their `rfc` field.
+2. **Executable spec + generated vectors** — **Landed.** A reference translator
    (`sw/python/nanuk/testkit/siit_ref.py`, stdlib-only) is the oracle. A
    combinatorial generator (direction × protocol × field variation) runs every
-   input through it and emits committed, scapy-free vector files under
-   [`vectors/`](vectors/). Byte-exact, no exception masks — we control all
-   nondeterminism (fragment-ID policy is fixed by decision).
-3. **In-house differential replay** — every vector through the golden emulator,
-   ISS, and interp; all levels must agree with each other **and** with the
-   reference translator, byte-for-byte on the output frame. RTL cosim joins over
-   the siit corpus; symex enumerates program paths and its witness packets join
-   the corpus.
-4. **Jool graybox replay (independent-interpretation oracle)** — the only leg
-   that can catch a shared misreading of the RFC, since legs 1–3 are authored
-   from one reading. A pinned-commit fetch clones Jool into gitignored
-   `third_party/` (**zero GPL bytes in our tree**); the harness extracts `.pkt`
-   pairs, mirrors Jool's pool6/EAMT config into our tables, applies their byte
-   masks, and reports pass / divergence / out-of-scope per fixture. Divergences
-   are documented findings in the audit (see its "Divergences" list), not
-   failures.
+   input through it and emits **70 committed, scapy-free vectors** under
+   [`vectors/`](vectors/) (see counts below). Byte-exact, no exception masks —
+   we control all nondeterminism (fragment-ID policy is fixed by decision).
+3. **In-house differential replay** — **Landed.** Every vector through the
+   golden emulator, ISS, and interp; all levels agree with each other **and**
+   with the reference translator, byte-for-byte on the output frame. RTL cosim
+   joins over the siit corpus (all 70 pass first try against the chained ISS
+   oracle); symex enumerates the parser's program paths (26 feasible, each with
+   a witness) and its witness packets join the corpus.
+4. **Jool graybox replay (independent-interpretation oracle)** — **Plan B,
+   pending.** The only leg that can catch a shared misreading of the RFC, since
+   legs 1–3 are authored from one reading. A pinned-commit fetch clones Jool
+   into gitignored `third_party/` (**zero GPL bytes in our tree**); the harness
+   extracts `.pkt` pairs, mirrors Jool's pool6/EAMT config into our tables,
+   applies their byte masks, and reports pass / divergence / out-of-scope per
+   fixture. Divergences are documented findings in the audit (see its
+   "Divergences" list), not failures.
 
 ## Vector groups
 
 Eight groups, per the [plan schema](../../docs/superpowers/plans/2026-07-18-siit-a-core.md):
 `udp46` `udp64` `tcp46` `tcp64` `icmp46` `icmp64` (the six translate-and-send
-matrices), `edge` (addressing / options / boundary), and `negative` (every
-drop-verdict reason). Each vector is
+matrices, 6 vectors each = 36), `edge` (addressing / options / boundary, 15),
+and `negative` (one vector per drop-verdict reason plus ledger-order overlaps,
+19) — **70 vectors** total. Each vector is
 `{"name", "rfc", "dir", "in", "verdict", "out", "why"}` — the `rfc` field cites
-an audit ID; `why` (on drops) is a reference drop-reason string.
+an audit ID; `why` (on drops) is a reference drop-reason string. A vector cites
+one representative audit ID; a `tested(group)` row is exercised by the group's
+byte-exact frame (or drop-reason) assertions even when no vector cites its exact
+ID — see the vector citation model in [`audit.md`](audit.md).
 
 ## Regenerating the vectors
 
