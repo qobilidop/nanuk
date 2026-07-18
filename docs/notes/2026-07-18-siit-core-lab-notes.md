@@ -178,3 +178,82 @@ vectors / in-house differential across all levels + RTL + symex). Leg 4 — the
 Jool graybox replay, the one leg that can catch a *shared* misreading of the RFC
 since legs 1–3 are authored from one reading — is Plan B, and it gets written
 against exactly what landed here.
+
+## Part B: what the Jool oracle found
+
+Leg 4 landed: 124 fixtures pulled from Jool's own pinned graybox suite
+(`eddd73a`, `third_party/jool`, gitignored), replayed through the reference
+translator and classified against `audit.md`. Acquisition and manifest parsing
+in `8ea2c59`; the reference generalization it demanded in `c0a3ec7`; the replay
+and classification in `94d6e59` (`benchmarks/siit/jool-replay.md`).
+
+**The scorecard: 22 pass, 2 divergence, 100 out of scope, 0 unclassified — and
+zero shared misreadings.** That last clause is the actual headline. Legs 1–3
+are all authored from one reading of RFC 7915; an independent oracle exists
+specifically to catch a misreading none of them would have caught on its own.
+It didn't find one. Every one of the 100 out-of-scope fixtures exercises a
+capability Nanuk already, explicitly, defers or refuses (fragmentation, ICMP
+inner-packet translation, ICMP origination, extension-header traversal,
+unknown-transport forward-all) — each cited to a pre-existing audit row, none
+invented after the fact to explain away a surprise. And the only place both
+translators actually *send* and disagree reduces to one policy, not a bug.
+
+**The one divergence is the one we already own.** `7915/abt1` and `7915/cit1`
+diverge at exactly IPv4 header byte 6 — `ours[6] ^ expected[6] == 0x40`, the DF
+bit, checksum accounted for. Jool clears DF for sub-MTU output per §5.1's
+size-conditional rule; Nanuk always sets DF=1, a frozen decision already on the
+books (`7915-5.1-df`) for RFC 8021 atomic-fragment safety. The oracle didn't
+surface this — it *confirmed* it, byte-for-byte, against a comparison mask
+derived from the named policy rather than fitted to the two fixtures. No
+fixture exists where Jool matches the RFC and Nanuk doesn't; this is the one
+RFC clause the program deliberately departs from, and the independent suite
+landed on precisely that clause and nowhere else.
+
+**B1's 14-fixture hairpin guess didn't survive contact with the packets.**
+B1 flagged 14 same-family (66/44) fixtures as "almost certainly out of scope"
+without reading what they actually expected, on the reasonable prior that
+same-family input to a single-pass translator smells like hairpinning. B2 read
+the expected packets: 13 of them (`act1`–`act6` → ICMPv6 type 1, `cgt1`–`cgt2` →
+Packet-Too-Big, `cat1`–`cat2`/`eat1`/`ect1`/`ect1@2` → ICMPv4 type 3) are Jool
+*originating* an ICMP error back to the sender — already covered by the
+existing `7915-4.4`/`7915-5.4` "Nanuk never originates" rows. Only
+`7915/gat1` (UDP v6→v6 through the EAMT) is a genuine RFC 7757 hairpin, and it
+needed a new audit row, `7757-hairpin`, dispositioned
+`deferred(hairpin/dual-translation)` — a single-pass translator has nowhere to
+re-enter for the second leg. One real hairpin, not fourteen; the guess was a
+reasonable placeholder, and the fix was reading the fixtures instead of
+re-guessing.
+
+**To even ask the question fairly, the oracle made the reference bigger — not
+the program.** Jool's actual config (`setup-jool.sh`) is a `/40` pool6 and a
+`/24↔/120` EAMT — neither expressible by the program's `/96` + exact-host
+scope. Rather than either fudge Jool's config down to fit or leave the
+mismatch unresolved, `c0a3ec7` generalized the *reference* translator: RFC 6052
+§2.2 all six prefix lengths (32/40/48/56/64/96), KAT'd against RFC 6052 §2.4's
+own worked examples, and RFC 7757 §3.3 general-prefix EAMT with longest-prefix
+match, both directions. Both changes are backward-compatible by construction —
+regenerating all 70 DEMO_SIIT vectors after the change produced an empty `git
+diff`. The **program** stays exactly `/96` + EAMT-exact, per the audit's own
+scope split (`6052-prefix-lengths`, `7757-eamt-general-prefix`); only the
+reference — the oracle's own yardstick — needed to grow to speak Jool's
+config faithfully.
+
+**Two smaller finds, both housekeeping rather than RFC surprises.** Jool's own
+`test.sh` has no `tcp46` group: the `4-tcp-*.pkt` sender files sit on disk but
+no `test46_auto` call ever wires them in, confirmed by grepping the whole
+`test/graybox/` tree. Not our bug, not fixable by us — it means the replay has
+zero v4→v6 TCP coverage from Jool, unlike every other protocol pair, and
+that's worth knowing rather than mistaking for a gap in the harness. Second:
+the manifest parser (`jool_graybox._parse_test_sh`) carries a
+parse-completeness guard — it counts every invocation-looking line in an
+in-scope group block and raises if any didn't parse into a fixture, rather
+than trusting a fixed expected count. If Jool's suite grows or `test.sh`'s
+shape drifts, the parser fails loudly at parse time, not by silently
+returning a manifest three fixtures short of one nobody would have noticed.
+
+No reference bugs found. The independent-interpretation oracle did the one job
+it was built for — try to catch legs 1–3 agreeing with each other and with the
+RFC for the wrong reason — and came back empty. Full counts, per-fixture
+listings, and the byte-exception semantics are in
+`benchmarks/siit/jool-replay.md`; the two new audit rows (`7757-hairpin` and
+the two reference generalizations) are in `benchmarks/siit/audit.md`.
