@@ -26,7 +26,10 @@ Addressing (frozen DEMO_SIIT):
 Beat selection via the SIIT_BEAT env var (default "ping"):
   ping        v4 guest: ping -c 10 192.0.2.1            -> expect 10/10
   iperf_udp   v4 guest -> v6 guest iperf UDP through the translator
-  iperf_tcp   v4 guest -> v6 guest iperf TCP through the translator
+  iperf_tcp   real kernel TCP across the boundary: needs the IPv6-enabled
+              guest kernel (build_guest_kernel.sh) mounted over the image's
+              bzImage; the v6 guest terminates iperf TCP in-kernel and no
+              userspace responder runs
   ttl         v4 guest: ping -c 12 -t 1 192.0.2.1       -> 100% loss (dropped)
 
 Run inside the SimBricks environment:
@@ -182,13 +185,46 @@ elif BEAT == "iperf_udp":
     ]
     v6_beat = v6_idle
 elif BEAT == "iperf_tcp":
-    # Aspirational, unexercised: the v6 guest kernel lacks CONFIG_IPV6 (no
-    # kernel TCP/IPv6 stack), so there is nothing to terminate a TCP iperf
-    # server on the v6 side -- see the module docstring and run_siit.sh.
-    raise SystemExit(
-        "nanuk_demo_siit: SIIT_BEAT=iperf_tcp is not runnable on this guest "
-        "image (CONFIG_IPV6=n on the v6 side); documented, not implemented."
-    )
+    # Real kernel TCP across the address-family boundary. This beat needs the
+    # IPv6-enabled guest kernel (build_guest_kernel.sh; run_siit.sh mounts it
+    # over /simbricks/images/bzImage for this beat only): the v6 guest then
+    # has a real kernel TCP/IPv6 stack terminating an iperf server, and the
+    # userspace responder is NOT started -- the kernel answers ICMPv6 echo
+    # itself (running both would duplicate every reply).
+    #
+    # Both guests boot the same kernel, so the v4 guest disables its
+    # now-available IPv6 outright: it must stay a pure v4 host, and a v6-idle
+    # kernel would otherwise chat ND/MLD multicast into the translator (all
+    # dropped -- non-echo ICMPv6 -- but noise in the counters).
+    #
+    # The v6 guest cannot resolve its peer by ND (the translator forwards
+    # only echo among ICMPv6 types), so like the v4 side's static ARP entry,
+    # the 6052-mapped v4 host gets a pinned neighbor + on-link route.
+    #
+    # MTU/MSS arithmetic (v4 MTU 1480, v6 MTU 1500): v4->v6 grows +20B,
+    # 1480 -> 1500 fits; both sides advertise MSS 1440, so every TCP segment
+    # translates within both MTUs and fragmentation (dropped by design)
+    # never triggers.
+    _snd_counters = "echo SIIT_SND_BEGIN; ip -s link show eth0; echo SIIT_SND_END"
+    v4_beat = [
+        "sysctl -w net.ipv6.conf.all.disable_ipv6=1",
+        "sleep 3",
+        _wait_up,
+        "sleep 2",  # let the v6 side's iperf server bind (boots are unsynced)
+        _snd_counters,
+        "iperf -c 192.0.2.1 -t 5",
+        _snd_counters,
+    ]
+    v6_beat = [
+        "sysctl -w net.ipv6.conf.all.accept_ra=0",
+        "sysctl -w net.ipv6.conf.eth0.router_solicitations=0 || true",
+        f"ip -6 addr add {V6_ADDR}/64 dev eth0 nodad",
+        "ip -6 route add 64:ff9b::/96 dev eth0",
+        f"ip -6 neigh replace 64:ff9b::c633:6402 lladdr {V4_MAC} dev eth0 nud permanent",
+        "ip -6 addr show dev eth0",
+        "iperf -s -V &",
+        "sleep infinity",
+    ]
 else:
     raise SystemExit(f"nanuk_demo_siit: unknown SIIT_BEAT={BEAT!r}")
 

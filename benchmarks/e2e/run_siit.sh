@@ -10,13 +10,16 @@
 #   Beat 3 (ttl):    v4 guest `ping -c 12 -t 1 192.0.2.1`  -> 100% loss. The
 #                    translator refuses hop-limit <= 1 (RFC 7915) with a
 #                    silent DROP -- no ICMP error -- so nothing comes back.
+#   Beat 4 (tcp):    real kernel TCP across the boundary: v4 guest iperf TCP
+#                    to a kernel-terminated iperf server on the v6 guest.
+#
 # The SimBricks base guest kernel (linux-5.15.93) is built `CONFIG_IPV6=n`, so
-# the v6 side answers IPv6 on the wire with a userspace AF_PACKET responder
-# (siit_responder.py), not a kernel stack. That covers ICMPv6 echo (ping) and
-# receiving + classifying the UDP stream. iperf TCP is out: it needs a real
-# kernel IPv6 stack on the v6 side, which this guest image cannot provide
-# (documented; the fix is an IPv6-enabled guest kernel, outside
-# benchmarks/e2e/).
+# in beats 1-3 the v6 side answers IPv6 on the wire with a userspace AF_PACKET
+# responder (siit_responder.py), not a kernel stack. That covers ICMPv6 echo
+# (ping) and receiving + classifying the UDP stream. TCP cannot be faked that
+# way, so beat 4 boots an IPv6-enabled rebuild of the same kernel
+# (build_guest_kernel.sh, mounted over the image's bzImage for that beat
+# only) and lets the v6 guest's real kernel TCP/IPv6 stack terminate iperf.
 #
 # The switch runs in middlebox flood mode (-x): translate.asm rewrites the
 # frame but takes no forwarding decision (md[0] untouched), so the packaging
@@ -24,16 +27,16 @@
 # (t0/t1/t2, from testkit.siit_tables()) rides the same tables.txt path as
 # every other beat -- no datapath change.
 #
-# Run from anywhere: benchmarks/e2e/run_siit.sh [ping|iperf_udp|ttl]
-#   With no argument, all three beats run (the committed, reviewed flow).
+# Run from anywhere: benchmarks/e2e/run_siit.sh [ping|iperf_udp|iperf_tcp|ttl]
+#   With no argument, all four beats run (the committed, reviewed flow).
 #   With one, only that beat runs -- for fast iteration while tuning a single
 #   beat; not how the beats are meant to be verified for the report.
 set -euo pipefail
 
 ONLY="${1:-}"
 case "$ONLY" in
-  ""|ping|iperf_udp|ttl) ;;
-  *) echo "usage: $0 [ping|iperf_udp|ttl]" >&2; exit 1 ;;
+  ""|ping|iperf_udp|iperf_tcp|ttl) ;;
+  *) echo "usage: $0 [ping|iperf_udp|iperf_tcp|ttl]" >&2; exit 1 ;;
 esac
 
 cd "$(dirname "$0")/../.."   # benchmarks/e2e -> repo root
@@ -81,8 +84,16 @@ run_beat() {  # $1 = SIIT_BEAT value; log -> $OUT/run-siit-$1.log
   local beat="$1"
   echo "==> running SIIT beat: $beat"
   rm -f "$OUT/run-siit-$beat.log"
+  # The iperf_tcp beat boots the IPv6-enabled rebuild of the guest kernel
+  # (build_guest_kernel.sh) by mounting it over the image's bzImage; the
+  # other beats run the stock CONFIG_IPV6=n kernel untouched.
+  local kernel_mount=()
+  if [ "$beat" = iperf_tcp ]; then
+    kernel_mount=(-v "$OUT/bzImage-ipv6:/simbricks/images/bzImage:ro")
+  fi
+  # ${arr[@]+...}: macOS bash 3.2 treats an empty array as unset under -u.
   docker run --rm --platform linux/amd64 -e "SIIT_BEAT=$beat" \
-    -v "$REPO:/nanuk:ro" -v "$OUT:/out" \
+    -v "$REPO:/nanuk:ro" -v "$OUT:/out" ${kernel_mount[@]+"${kernel_mount[@]}"} \
     $IMG bash -ec '
       D=/simbricks/sims/net/nanuk
       mkdir -p $D
@@ -171,8 +182,6 @@ if [ -z "$ONLY" ] || [ "$ONLY" = iperf_udp ]; then
   echo "        conservation: guest TX $(echo $TX_PKTS | awk '{print $2-$1}') =="\
        "translated $UDP_TRANSLATED + queue-full $QDROPS + 0 unexplained"\
        "(surplus = iperf close-phase FIN barrage, distinct negative seqs)"
-  echo "note: iperf TCP is not run -- it needs a kernel IPv6 stack on the v6 side,"
-  echo "      which the SimBricks base guest kernel (CONFIG_IPV6=n) cannot provide."
 fi
 
 # ---- Beat 3: negative gate, TTL=1 must be dropped ----
@@ -181,6 +190,33 @@ if [ -z "$ONLY" ] || [ "$ONLY" = ttl ]; then
   grep -qE ", 100% packet loss" "$OUT/run-siit-ttl.log" || {
     echo "BEAT 3 FAILED: TTL=1 ping was NOT fully dropped (see $OUT/run-siit-ttl.log)"; exit 1; }
   echo "beat 3 ok: TTL=1 ping -> 100% loss (translator drops hop-limit<=1, no ICMP error)"
+fi
+
+# ---- Beat 4 (iperf_tcp): real kernel TCP across the boundary ----
+# Needs the IPv6-enabled rebuild of the guest kernel (build_guest_kernel.sh;
+# cached after the first build). The v6 guest terminates iperf TCP in its
+# kernel; every segment of the connection -- SYN, data, ACKs, FIN -- crosses
+# the translator, growing v4->v6 and shrinking v6->v4, so BOTH direction
+# counters must run high.
+if [ -z "$ONLY" ] || [ "$ONLY" = iperf_tcp ]; then
+  "$SB/build_guest_kernel.sh"
+  run_beat iperf_tcp
+  grep -qE "Mbits/sec|Kbits/sec|bits/sec" "$OUT/run-siit-iperf_tcp.log" || {
+    echo "BEAT 4 (TCP) FAILED: no iperf transfer (see $OUT/run-siit-iperf_tcp.log)"; exit 1; }
+  TCP_GREW=$(grep -oE "grew=[0-9]+" "$OUT/run-siit-iperf_tcp.log" | tail -1 | cut -d= -f2)
+  TCP_SHRUNK=$(grep -oE "shrunk=[0-9]+" "$OUT/run-siit-iperf_tcp.log" | tail -1 | cut -d= -f2)
+  TCP_CORE_ERR=$(grep -oE "core_err=[0-9]+" "$OUT/run-siit-iperf_tcp.log" | tail -1 | cut -d= -f2)
+  [ "${TCP_CORE_ERR:-1}" -eq 0 ] || {
+    echo "BEAT 4 (TCP) FAILED: core errors (core_err=$TCP_CORE_ERR)"; exit 1; }
+  # A TCP connection is bidirectional by construction: data v4->v6 (grew),
+  # ACKs v6->v4 (shrunk). Both low means no real connection ran through the
+  # translator, whatever the client printed.
+  [ "${TCP_GREW:-0}" -ge 20 ] && [ "${TCP_SHRUNK:-0}" -ge 20 ] || {
+    echo "BEAT 4 (TCP) FAILED: expected a bidirectional TCP stream through"\
+         "the translator (grew=${TCP_GREW:-0} shrunk=${TCP_SHRUNK:-0}, need >= 20 each)"; exit 1; }
+  TCP_BW=$(grep -oE "[0-9.]+ [KM]bits/sec" "$OUT/run-siit-iperf_tcp.log" | tail -1)
+  echo "beat 4 ok: iperf TCP $TCP_BW through the translator -- kernel TCP/IPv6"\
+       "terminated it (grew=$TCP_GREW v4->v6, shrunk=$TCP_SHRUNK v6->v4, core_err=0)"
 fi
 
 echo "SIIT BEATS PASSED"

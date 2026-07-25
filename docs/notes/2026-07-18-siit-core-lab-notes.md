@@ -461,3 +461,50 @@ arithmetic. The kernel-counter bracket (`ip -s link` before/after iperf)
 stays in the beat, so the run log always carries the driver-layer leg.
 (This guest kernel has no `/proc/net/snmp`, so the socket-layer counter is
 unavailable; driver TX + application seqs bracket the path tightly enough.)
+
+## Addendum (2026-07-25): beat 4 — kernel TCP across the boundary
+
+Part C recorded iperf TCP as future work with a precise unlock: "an
+IPv6-enabled guest kernel is the one thing that unlocks it." That was tested
+literally and turned out to be almost true — the unlock took one kernel
+config flag, plus a second one the first failure taught us:
+
+- `build_guest_kernel.sh` rebuilds the image's own guest kernel — same
+  5.15.93 tarball, same gem5-timers patch, same shipped config — with
+  `CONFIG_IPV6=y`, in the SimBricks container (which carries the full
+  toolchain). The Rosetta gcc segfault flake from the M2 arc bit again,
+  ~10 times across one kernel build; the same retry-make mitigation
+  converges (make resumes from the failed object).
+- **First boot had IPv6 and no NIC.** `CONFIG_E1000=m` in the shipped
+  config: the stock kernel gets eth0 from `e1000.ko` in the disk image's
+  module tree — which belongs to the *stock* build. A rebuilt kernel must
+  not depend on disk modules, so the script also sets `CONFIG_E1000=y`.
+  (Symmetrically diagnostic: the v6 guest's `iperf -s -V` bound `::`
+  happily — the IPv6 delta worked — while `ip` found no device on either
+  guest.)
+- The beat (`SIIT_BEAT=iperf_tcp`) mounts the rebuilt bzImage over
+  `/simbricks/images/bzImage` for that run only; beats 1–3 keep the stock
+  kernel and the userspace responder. The responder is deliberately NOT
+  started in beat 4 — the kernel answers ICMPv6 echo itself, and both
+  answering would DUP every ping. ND cannot cross the translator (non-echo
+  ICMPv6 refused), so the v6 side pins a static neighbor for the RFC
+  6052-mapped v4 host, mirroring the v4 side's static ARP. The v4 guest,
+  now booting an IPv6-capable kernel, disables IPv6 to stay a pure v4 host.
+
+**Result:** one TCP connection, its two endpoints in different address
+families. The v4 client reports `198.51.100.2:53854 ↔ 192.0.2.1:5001`; the
+v6 server reports the same connection as `2001:db8:1::c001:5001 ↔
+64:ff9b::c633:6402:53854`. 384 KBytes transferred, both endpoints agreeing
+on ~250 Kbits/sec; switch counters `grew=283` (v4→v6: SYN, data),
+`shrunk=246` (v6→v4: SYN-ACK, ACKs), `core_err=0`. The 78 rx-queue-full
+burst drops along the way are now handled by a protocol built for loss —
+TCP's own retransmissions rode through the bounded queue, which is a nicer
+statement than the UDP beat's pacing workaround. The MTU/MSS arithmetic
+held as designed (v4 MTU 1480 → both sides advertise MSS 1440 → every
+translated segment fits both MTUs, fragmentation never triggers).
+
+The beat gates on bidirectionality (`grew` AND `shrunk` ≥ 20, `core_err=0`,
+a client-reported transfer) — a TCP connection that didn't really cross the
+translator in both directions cannot pass. `run_siit.sh` with no argument
+now runs all four beats; the kernel build is cached in `out/` after the
+first run.
