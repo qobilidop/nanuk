@@ -40,13 +40,29 @@ demo programs are assembled from the repo-root `examples/`.
 
 - `nanuk_switch.cc` — the component (ports + clocked Verilator loop driving both
   cores: PP verdict gates, MAP verdict + tables forward, head-delta applied
-  at readback)
-- `nanuk_demo.py` / `nanuk_demo_tunnel.py` — the experiments (stock classes
-  only; single switch / two switches with a nanukproto tunnel between them)
+  at readback; `-x` opt-in middlebox mode floods all-but-ingress instead of
+  reading `md[0]`, for programs that rewrite but take no forwarding decision)
+- `nanuk_demo.py` / `nanuk_demo_tunnel.py` / `nanuk_demo_siit.py` — the
+  experiments (stock classes only; single switch / two switches with a
+  nanukproto tunnel between them / a v4-only and a v6-only guest either side
+  of the SIIT translator)
 - `nanuk_run.sh` — executable wrapper selecting per-switch prog/map/tables
+- `siit_responder.py` — userspace AF_PACKET ICMPv6 echo responder + received-
+  frame classifier for the SIIT scenario's v6 guest (the SimBricks base guest
+  kernel has `CONFIG_IPV6=n`, so no kernel IPv6 stack exists to answer with)
 - `build_component.sh` — exports Verilog (nanuk-export), verilates natively,
   compiles + links `out/nanuk_switch` in the SimBricks container
 - `build_and_run.sh` — e2e smoke: build component, assemble programs from
   `examples/`, run the ping experiment, check output
 - `run_beats12.sh` / `run_beat3.sh` — the M2 demo beats (table-is-the-policy;
   tunnel push/pop)
+- `run_siit.sh` — the SIIT beats (ping / iperf UDP / TTL=1 negative gate /
+  iperf TCP) across the v4↔v6 boundary, reconciled against the switch's own
+  counters and the receiver's per-datagram log
+- `build_guest_kernel.sh` — rebuilds the image's guest kernel with
+  `CONFIG_IPV6=y` (one-config-flag delta, cached in `out/`); the iperf TCP
+  beat boots it so the v6 guest has a real kernel TCP/IPv6 stack
+
+NIC model note: the SIIT scenario uses **E1000**, not i40e — the `i40e_bm`
+behavioral model delivers shrunk (v6→v4) frames to the guest as all-zeros
+(root-caused in the SIIT arc; the datapath is identical either way).

@@ -27,10 +27,11 @@ The Jool graybox replay (leg 4) classifies all 124 fixtures: **22 pass**,
 **2 divergence**, **100 out-of-scope**, 0 unclassified (see
 [`jool-replay.md`](jool-replay.md)). The playground runs SIIT live in the
 browser (`?program=siit`, 5 presets read from the committed vectors); the
-SimBricks scenario clears 3 beats — ping across address families 10/10, a
-switch-verified iperf UDP leg, and a TTL=1 negative gate — with one honest
-open question (below) and iperf TCP recorded as future work, not a gap in
-the core.
+SimBricks scenario clears 4 beats — ping across address families 10/10, an
+iperf UDP leg reconciled per-datagram at three layers, a TTL=1 negative
+gate, and **real kernel TCP terminated across the address-family boundary**
+(the once-recorded UDP-surplus open question is resolved, and iperf TCP
+graduated from future work to a passing beat — see the demo-tier section).
 
 ## Four legs, strongest claim last
 
@@ -117,26 +118,43 @@ desynced the IR/asm panes had it shipped unnoticed.
 
 **SimBricks.** A v4-only QEMU guest and a v6-only QEMU guest either side of
 `nanuk_switch` running `examples/siit/{parse,translate}.asm` over the
-DEMO_SIIT table plane. Three beats, all switch-verified (counters, not client
+DEMO_SIIT table plane. Four beats, all switch-verified (counters, not client
 self-reports):
 
 | beat | result |
 |---|---|
 | ping (both translations, round trip) | **10/10**, 0% loss |
-| iperf UDP | client sent 49 datagrams; switch counted 169 translated (net of warmup) — clears the ≥0.9× reconciliation gate, surplus direction unexplained (see caveat) |
+| iperf UDP | all paced data datagrams delivered exactly once through the translator (receiver log: zero duplicate seqs, positives contiguous); switch-side count reconciles ≥0.9× of iperf's own send count, and the run's frame books close exactly (see below) |
 | TTL=1 negative gate | **12/12** loss; switch `dropped=12` |
+| iperf TCP (kernel-terminated) | **384 KBytes at ~250 Kbits/sec**, both endpoints agreeing; one TCP connection whose two ends live in different address families — the v4 client sees `198.51.100.2 → 192.0.2.1`, the v6 server sees the same connection as `64:ff9b::c633:6402 → 2001:db8:1::c001`; every SYN/data/ACK/FIN crossed the translator (grew=283 v4→v6, shrunk=246 v6→v4, `core_err=0`) |
 
-**The TCP caveat.** iperf TCP is not part of this arc: the SimBricks base
-guest kernel ships `CONFIG_IPV6=n` (no kernel IPv6 stack at all), so the v6
-side runs a userspace `AF_PACKET` ICMP-echo responder instead of a real IP
-stack — enough for ping and UDP, not enough for a TCP peer. An
-IPv6-enabled guest kernel is the one thing that would unlock it; everything
-else in the scenario already supports it. A related open question: the iperf
-UDP beat's switch-translated count (169) lands *above* what the client
-reports sending (49), the opposite direction from an overclaim, most likely
-from unpaced client retries against a responder that never acks — plausible,
-but not confirmed against a packet capture, so it's recorded as a loose end
-rather than resolved.
+**The UDP surplus, resolved (2026-07-25).** The switch-translated count
+runs ~3–4× *above* what the iperf client reports sending — the opposite
+direction from an overclaim — and this was recorded as an unexplained loose
+end at the arc's merge. It is now confirmed, with per-frame evidence from
+three independent layers (guest driver TX counter, switch counters, and a
+per-datagram receiver log carrying iperf's own application sequence
+numbers), to be iperf2's unanswered UDP close phase: with no real iperf
+server to ack it, the client emits a barrage of ~200 **distinct**
+negative-seq FIN datagrams before giving up. Nothing on the path duplicates
+or invents frames — conservation closes exactly (guest TX == switch
+translated + switch rx-queue-full drops, zero unexplained), and the beat now
+**gates** on the receiver log (zero dups, all paced data datagrams
+delivered). Details in the lab-notes addendum.
+
+**How TCP was unlocked (2026-07-25).** The SimBricks base guest kernel ships
+`CONFIG_IPV6=n` — no kernel IPv6 stack at all — which is why the v6 side
+originally ran a userspace `AF_PACKET` ICMP-echo responder (enough for ping
+and UDP, not a TCP peer). `../e2e/build_guest_kernel.sh` now rebuilds the
+image's own kernel (same 5.15.93 source, same gem5 patch, same config) with
+`CONFIG_IPV6=y` — plus `CONFIG_E1000=y`, because the disk image's module
+tree belongs to the stock build and a rebuilt kernel that leans on it boots
+with no NIC. The TCP beat boots that kernel (mounted over the image's
+bzImage for that beat only; beats 1–3 still run the stock kernel and the
+responder), the v6 guest terminates a real kernel TCP/IPv6 iperf server, and
+since ND cannot cross the translator (non-echo ICMPv6 is refused), both
+sides pin static neighbors — the v6 side toward the RFC 6052-mapped address
+of the v4 host.
 
 Full writeup, including the i40e_bm zero-frame NIC bug (worked around with
 E1000, reportable upstream to SimBricks) and the `-x` middlebox flood flag,
