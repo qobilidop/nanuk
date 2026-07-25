@@ -423,3 +423,41 @@ browser, and SimBricks makes it real traffic across real address families in
 real guests. Neither tier touched the datapath — every fix, flag, and
 workaround above lives in the packaging around the core, which is the
 periphery doing exactly the job the periphery is for.
+
+## Addendum (2026-07-25): the beat-2 surplus, explained and gated
+
+The ~3x surplus recorded above as a loose end is now closed, with per-frame
+evidence from three independent layers in one instrumented run:
+
+| layer | measurement | count |
+|---|---|---|
+| v4 guest, driver | `ip -s link` TX packets across the iperf window | 248 |
+| switch, ingress | rx-queue-full drops (never reach `frames_in`) | 77 |
+| switch, datapath | translated v4→v6 (`grew` − 3 warmup pings) | 171 |
+| v6 guest, receiver | UDP datagrams logged by the responder | 171 |
+
+248 = 171 + 77 — conservation closes frame-for-frame, zero unexplained.
+
+The receiver-side detail settles *what* the surplus is. The responder now
+logs every UDP datagram's iperf application sequence number: 171 received,
+**all 171 unique** — zero duplicates anywhere on the path — with positive
+(data) seqs contiguous 1..47 and then ~124 surviving **distinct, decreasing
+negative seqs** (−48 … −247, gaps = the 77 queue drops). So the original
+hypothesis was half right: the surplus is indeed iperf's unanswered UDP close
+phase, but iperf2 does not "retransmit the last datagram up to 10 times" —
+with no server report ever arriving (the v6 side is an echo responder, not an
+iperf server), it emits a **barrage of ~200 distinct FIN datagrams** across
+its 10 report-wait rounds before printing `WARNING: did not receive ack of
+last datagram after 10 tries`. The barrage is bursty enough to overflow the
+bounded rx queue (the paced data datagrams never do), which is where the 77
+drops come from — and every barrage datagram that reached the switch was
+translated and delivered like any other frame (`in == sent`, `dropped=0`).
+
+Beat 2 now asserts what this run proved instead of shrugging at it:
+`run_siit.sh` gates on the responder's tallies — zero duplicate seqs, and
+all paced data datagrams delivered (`pos=N/M`, N==M) — on top of the
+existing ≥0.9× switch-side reconciliation, and prints the conservation
+arithmetic. The kernel-counter bracket (`ip -s link` before/after iperf)
+stays in the beat, so the run log always carries the driver-layer leg.
+(This guest kernel has no `/proc/net/snmp`, so the socket-layer counter is
+unavailable; driver TX + application seqs bracket the path tightly enough.)

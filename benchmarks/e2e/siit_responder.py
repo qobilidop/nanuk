@@ -15,8 +15,14 @@ checksum recomputed over the RFC 4443 pseudo-header). The reply rides back
 through the same core, is translated v6->v4, and reaches the v4 guest -- so
 `ping` gets real answers across the address-family boundary.
 
-Non-ICMPv6 traffic (e.g. an iperf UDP stream) is received and discarded: the
-forward (v4->v6) path is still exercised for real, we just don't reply.
+Non-ICMPv6 traffic is received and classified, not answered: the forward
+(v4->v6) path is still exercised for real, we just don't reply. For UDP the
+responder logs each datagram's iperf application sequence number (iperf2
+puts a signed 32-bit sequence in the first 4 payload bytes; negative marks
+the FIN/close datagram) and keeps unique-vs-duplicate counts -- that is the
+receiver-side ground truth beat 2 reconciles against: distinct sequence
+numbers were *sent* by iperf, repeated ones were duplicated somewhere below
+it on the path.
 
 Usage: python3 siit_responder.py <ifname> <our-v6-addr>
 """
@@ -31,6 +37,7 @@ OUR6 = socket.inet_pton(socket.AF_INET6, OUR6_STR)  # pure userspace parse
 
 ETH_P_ALL = 0x0003
 ETH_P_IPV6 = 0x86DD
+NH_UDP = 17
 NH_ICMPV6 = 58
 ICMP6_ECHO_REQUEST = 128
 ICMP6_ECHO_REPLY = 129
@@ -53,6 +60,8 @@ def main() -> None:
     sys.stderr.write(f"siit_responder: listening on {IFACE} as {OUR6_STR}\n")
     sys.stderr.flush()
     replies = 0
+    udp_frames = 0
+    udp_seqs = {}  # iperf seq -> times seen
     while True:
         frame = s.recv(65535)
         if len(frame) < 54:
@@ -61,7 +70,30 @@ def main() -> None:
         if etype != struct.pack("!H", ETH_P_IPV6):
             continue
         ip = frame[14:]
-        if len(ip) < 40 or ip[6] != NH_ICMPV6:
+        if len(ip) < 40:
+            continue
+        if ip[6] == NH_UDP:
+            # Classify, don't answer: log the iperf application sequence
+            # number so the run log carries per-datagram receiver truth.
+            udp_frames += 1
+            payload = ip[48:]
+            if len(payload) >= 4:
+                seq = struct.unpack("!i", payload[0:4])[0]
+                udp_seqs[seq] = udp_seqs.get(seq, 0) + 1
+                dups = udp_frames - len(udp_seqs)
+                pos = [k for k in udp_seqs if k > 0]
+                # pos=<received>/<max> -- equal iff the paced data datagrams
+                # (positive seqs, 1..max) all arrived, none lost, none dup'd.
+                sys.stderr.write(
+                    f"siit_responder: UDP #{udp_frames} len={len(frame)}"
+                    f" dport={struct.unpack('!H', ip[42:44])[0]} seq={seq}"
+                    f" seen={udp_seqs[seq]}"
+                    f" | unique={len(udp_seqs)} dups={dups}"
+                    f" pos={len(pos)}/{max(pos) if pos else 0}\n"
+                )
+                sys.stderr.flush()
+            continue
+        if ip[6] != NH_ICMPV6:
             continue
         src, dst = ip[8:24], ip[24:40]
         if dst != OUR6:

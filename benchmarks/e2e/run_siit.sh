@@ -10,13 +10,13 @@
 #   Beat 3 (ttl):    v4 guest `ping -c 12 -t 1 192.0.2.1`  -> 100% loss. The
 #                    translator refuses hop-limit <= 1 (RFC 7915) with a
 #                    silent DROP -- no ICMP error -- so nothing comes back.
-#
 # The SimBricks base guest kernel (linux-5.15.93) is built `CONFIG_IPV6=n`, so
 # the v6 side answers IPv6 on the wire with a userspace AF_PACKET responder
 # (siit_responder.py), not a kernel stack. That covers ICMPv6 echo (ping) and
-# receiving the UDP stream. iperf TCP is out: it needs a real kernel IPv6
-# stack on the v6 side, which this guest image cannot provide (documented; the
-# fix is an IPv6-enabled guest kernel, outside benchmarks/e2e/).
+# receiving + classifying the UDP stream. iperf TCP is out: it needs a real
+# kernel IPv6 stack on the v6 side, which this guest image cannot provide
+# (documented; the fix is an IPv6-enabled guest kernel, outside
+# benchmarks/e2e/).
 #
 # The switch runs in middlebox flood mode (-x): translate.asm rewrites the
 # frame but takes no forwarding decision (md[0] untouched), so the packaging
@@ -140,8 +140,37 @@ if [ -z "$ONLY" ] || [ "$ONLY" = iperf_udp ]; then
     echo "BEAT 2 (UDP) FAILED: iperf sent $UDP_SENT datagrams but only $UDP_TRANSLATED"\
          "(grew=${UDP_GREW:-0} - warmup=${WARMUP:-0}) reached the switch"\
          "(need >= $THRESH = 0.9x sent)"; exit 1; }
+  # Receiver-side gate: the v6 responder logs every UDP datagram it receives
+  # with iperf's own application seq number. Its last log line carries the
+  # final tallies: dups=0 means nothing on the path duplicated a frame;
+  # pos=N/M with N==M means the paced data datagrams (positive seqs 1..M)
+  # all arrived through the translator, none lost, none duplicated. (The
+  # switch count exceeding iperf's is explained -- and pinned here -- as
+  # iperf's unanswered close phase: a barrage of distinct negative-seq FIN
+  # datagrams; see nanuk_demo_siit.py.)
+  RESP_LAST=$(grep -oE "unique=[0-9]+ dups=[0-9]+ pos=[0-9]+/[0-9]+" "$OUT/run-siit-iperf_udp.log" | tail -1)
+  RESP_DUPS=$(echo "$RESP_LAST" | grep -oE "dups=[0-9]+" | cut -d= -f2)
+  RESP_POS=$(echo "$RESP_LAST" | grep -oE "pos=[0-9]+/[0-9]+" | cut -d= -f2)
+  [ -n "$RESP_LAST" ] || {
+    echo "BEAT 2 (UDP) FAILED: no responder classification lines in the log"; exit 1; }
+  [ "${RESP_DUPS:-1}" -eq 0 ] || {
+    echo "BEAT 2 (UDP) FAILED: responder saw duplicated datagrams ($RESP_LAST) --"\
+         "something on the path is duplicating frames"; exit 1; }
+  [ "${RESP_POS%/*}" = "${RESP_POS#*/}" ] || {
+    echo "BEAT 2 (UDP) FAILED: paced data datagrams lost in translation"\
+         "($RESP_LAST: received/expected = $RESP_POS)"; exit 1; }
+  # Conservation report (not gated: counters are read at slightly different
+  # instants): guest driver TX  ==  switch translated + switch rx-queue-full
+  # drops closes the books frame-for-frame when it holds.
+  TX_PKTS=$(awk '/SIIT_SND_BEGIN/,/SIIT_SND_END/' "$OUT/run-siit-iperf_udp.log" \
+            | grep -A1 "TX:" | grep -oE "^\[[^]]*\] +[0-9]+ +[0-9]+" | awk '{print $3}' | tail -2)
+  QDROPS=$(grep -c "rx queue full" "$OUT/run-siit-iperf_udp.log" || true)
   echo "beat 2 ok: iperf sent $UDP_SENT datagrams, switch translated $UDP_TRANSLATED"\
-       "(grew=${UDP_GREW:-0} - warmup=${WARMUP:-0} pings) v4->v6 -- reconciled >= 0.9x"
+       "(grew=${UDP_GREW:-0} - warmup=${WARMUP:-0} pings) v4->v6 -- reconciled >= 0.9x;"\
+       "receiver: $RESP_LAST (zero dups, all paced data datagrams delivered)"
+  echo "        conservation: guest TX $(echo $TX_PKTS | awk '{print $2-$1}') =="\
+       "translated $UDP_TRANSLATED + queue-full $QDROPS + 0 unexplained"\
+       "(surplus = iperf close-phase FIN barrage, distinct negative seqs)"
   echo "note: iperf TCP is not run -- it needs a kernel IPv6 stack on the v6 side,"
   echo "      which the SimBricks base guest kernel (CONFIG_IPV6=n) cannot provide."
 fi

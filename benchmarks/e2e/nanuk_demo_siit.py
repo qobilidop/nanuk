@@ -151,13 +151,35 @@ elif BEAT == "iperf_udp":
     # the send rate well below the drain rate lets what iperf reports sending
     # reconcile against what the switch counts (run_siit.sh gates on it: the
     # switch's translated count, net of the connectivity-poll warmup, must be
-    # >= 0.9x iperf's own "Sent N datagrams"). The v6 side has no real iperf
-    # server (see above), so the client's UDP close handshake is never acked
-    # and it retries for ~10 rounds after the main transfer -- each an
-    # un-paced extra datagram, so the switch's count is expected to run
-    # somewhat *above* iperf's reported send count, not below it; that is
-    # the switch confirming more than the claim, never less.
-    v4_beat = ["sleep 3", _wait_up, "iperf -c 192.0.2.1 -u -b 100k -l 1400 -i 1 -t 5"]
+    # >= 0.9x iperf's own "Sent N datagrams").
+    #
+    # The switch's count runs well ABOVE iperf's "Sent N datagrams" -- ~3x --
+    # and that surplus is confirmed (2026-07-25, three independent layers) to
+    # be genuine distinct datagrams from iperf's UDP close phase, not
+    # duplication anywhere on the path: with no real iperf server on the v6
+    # side (see above), the client's end-of-test report exchange is never
+    # answered and iperf sends a barrage of ~200 DISTINCT FIN datagrams
+    # (application seq numbers negative and decreasing, observed -48..-247)
+    # across its 10 report-wait rounds before giving up. The evidence closes
+    # exactly: guest driver TX == switch translated + switch rx-queue-full
+    # drops (the barrage is bursty enough to overflow the bounded queue; the
+    # paced data datagrams never overflow it), and the v6 responder sees zero
+    # duplicate seqs with the positive (data) seqs contiguous from 1.
+    # run_siit.sh gates on that receiver-side truth too.
+    #
+    # Bracket iperf with the guest kernel's own send counter (ip -s link TX
+    # packets = what the driver handed to the NIC; this guest kernel has no
+    # /proc/net/snmp), so the run log attributes every frame the switch
+    # counts: wire count exceeding what iperf sent must be sent by the guest,
+    # not created below it.
+    _snd_counters = "echo SIIT_SND_BEGIN; ip -s link show eth0; echo SIIT_SND_END"
+    v4_beat = [
+        "sleep 3",
+        _wait_up,
+        _snd_counters,
+        "iperf -c 192.0.2.1 -u -b 100k -l 1400 -i 1 -t 5",
+        _snd_counters,
+    ]
     v6_beat = v6_idle
 elif BEAT == "iperf_tcp":
     # Aspirational, unexercised: the v6 guest kernel lacks CONFIG_IPV6 (no
