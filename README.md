@@ -6,7 +6,10 @@ Building a programmable packet processor from chip to programming language. 🐻
 **[Playground](https://qobilidop.github.io/nanuk/play/)** — the eDSL, IR,
 and assembly, live in your browser, with a step-scrubber debugger that
 walks each packet through the IR interpreter and an instruction-set
-simulator in lockstep.
+simulator in lockstep ·
+**[Book](https://qobilidop.github.io/nanuk/book/)** — the whole build
+retold as a book, from the first parser instruction to the SIIT
+translator.
 
 Nanuk is an educational project: a programmable packet-processing
 pipeline of two sibling ISAs (inspired by
@@ -42,6 +45,10 @@ examples/    Example programs: hand-written asm paired with its eDSL twin
 benchmarks/  The graded suite the ISA answers to: expressiveness ladders for
              each processor, the coverage audit against four reference corpora,
              and e2e/ — the SimBricks scenarios plus the rig that runs them
+web/         The site: landing page, the playground SPA (Vite + Svelte +
+             CodeMirror), and the Pyodide bridge that runs the real Nanuk
+             package in the browser
+book/        The book (mdBook), written from the lab notes; deployed at /book/
 docs/        Design docs, plans, and lab notes
 ```
 
