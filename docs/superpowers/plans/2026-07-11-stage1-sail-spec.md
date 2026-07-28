@@ -1,5 +1,7 @@
 # Stage 1: Sail Spec + Golden Model + Assembler + pcap Harness — Implementation Plan
 
+> **Status: complete.** Executed; outcomes in the docs/notes/ lab notes and git history. Checkboxes below were not maintained during execution — this header is the record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Parser ISA v0 encoded in Sail with a generated C emulator (golden model), a Python assembler, and a scapy/pcap harness, proving the demo program parses Ethernet/VLAN(QinQ)/IPv4/UDP — all runnable in a devcontainer and CI.

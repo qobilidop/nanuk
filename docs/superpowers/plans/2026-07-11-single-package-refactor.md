@@ -1,5 +1,7 @@
 # Single-Package Refactor Implementation Plan
 
+> **Status: complete.** Executed; outcomes in the docs/notes/ lab notes and git history. Checkboxes below were not maintained during execution — this header is the record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Collapse the six Python distributions into one `nanuk` package under `python/`, per `docs/superpowers/specs/2026-07-11-single-package-design.md`.

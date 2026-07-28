@@ -1,7 +1,7 @@
 # General improvement run — backlog (2026-07-28)
 
-Status: DRAFT — pending Bili's strikes / pre-authorizations. Becomes the work
-queue for an autonomous run once frozen.
+> **Status: running (2026-07-28).** Tiers A+B authorized and being executed;
+> Tier C explicitly not authorized this run — items 13–17 remain open.
 
 Ground rules for the run (from the mandate discussion):
 

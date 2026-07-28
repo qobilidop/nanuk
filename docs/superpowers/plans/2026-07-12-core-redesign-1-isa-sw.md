@@ -1,5 +1,7 @@
 # Core Redesign Plan 1/3: ISA + Spec + SW Vertical
 
+> **Status: complete.** Executed; outcomes in the docs/notes/ lab notes and git history. Checkboxes below were not maintained during execution — this header is the record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement the ISA v0 revision from `docs/superpowers/specs/2026-07-12-core-interface-design.md` through the software vertical: Sail models, emulators, IR schema, Python ISS/IR/eDSL, examples, and playground.

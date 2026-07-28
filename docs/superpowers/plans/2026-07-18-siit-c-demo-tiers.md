@@ -1,5 +1,7 @@
 # Plan — SIIT demo, part C: the demo tiers
 
+> **Status: complete.** Executed; outcomes in the docs/notes/ lab notes and git history. Checkboxes below were not maintained during execution — this header is the record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps use
@@ -8,7 +10,7 @@
 **Date:** 2026-07-18
 **Spec:** [SIIT demo design](../specs/2026-07-18-siit-demo-design.md), "Demo tiers".
 **Depends on:** Plans A and B (complete on branch `siit`).
-**Status:** Ready.
+**Status:** See header above.
 
 **Goal:** Make the SIIT translator experienceable: the browser playground
 runs it on real packets, and a SimBricks scenario pings across address

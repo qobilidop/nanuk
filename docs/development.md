@@ -38,6 +38,9 @@ from `hw/amaranth/`.
 - Design docs live in `docs/superpowers/specs/`, implementation plans in
   `docs/superpowers/plans/` — read the relevant spec before changing a
   subsystem. Decision records and lab notes: `docs/notes/`.
+- Every plan carries a `> **Status:**` header under its title — that header
+  is the record of whether it ran; in-plan checkboxes are not maintained
+  after execution.
 - Licensing: code is Apache-2.0; `docs/notes/` content is CC-BY-4.0
   (raw material for the book under `book/`, which inherits the license). scapy
   (GPL-2.0-only) is a dev/test-only dependency and must never be shipped

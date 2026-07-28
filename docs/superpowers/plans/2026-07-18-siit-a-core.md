@@ -1,5 +1,7 @@
 # Plan — SIIT demo, part A: the semantic core
 
+> **Status: complete.** Executed; outcomes in the docs/notes/ lab notes and git history. Checkboxes below were not maintained during execution — this header is the record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps use
@@ -8,7 +10,7 @@
 **Date:** 2026-07-18
 **Spec:** [SIIT demo design](../specs/2026-07-18-siit-demo-design.md) ·
 [Application survey](../../notes/2026-07-18-demo-application-survey.md)
-**Status:** Ready.
+**Status:** See header above.
 
 **Goal:** RFC 7915 stateless SIIT running on the Nanuk core: reference
 translator (executable spec) → RFC audit → generated committed vectors → the

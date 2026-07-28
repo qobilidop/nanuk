@@ -1,5 +1,7 @@
 # Web Playground v1 Implementation Plan
 
+> **Status: complete.** Executed; outcomes in the docs/notes/ lab notes and git history. Checkboxes below were not maintained during execution — this header is the record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** The Nanuk playground at `qobilidop.github.io/nanuk/play/` — three synchronized panes (eDSL | IR | asm) with state-level hover provenance, a packet panel running `interp()` in-browser via Pyodide on CI-built wheels of the real packages — plus a hand-written landing page at `/` and the composed GitHub Pages deploy.

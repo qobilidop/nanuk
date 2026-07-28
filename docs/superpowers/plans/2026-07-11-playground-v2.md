@@ -1,5 +1,7 @@
 # Playground v2 Implementation Plan
 
+> **Status: complete.** Executed; outcomes in the docs/notes/ lab notes and git history. Checkboxes below were not maintained during execution — this header is the record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Assembly-level ISS for both Nanuk ISAs in a new shipped `nanuk-isa` package, plus a step-scrubber debugger in the playground that walks IR-interp and ISS traces in lockstep with live divergence detection.

@@ -1,5 +1,7 @@
 # Stage 4 (demo-first): Amaranth RTL + SimBricks E2E Demo — Implementation Plan
 
+> **Status: complete.** Executed; outcomes in the docs/notes/ lab notes and git history. Checkboxes below were not maintained during execution — this header is the record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** `ping` between two simulated Linux hosts through the Nanuk parser RTL: Amaranth parser core (cosimulated against the Sail golden model), a parser-gated store-and-forward flood switch, and a SimBricks network component wrapping the Verilator'd switch.

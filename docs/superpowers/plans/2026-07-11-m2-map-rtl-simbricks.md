@@ -1,5 +1,7 @@
 # M2: MAP RTL + SimBricks — "the table is the forwarding policy"
 
+> **Status: complete.** Executed; outcomes in the docs/notes/ lab notes and git history. Checkboxes below were not maintained during execution — this header is the record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Amaranth `MapCore` passing full-contract cosim against `nanuk-map-emu`, composed PP→MAP RTL verified against `run_pipeline`, and the SimBricks demo forwarding by table lookup instead of hardcoded flooding — with beats for L2 unicast, table-swap policy change, and the two-switch tunnel.

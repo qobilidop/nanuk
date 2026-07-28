@@ -1,5 +1,7 @@
 # IR Interpreter Implementation Plan
 
+> **Status: complete.** Executed; outcomes in the docs/notes/ lab notes and git history. Checkboxes below were not maintained during execution — this header is the record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** An IR-level interpreter (`compiler/nanuk_ir/interp.py`) executing `nanuk.ir.v0` Programs directly, plus differential tests proving `interp(IR)` ≡ `emulate(lower(IR))` field-for-field on the golden model — the lightweight translation-validation rig from the [IR interpreter + playground design](../specs/2026-07-11-ir-interpreter-playground-design.md), Decision 1.

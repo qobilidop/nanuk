@@ -1,5 +1,7 @@
 # Core Redesign Plan 2/3: Core RTL + Cosim
 
+> **Status: complete.** Executed; outcomes in the docs/notes/ lab notes and git history. Checkboxes below were not maintained during execution — this header is the record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement the RTL half of `docs/superpowers/specs/2026-07-12-core-interface-design.md`: both processors speak the metadata-window ISA, and the composed `NanukCore` exists with the streaming face, gated by per-processor cosim and a new core-level suite against the chained ISS oracle.
