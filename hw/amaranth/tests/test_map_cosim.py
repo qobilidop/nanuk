@@ -114,9 +114,9 @@ def test_composed_pipeline_rtl_vs_golden(progs):
 # v0.1 register-register ALU: RTL vs. the Sail golden model.
 #
 # The suite added ADD/SUB/AND/OR/XOR to close the calculator benchmark, and the
-# RTL had to grow them too. The fuzz generator does not emit these opcodes, so
-# nothing else in the suite would have noticed the drift -- this test is the
-# tripwire.
+# RTL had to grow them too. The structured fuzzer (test_fuzz.py) now emits
+# every encoder's opcodes, but this test stays as the deterministic per-opcode
+# tripwire: named edge cases, one opcode per case, no seed archaeology.
 # --------------------------------------------------------------------------
 
 _ALU_SRC = """

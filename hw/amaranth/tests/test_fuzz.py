@@ -17,6 +17,7 @@ import pytest
 
 from nanuk_amaranth.map_sim_util import run_map_one
 from nanuk_amaranth.pp_sim_util import run_pp_one
+from nanuk.isa import map_encoding as map_enc
 from nanuk.isa import pp_encoding as enc
 from nanuk.isa.map_asm import assemble as map_assemble
 from nanuk.testkit.map_harness import Table, run_map
@@ -45,33 +46,31 @@ def assert_same(prog: bytes, packet: bytes, seed_info: str):
         )
 
 
+def _pp_choices(rng: random.Random) -> dict:
+    """One entry per pp_encoding encoder, keyed by the encoder's name —
+    test_fuzz_generators_cover_every_encoder diffs these keys against the
+    module, so a new instruction cannot land unfuzzed."""
+    reg = lambda: rng.choice(REGS)
+    return {
+        "encode_ext": lambda: enc.encode_ext(reg(), rng.randrange(2048), rng.randrange(1, 65)),
+        "encode_advi": lambda: enc.encode_advi(rng.randrange(0x10000)),
+        "encode_advr": lambda: enc.encode_advr(reg()),
+        "encode_movi": lambda: enc.encode_movi(reg(), rng.randrange(0x10000)),
+        "encode_shl": lambda: enc.encode_shl(reg(), reg(), rng.randrange(64)),
+        "encode_beq": lambda: enc.encode_beq(reg(), reg(), rng.randrange(1024)),
+        "encode_bne": lambda: enc.encode_bne(reg(), reg(), rng.randrange(1024)),
+        "encode_jmp": lambda: enc.encode_jmp(rng.randrange(1024)),
+        "encode_sethdr": lambda: enc.encode_sethdr(rng.randrange(16)),
+        "encode_stmd": lambda: _stmd_any(rng),
+        "encode_halt": lambda: enc.encode_halt(drop=rng.random() < 0.5),
+        "encode_ldmd": lambda: enc.encode_ldmd(reg(), rng.randrange(16)),
+    }
+
+
 def random_instruction(rng: random.Random) -> int:
     """A structurally-valid instruction with random fields."""
-    choice = rng.randrange(11)
-    reg = lambda: rng.choice(REGS)
-    match choice:
-        case 0:
-            return enc.encode_ext(reg(), rng.randrange(2048), rng.randrange(1, 65))
-        case 1:
-            return enc.encode_advi(rng.randrange(0x10000))
-        case 2:
-            return enc.encode_advr(reg())
-        case 3:
-            return enc.encode_movi(reg(), rng.randrange(0x10000))
-        case 4:
-            return enc.encode_shl(reg(), reg(), rng.randrange(64))
-        case 5:
-            return enc.encode_beq(reg(), reg(), rng.randrange(1024))
-        case 6:
-            return enc.encode_bne(reg(), reg(), rng.randrange(1024))
-        case 7:
-            return enc.encode_jmp(rng.randrange(1024))
-        case 8:
-            return enc.encode_sethdr(rng.randrange(16))
-        case 9:
-            return _stmd_any(rng)
-        case 10:
-            return enc.encode_halt(drop=rng.random() < 0.5)
+    choices = _pp_choices(rng)
+    return choices[rng.choice(sorted(choices))]()
 
 
 def _stmd_any(rng: random.Random) -> int:
@@ -175,8 +174,9 @@ def test_fuzz_map_l2fwd(seed):
 
 @pytest.mark.parametrize("seed", range(10))
 def test_fuzz_map_raw_words(seed):
-    """Arbitrary bit patterns as MAP programs: decode totality, window
-    violations, send-range errors — emu vs RTL."""
+    """Arbitrary bit patterns as MAP programs: exercises decode totality
+    (illegal encodings, reserved bits, bad register codes, out-of-window
+    md slots)."""
     rng = random.Random(4000 + seed)
     prog = rng.randbytes(4 * rng.randrange(1, 30))
     for i in range(3):
@@ -185,3 +185,87 @@ def test_fuzz_map_raw_words(seed):
             prog, packet, _StubPP(), [], [rng.randrange(4)],
             f"map-raw seed={seed} pkt={i}",
         )
+
+
+def _map_choices(rng: random.Random) -> dict:
+    """One entry per map_encoding encoder, keyed by name — same tripwire
+    contract as _pp_choices. The v0.1 reg-reg ALU shipped with no structured
+    fuzzing (only hand cosim cases) because the old generator was a bare
+    opcode list nothing diffed against the encoder module."""
+    reg = lambda: rng.choice(REGS)
+    hdr = lambda: rng.randrange(16)
+    off = lambda: rng.randrange(-512, 512)
+    return {
+        "encode_ld": lambda: map_enc.encode_ld(reg(), hdr(), off(), rng.randrange(1, 9)),
+        "encode_st": lambda: map_enc.encode_st(reg(), hdr(), off(), rng.randrange(1, 9)),
+        "encode_ldmd": lambda: map_enc.encode_ldmd(reg(), rng.randrange(16)),
+        "encode_movi": lambda: map_enc.encode_movi(reg(), rng.randrange(0x10000)),
+        "encode_addi": lambda: map_enc.encode_addi(reg(), reg(), rng.randrange(-0x8000, 0x10000)),
+        "encode_beq": lambda: map_enc.encode_beq(reg(), reg(), rng.randrange(1024)),
+        "encode_bne": lambda: map_enc.encode_bne(reg(), reg(), rng.randrange(1024)),
+        "encode_jmp": lambda: map_enc.encode_jmp(rng.randrange(1024)),
+        "encode_lookup": lambda: map_enc.encode_lookup(
+            reg(), rng.randrange(16), reg(), rng.randrange(1024)
+        ),
+        "encode_csum": lambda: map_enc.encode_csum(reg(), hdr(), off(), reg()),
+        "encode_send": lambda: map_enc.encode_send(rng.randrange(-512, 512)),
+        "encode_drop": lambda: map_enc.encode_drop(),
+        "encode_stmd": lambda: _map_stmd_any(rng),
+        "encode_andi": lambda: map_enc.encode_andi(reg(), reg(), rng.randrange(0x10000)),
+        "encode_shli": lambda: map_enc.encode_shli(reg(), reg(), rng.randrange(64)),
+        "encode_alu": lambda: map_enc.encode_alu(
+            rng.choice(sorted(map_enc.ALU_OPS)), reg(), reg(), reg()
+        ),
+    }
+
+
+def _map_stmd_any(rng: random.Random) -> int:
+    # Stay inside the md window (slot + n <= 8); out-of-window encodings are
+    # the raw-words leg's job.
+    while True:
+        slot, n = rng.randrange(8), rng.randrange(1, 5)
+        if slot + n <= 8:
+            return map_enc.encode_stmd(rng.choice(REGS), n, slot)
+
+
+def random_map_instruction(rng: random.Random) -> int:
+    """A structurally-valid MAP instruction with random fields."""
+    choices = _map_choices(rng)
+    return choices[rng.choice(sorted(choices))]()
+
+
+@pytest.mark.parametrize("seed", range(15))
+def test_fuzz_map_valid_instructions(seed):
+    """Programs of well-formed MAP instructions over real PP contexts:
+    every opcode (incl. the v0.1 reg-reg ALU) reaches the emu-vs-RTL
+    differential, not just the demo programs' working set."""
+    from nanuk.testkit.pp_harness import run_program
+    from nanuk.isa.pp_asm import assemble as pp_assemble
+    from nanuk.testkit.testkit import NO_TABLE, demo_flood_table
+
+    rng = random.Random(5000 + seed)
+    pp_prog = pp_assemble((_EXAMPLES / "l2l3l4" / "parse.asm").read_text())
+    words = [random_map_instruction(rng) for _ in range(rng.randrange(1, 40))]
+    prog = b"".join(struct.pack(">I", w) for w in words)
+    for i in range(3):
+        packet = rng.randbytes(rng.randrange(14, 300))
+        ingress = rng.randrange(4)
+        pp = run_program(pp_prog, packet, [ingress])
+        if pp.verdict != 0:
+            continue
+        tables = [_random_table(rng, packet), NO_TABLE, NO_TABLE, demo_flood_table()]
+        _assert_map_same(
+            prog, packet, pp, tables, pp.md,
+            f"map-valid seed={seed} pkt={i}",
+        )
+
+
+def test_fuzz_generators_cover_every_encoder():
+    """Tripwire: an encoder added to pp_encoding/map_encoding without a fuzz
+    generator entry fails here. The v0.1 MAP ALU and PP LDMD both slipped
+    through before this existed."""
+    rng = random.Random(0)
+    pp_encoders = {n for n in dir(enc) if n.startswith("encode_")}
+    assert set(_pp_choices(rng)) == pp_encoders
+    map_encoders = {n for n in dir(map_enc) if n.startswith("encode_")}
+    assert set(_map_choices(rng)) == map_encoders
