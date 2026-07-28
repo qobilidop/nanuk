@@ -69,10 +69,7 @@ to touch a sub-byte field doesn't produce wrong output — it *fails to compile*
 When you bind a header field in a MAP program, the binding checks alignment:
 
 ```python
-if field.bit_offset % 8 or field.width % 8:
-    raise CompileError(
-        f"{field.qualname} is not byte-aligned ...; the MAP "
-        "is byte-granular — sub-byte fields are the parser's job")
+{{#include ../../sw/python/nanuk/lang/match_action.py:byte-machine-rule}}
 ```
 
 The worked example is exact: `ipv4.version` (a 4-bit field) is a `CompileError`,

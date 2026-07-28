@@ -58,7 +58,9 @@ def parse_lines(text: str, predefined: dict[str, int] | None = None):
                 raise AsmError(lineno, f"bad label {label!r}")
             if label in symbols:
                 raise AsmError(lineno, f"duplicate symbol {label!r}")
+            # ANCHOR: label-word-index
             symbols[label] = len(program)
+            # ANCHOR_END: label-word-index
             line = rest.strip()
         if not line:
             continue

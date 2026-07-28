@@ -29,8 +29,8 @@ The first pass, `parse_lines`, does exactly three jobs: strip comments at the
 first `;`, collect `.equ` constants and labels, and assign a word address to
 every instruction. The crucial detail is what a label *resolves to*:
 
-```
-symbols[label] = len(program)
+```python
+{{#include ../../sw/python/nanuk/isa/_asm_core.py:label-word-index}}
 ```
 
 A label is the **word index** — the count of instructions emitted so far — not a

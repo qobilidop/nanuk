@@ -57,12 +57,14 @@ class BoundField:
     """A header field resolved against a PP hdr id: byte-granular access."""
 
     def __init__(self, bound: "BoundHeader", field: Field):
+        # ANCHOR: byte-machine-rule
         if field.bit_offset % 8 or field.width % 8:
             raise CompileError(
                 f"{field.qualname} is not byte-aligned "
                 f"(bit offset {field.bit_offset}, width {field.width}); the MAP "
                 "is byte-granular — sub-byte fields are the parser's job"
             )
+        # ANCHOR_END: byte-machine-rule
         if field.width // 8 > 8:
             raise CompileError(
                 f"{field.qualname} is {field.width // 8} bytes; MAP loads/stores "
