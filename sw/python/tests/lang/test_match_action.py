@@ -133,6 +133,27 @@ def test_csum_sequence():
     assert "andi" in asm and "shli" in asm and "csum" in asm
 
 
+def test_dispatch_default_drop_is_a_real_drop():
+    # default=s.drop must produce a drop default terminator, not a goto to a
+    # drop state — this was silently dead when drop was a bound method
+    # (``default is self.drop`` never matched two distinct method objects).
+    mp = MatchActionProgram()
+
+    @mp.state(start=True)
+    def s0(s):
+        tag = s.load_md(5)
+        s.dispatch(tag, {0x4E4B: fin}, default=s.drop)
+
+    @mp.state()
+    def fin(s):
+        s.drop()
+
+    program = mp.build_ir()
+    map_validate(program)
+    default = program.states[0].terminator.dispatch.default
+    assert default.WhichOneof("kind") == "drop"
+
+
 def test_raw_headroom_store_and_dispatch():
     mp = MatchActionProgram()
     flood_tbl = mp.table("flood", key_width=16, action_width=16, table_id=3)

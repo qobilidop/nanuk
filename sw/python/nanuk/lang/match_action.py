@@ -217,6 +217,27 @@ class MatchActionProgram:
         return _BANNER + body
 
 
+class Terminator:
+    """``s.drop``: callable as a statement, passable to dispatch as default.
+
+    Mirrors the parser eDSL's Terminator (compile.py); a bound method cannot
+    play this role — ``default is self.drop`` on a method compares two
+    distinct bound-method objects and never matches."""
+
+    def __init__(self, sc: "MatchActionStateCompiler"):
+        self._sc = sc
+
+    def _ir(self) -> ir.Terminator:
+        return ir.Terminator(drop=ir.Drop())
+
+    def __call__(self) -> None:
+        self._sc._check_open()
+        self._sc._terminator = self._ir()
+
+    def __repr__(self) -> str:
+        return "<drop>"
+
+
 class MatchActionStateCompiler:
     """The ``s`` object handed to each @mp.state function; builds one MatchActionState."""
 
@@ -226,6 +247,7 @@ class MatchActionStateCompiler:
         self._value_ids = value_ids
         self._ops: list[ir.MatchActionOp] = []
         self._terminator: ir.Terminator | None = None
+        self.drop = Terminator(self)
 
     # -- values ---------------------------------------------------------------
 
@@ -426,11 +448,6 @@ class MatchActionStateCompiler:
             self.store_md(egress, 0)
         self._terminator = ir.Terminator(send=ir.MapSend(delta=delta))
 
-    def drop(self) -> None:
-        """Terminate without output."""
-        self._check_open()
-        self._terminator = ir.Terminator(drop=ir.Drop())
-
     def goto(self, target) -> None:
         """Unconditional transfer to another state. Terminates the state."""
         self._check_open()
@@ -452,8 +469,8 @@ class MatchActionStateCompiler:
                 )
             label = self._target_label(target, f"dispatch arm {const:#x}")
             cases.append(ir.Case(match=const, target_state=label))
-        if default is self.drop:
-            default_ir = ir.Terminator(drop=ir.Drop())
+        if isinstance(default, Terminator):
+            default_ir = default._ir()
         else:
             label = self._target_label(default, "dispatch default")
             default_ir = ir.Terminator(goto=ir.Goto(target_state=label))
