@@ -11,7 +11,8 @@ jobs:
   # (merge commit's first parent). Guards: skips when the compared commit
   # predates spec/proto, or when a commit in range declares [ir-breaking]
   # — the v0 escape hatch: breaking the dev-phase IR is allowed, but only
-  # consciously, on the record. Delete the hatch at the v1 freeze.
+  # consciously, on the record. Delete the hatch at the v1 freeze (doctrine
+  # and the same obligation: spec/proto/buf.yaml).
   proto:
     runs-on: ubuntu-latest
     steps:
@@ -33,6 +34,19 @@ jobs:
           else
             echo "no schema module at HEAD~1; skipping breaking check"
           fi
+
+  # The book {{#include}}s real source files, so a refactor anywhere can break
+  # it — but pages.yml is path-filtered (spec/**, examples/**, docs/** don't
+  # trigger it). This cheap job closes that seam: every push builds the book.
+  # (npm test stays pages-only on purpose: its inputs — web/, sw/python wheels
+  # — are all in the pages path filter, and duplicating the wheel build here
+  # would double the cost for nothing.)
+  book:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the book (pinned mdBook via book/build.sh)
+        run: book/build.sh
 
   check:
     runs-on: ubuntu-latest
