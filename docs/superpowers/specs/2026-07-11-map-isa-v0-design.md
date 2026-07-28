@@ -137,6 +137,35 @@ Register pressure peaks at 3 of 4 GPRs. Every instruction is used by a real demo
 
 32-bit fixed width, 6-bit opcode space shared conventions with the parser (separate opcode plane — the two ISAs are not co-resident but keep the same decoder idioms). Worst cases: `LD/ST` = op(6)+r(3)+hdr(4)+off(signed 10)+n(4) = 27 ✓ · `LOOKUP` = op(6)+rd(3)+table(4)+rs(3)+target(16) = 32 ✓ (exactly) · `ADDI` = op(6)+rd(3)+rs(3)+imm(16) = 28 ✓ · `SEND` = op(6)+rs(3)+delta(signed 10) = 19 ✓ · `CSUMUPD` = op(6)+hdr(4)+off(10) = 20 ✓ · branches = op(6)+3+3+target(16) = 28 ✓.
 
+## Programming conventions (promoted 2026-07-28 from the v0.1 plan's spec-debt list)
+
+Three conventions the benchmark audit demanded, none an ISA change. They were
+decided in `plans/2026-07-13-map-isa-v0.1-additions.md` and are canon; this
+section is where they live now.
+
+- **`LOOKUP`'s hit path, in prose.** The Sail is the truth
+  (`spec/sail/model/map/insts.sail`, LOOKUP clause): hit → `rd` = action
+  data, fall through; miss (including empty, unconfigured, or out-of-plane
+  table ids) → `rd = 0`, branch to the miss target. Per-entry *action
+  selection* — one table dispatching to several action bodies, p4 `calc`
+  style — is a convention on top: pack an action id into the action word
+  (57-bit worst-case action data fits 64 bits with room) and `BEQ`-chain on
+  it. `examples/calc` demonstrates the dispatch mechanism (five `BEQ`s to
+  five action bodies). This is the recorded deviation from xISA: action
+  *behavior* is reachable, control-plane-defined control *flow* is not.
+- **The headroom is legal read/write scratch.** `st` then `ld` below
+  `h_frame` (e.g. `h_frame, -8`); at `send 0` the drain starts past the
+  headroom, so scratch is never transmitted. This synthesizes right shift,
+  CONCAT, and sign-bit extract — three coverage-audit programs leaned on it.
+  An idiom, not an instruction.
+- **PP→md header-present bitmap.** MAP cannot test header presence (`LD`
+  from an absent base is a fatal halt). "Totality is the guard" (`map_ttl`)
+  works only while the absent-header action is *drop*; a program that must
+  act on a bad packet before dropping it (T2's `ipv4-counters`: count, then
+  drop) needs the PP to `STMD` a present-bitmap to an agreed program-pair md
+  slot, and the MAP to `LDMD` + `ANDI` + `BEQ` on it. Convention only —
+  no ISA change, no system slot.
+
 ## Open for M1 (spec work, not design)
 
 Exact opcodes and field layouts · assembly syntax/directives · inbound/outbound MAP-SMD field maps · table config record format (control-plane API: key width, action width, entry add/remove) · PP→MAP metadata pass-through fields (leaning yes per parent doc — resolved when the composed rig is built) · default step budget · Sail parameter plumbing · outer-header nanukproto variant.
