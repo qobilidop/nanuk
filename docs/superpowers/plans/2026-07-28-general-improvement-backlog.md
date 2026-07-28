@@ -1,7 +1,14 @@
 # General improvement run — backlog (2026-07-28)
 
-> **Status: running (2026-07-28).** Tiers A+B authorized and being executed;
-> Tier C explicitly not authorized this run — items 13–17 remain open.
+> **Status: complete (2026-07-28).** Tiers A+B executed in full, 12/12 items,
+> one commit per item (bc41a67..16e356d + this file's history); every push
+> CI-green, e2e beat 1 re-run and passed after the SIIT-adjacent edits.
+> Tier C was not authorized this run — items 13–17 remain open.
+> No decisions-needed file was created: nothing surfaced that required a call
+> beyond the judgment calls recorded in the commit messages (13-siit.md's
+> third block stays a paste — it depicts the pre-fix bug; linkcheck skipped
+> in favor of the always-on CI book job; npm test deliberately not duplicated
+> into ci.yml).
 
 Ground rules for the run (from the mandate discussion):
 
