@@ -113,6 +113,10 @@ def build_map() -> MatchActionProgram:
     def v4_len(s):
         total = s.load(None, hdr=H_IPV4, byte_offset=2, nbytes=2)
         plen = s.bin_op("sub", total, s.load_md(MD_IHL))
+        # T5-m3: deliberate twin divergence — the hand asm stores md[2] only
+        # AFTER the underflow branch below. Unobservable either way (md[2] on
+        # a refused packet is dead state no verdict reads); see
+        # docs/notes/2026-07-18-siit-core-lab-notes.md.
         s.store_md(plen, MD_PLEN)                  # md[2] = payload length
         s.dispatch(s.and_imm(plen, 0x8000), {0: v4_frag}, default=refuse)
 

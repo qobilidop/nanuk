@@ -102,6 +102,8 @@ v4arm:
     sub     r3, r2, r1
     andi    r2, r3, 0x8000
     bne     r2, rz, refuse     ; total length below IHL: absurd, drop
+    ; T5-m3: the eDSL twin stores md[2] BEFORE that refuse branch; dead state
+    ; either way (see docs/notes/2026-07-18-siit-core-lab-notes.md)
     stmd    r3, 1, 2           ; md[2] = payload length
     ; --- ledger (c): fragment (MF or a nonzero offset) --------------------
     ld      r2, H_IPV4, 6, 2
