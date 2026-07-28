@@ -21,7 +21,7 @@ The web playground additionally needs Node ≥ 22 on the host (`cd web`).
 | IR schema (buf lint + breaking vs main; v0 dev-phase: intentional breaks pass CI with `[ir-breaking]` in the commit message; regen gencode: `scripts/gen.py` from sw/python) | `./dev.sh bash -lc 'buf lint spec/proto && buf breaking spec/proto --against ".git#branch=main,subdir=spec/proto"'` |
 | API docs (pdoc, both packages → hw/amaranth/build/api, deployed at /api/; runs from hw/amaranth — the only env that imports everything) | `./dev.sh bash -lc 'cd hw/amaranth && uv sync --group docs && uv run pdoc nanuk nanuk_amaranth nanuk.ir.pp_symex "!nanuk.isa._asm_core" "!nanuk.testkit" -o build/api'` |
 | Jool graybox replay (not in CI: needs the pinned clone) | `benchmarks/siit/fetch_jool.sh`, then `./dev.sh bash -lc 'cd sw/python && NANUK_JOOL=1 NANUK_COSIM=1 uv run pytest tests/test_jool_replay.py tests/test_jool_graybox.py'` |
-| book (mdBook; CI pins the version in `pages.yml`) | `mdbook build book` |
+| book (mdBook; the script owns the version pin, local == CI) | `book/build.sh` |
 | SimBricks e2e (not in CI) | `benchmarks/e2e/run_beats12.sh`, `run_beat3.sh`, and `run_siit.sh` (four SIIT beats; beat 4 needs a one-time `build_guest_kernel.sh`) — host; needs Docker |
 
 Run a single SW layer with `uv run pytest tests/isa` (or `tests/ir`,

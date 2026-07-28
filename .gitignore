@@ -22,6 +22,9 @@ node_modules/
 web/dist/
 web/public/wheels/
 
+# Provisioned tools (staged inputs, not outputs; see book/build.sh)
+book/bin/
+
 # SimBricks demo staging and artifacts
 benchmarks/e2e/stage/
 benchmarks/e2e/out/
