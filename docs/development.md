@@ -20,7 +20,9 @@ The web playground additionally needs Node ≥ 22 on the host (`cd web`).
 | lint (ruff, whole repo) | `./dev.sh bash -lc 'cd sw/python && uv run ruff check ../..'` |
 | IR schema (buf lint + breaking vs main; v0 dev-phase: intentional breaks pass CI with `[ir-breaking]` in the commit message; regen gencode: `scripts/gen.py` from sw/python) | `./dev.sh bash -lc 'buf lint spec/proto && buf breaking spec/proto --against ".git#branch=main,subdir=spec/proto"'` |
 | API docs (pdoc, both packages → hw/amaranth/build/api, deployed at /api/; runs from hw/amaranth — the only env that imports everything) | `./dev.sh bash -lc 'cd hw/amaranth && uv sync --group docs && uv run pdoc nanuk nanuk_amaranth nanuk.ir.pp_symex "!nanuk.isa._asm_core" "!nanuk.testkit" -o build/api'` |
-| SimBricks e2e (not in CI) | `benchmarks/e2e/run_beats12.sh` and `benchmarks/e2e/run_beat3.sh` (host; needs Docker) |
+| Jool graybox replay (not in CI: needs the pinned clone) | `benchmarks/siit/fetch_jool.sh`, then `./dev.sh bash -lc 'cd sw/python && NANUK_JOOL=1 NANUK_COSIM=1 uv run pytest tests/test_jool_replay.py tests/test_jool_graybox.py'` |
+| book (mdBook; CI pins the version in `pages.yml`) | `mdbook build book` |
+| SimBricks e2e (not in CI) | `benchmarks/e2e/run_beats12.sh`, `run_beat3.sh`, and `run_siit.sh` (four SIIT beats; beat 4 needs a one-time `build_guest_kernel.sh`) — host; needs Docker |
 
 Run a single SW layer with `uv run pytest tests/isa` (or `tests/ir`,
 `tests/lang`, `tests/golden`) from `sw/python/`; the RTL suite runs
@@ -31,11 +33,12 @@ from `hw/amaranth/`.
 
 ## Conventions
 
-- Commits: imperative sentence, no type prefixes (see `git log`).
+- Commits: type-prefixed imperative subject (`feat(e2e): …`, `docs: …` —
+  see `git log`), body in full sentences.
 - Design docs live in `docs/superpowers/specs/`, implementation plans in
   `docs/superpowers/plans/` — read the relevant spec before changing a
   subsystem. Decision records and lab notes: `docs/notes/`.
 - Licensing: code is Apache-2.0; `docs/notes/` content is CC-BY-4.0
-  (raw material for the future book, which inherits the license). scapy
+  (raw material for the book under `book/`, which inherits the license). scapy
   (GPL-2.0-only) is a dev/test-only dependency and must never be shipped
   in a distributed artifact (wheels, the playground bundle, releases).
