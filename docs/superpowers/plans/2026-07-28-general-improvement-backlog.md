@@ -3,7 +3,9 @@
 > **Status: complete (2026-07-28).** Tiers A+B executed in full, 12/12 items,
 > one commit per item (bc41a67..16e356d + this file's history); every push
 > CI-green, e2e beat 1 re-run and passed after the SIIT-adjacent edits.
-> Tier C was not authorized this run — items 13–17 remain open.
+> Tier C was not authorized this run — items 13–16 remain open. Item 17
+> shipped 2026-07-29 as `spec/vectors/` during the Bril-study run
+> (`docs/notes/2026-07-29-bril-study.md`).
 > No decisions-needed file was created: nothing surfaced that required a call
 > beyond the judgment calls recorded in the commit messages (13-siit.md's
 > third block stays a paste — it depicts the pre-fix bug; linkcheck skipped
@@ -105,10 +107,14 @@ Ground rules for the run (from the mandate discussion):
     concrete-table execution is straightforward, and your taste note bundles
     the `symex.py` class refactor with it. Symbolic tables stay out (open
     design question). *Authorize = concrete tables + refactor only.*
-17. [ ] **Golden vectors: root-level language-neutral conformance suite** —
+17. [x] **Golden vectors: root-level language-neutral conformance suite** —
     your recorded future idea (with declarative encoding tables generated from
     one truth) ahead of multi-language SW/HW ports. Medium design weight.
     *Authorize = design doc + first extraction; or discussion-first.*
+    **Done 2026-07-29** (`spec/vectors/`, first extraction; design shaped by
+    the Bril study). The declarative-encoding-tables half stays open — it is
+    Tier B of `docs/notes/2026-07-29-bril-study.md` (design tension with
+    "Sail owns encodings" needs Bili).
 
 ## Sizing
 
