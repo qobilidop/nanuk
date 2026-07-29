@@ -33,6 +33,8 @@ spec/sail/   Sail ISA models (the source of truth: model/{pp,map}) and the
              generated golden-model emulators
 spec/proto/  The protobuf IR schema (nanuk.ir.v0) — the language-neutral
              interchange contract; each implementation vendors its gencode
+spec/vectors/ Committed golden conformance vectors (generated from the
+             emulators) that every ISA implementation answers to
 sw/python/   The Nanuk package, three descending abstraction levels: nanuk.lang
              (eDSL) -> nanuk.ir (protobuf IR, lowerings, interpreters, symex)
              -> nanuk.isa (assemblers, encodings, ISS). Plus its test suite
