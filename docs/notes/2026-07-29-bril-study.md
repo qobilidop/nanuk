@@ -190,7 +190,72 @@ parses and is consumed. Cheap, and it converts "verified by reading" into
    Nanuk's observable is the typed result contract, which is strictly
    stronger for conformance. No change.
 
-## 7. Sources
+## 7. Addendum (2026-07-29): IR-design lessons
+
+A second look at Bril specifically as an *IR design*, against
+`spec/proto/nanuk/ir/v0/nanuk_ir.proto`. At this layer the traffic mostly
+runs the other way — Bril's IR is where its drift lives, and the
+protobuf/buf/closed-oneof design is the antidote — but four things
+transfer, and one is a mirror.
+
+1. **One machine-readable op-signature table.** The only uniform statement
+   of every Bril op's arity and types is `OP_SIGS` in `brilck.ts` — a
+   declarative table driving the type checker, uncited by the docs, so
+   prose and checker drift independently. Nanuk has the inverse problem in
+   miniature: each op's shape is known separately by its proto message,
+   `pp_validate`/`map_validate`, the lowerings, the interpreters, and
+   symex — five places per op, kept honest only by tests. A declarative
+   signature table (op → operand kinds, result kind, totality/error notes)
+   that validation consumes and doc tables are generated from is the
+   IR-level face of **Tier B item 1** (encoding tables from one truth) and
+   carries the same design tension — a neutral table competing with
+   proto-as-schema needs the same discussion as one competing with
+   Sail-owns-encodings. Fold it into that discussion, not a separate item.
+2. **The SSA-retrofit lesson, aimed at the parked dispatch accelerator.**
+   `phi` failed as "just another instruction" because its meaning is not
+   local — it depends on the arrival edge. Nanuk's IR is clean on this
+   today (`Lookup`'s control flow is explicit in the op; `Dispatch` is a
+   structured terminator). The warning is for the parked v0.x dispatch
+   accelerator (transition table / PSEEK): when it un-parks, it must land
+   as structured control — a new `Terminator` kind beside `Dispatch` —
+   never as an op whose semantics depend on machine context. This
+   addendum is the note the un-parking session should inherit.
+3. **Provenance: spec one shape or don't add it.** Bril's source positions
+   decayed into three incompatible shapes because the spec licensed it
+   ("tools can't require positions … to follow any particular rules").
+   Nanuk's provenance today is `debug_name` plus rendering order,
+   explicitly semantic-weight-free — right discipline. If real source
+   spans ever enter the IR (playground/book pressure), they enter as one
+   proto message with required-or-absent semantics, schema-enforced;
+   optional-and-unconstrained is how you get permanent inconsistency.
+4. **A text form for the IR — trigger only.** Bril treats human-writable
+   text as first-class and it earns its keep pedagogically, but maintains
+   two independent, disagreeing grammars and never tests the round-trip.
+   Nanuk renders IR (playground) and deliberately cannot parse it; the
+   eDSL is the authoring surface. Trigger: book exercises at the IR level
+   ("write the IR by hand"). If that comes, build one grammar with
+   round-trip tests — the test Bril never wrote.
+5. **The honest mirror.** At the IR level, *Nanuk* is the
+   interpreter-as-spec project: Sail specs the ISA, but IR semantics are
+   "what the lowering produces," with the interpreters mirrored to it —
+   two implementations and a tripwire (better than Bril's one), yet the
+   only prose statement of IR semantics is the proto file's comment
+   conventions. The cheap fix is prose, not machinery: the
+   normative-idiom pass (**Tier B item 3**) pays most in the proto
+   comments / the book's IR chapter — per op family, state what
+   validation rejects vs. what errors at runtime vs. what is total.
+
+Not imported, with reasons: the flat stringly instruction record (its
+generic-tooling win is what caused the twelve-schema drift); the
+`AbstractProgram` stringly escape hatch (Nanuk's IR is closed by design —
+validators rejecting the other engine's terminators is a feature); the
+Constant/Value/Effect taxonomy (shaped for a CFG-of-functions IR,
+meaningless for state machines). Convergence for the record: Bril's
+materialize-constants regularity is the instinct that surfaced `Movi` as a
+first-class value in the SIIT arc — Nanuk got there from demonstrated
+need, the better direction.
+
+## 8. Sources
 
 - Clone: `third_party/bril` @ `e8b05b7` (disposable; re-clone to verify).
 - Blog post: cs.cornell.edu/~asampson/blog/bril.html (2024-07-26).
